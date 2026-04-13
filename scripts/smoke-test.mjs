@@ -1,0 +1,243 @@
+import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
+
+const port = 3010;
+const baseUrl = `http://127.0.0.1:${port}`;
+const nextBin = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "node_modules",
+  "next",
+  "dist",
+  "bin",
+  "next",
+);
+
+const routes = [
+  { path: "/", expect: "Book your next beauty appointment in minutes" },
+  { path: "/explore", expect: "Discover and compare beauty businesses" },
+  { path: "/login", expect: "Sign in to the right space" },
+  { path: "/register", expect: "Create a customer or shop account" },
+  { path: "/business/atlas-barber-club", expect: "Atlas Barber Club" },
+  { path: "/book/atlas-barber-club", expect: "Reserve in less than 60 seconds" },
+  { path: "/manage-booking", expect: "Find your booking" },
+  { path: "/manage-booking/TEST-0000", expect: "Booking not found" },
+  { path: "/partner", expect: "partner" },
+];
+
+const protectedRoutes = [
+  { path: "/account", location: "/login?next=%2Faccount" },
+  { path: "/dashboard", location: "/login?next=%2Fdashboard" },
+  { path: "/admin", location: "/login?next=%2Fadmin" },
+];
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForServer(url, timeoutMs = 20000) {
+  const start = Date.now();
+
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const response = await fetch(url);
+      if (response.ok) {
+        return;
+      }
+    } catch {}
+
+    await sleep(500);
+  }
+
+  throw new Error(`Server did not start within ${timeoutMs}ms`);
+}
+
+function getCookieHeader(response) {
+  const rawCookie = response.headers.get("set-cookie");
+  return rawCookie?.split(";")[0] ?? "";
+}
+
+async function fetchHtml(pathname, options = {}) {
+  const response = await fetch(`${baseUrl}${pathname}`, options);
+  const html = await response.text();
+  return { response, html };
+}
+
+async function postJson(pathname, body) {
+  return fetch(`${baseUrl}${pathname}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+    redirect: "manual",
+  });
+}
+
+async function run() {
+  const child = spawn(process.execPath, [nextBin, "start", "--port", String(port)], {
+    cwd: process.cwd(),
+    stdio: ["ignore", "pipe", "pipe"],
+    windowsHide: true,
+  });
+
+  child.on("error", (error) => {
+    console.error(error);
+  });
+
+  child.stdout.on("data", (chunk) => process.stdout.write(chunk));
+  child.stderr.on("data", (chunk) => process.stderr.write(chunk));
+
+  try {
+    await waitForServer(baseUrl);
+
+    let hasFailure = false;
+
+    for (const route of routes) {
+      try {
+        const response = await fetch(`${baseUrl}${route.path}`);
+        const html = await response.text();
+        const ok = response.ok && html.includes(route.expect);
+        console.log(`${response.status}\t${ok ? "PASS" : "MISS"}\t${route.path}`);
+        if (!ok) {
+          hasFailure = true;
+        }
+      } catch (error) {
+        hasFailure = true;
+        console.log(`ERR\tFAIL\t${route.path}\t${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+
+    for (const route of protectedRoutes) {
+      try {
+        const response = await fetch(`${baseUrl}${route.path}`, {
+          redirect: "manual",
+        });
+        const location = response.headers.get("location") ?? "";
+        const ok =
+          response.status >= 300 &&
+          response.status < 400 &&
+          location.includes(route.location);
+        console.log(`${response.status}\t${ok ? "PASS" : "MISS"}\t${route.path} -> ${location}`);
+        if (!ok) {
+          hasFailure = true;
+        }
+      } catch (error) {
+        hasFailure = true;
+        console.log(`ERR\tFAIL\t${route.path}\t${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+
+    try {
+      const unique = Date.now();
+      const customerEmail = `customer.${unique}@reservee.test`;
+      const shopEmail = `shop.${unique}@reservee.test`;
+
+      const customerRegister = await postJson("/api/auth/register", {
+        role: "customer",
+        name: "Customer Smoke",
+        email: customerEmail,
+        phone: "+216 20 000 111",
+        password: "smoke12345",
+      });
+      const customerJson = await customerRegister.json();
+      const customerCookie = getCookieHeader(customerRegister);
+      const customerAccount = await fetchHtml("/account", {
+        headers: {
+          cookie: customerCookie,
+        },
+      });
+      const customerOk =
+        customerRegister.ok &&
+        customerAccount.response.ok &&
+        customerAccount.html.includes("Track your appointments without seeing business tools");
+      console.log(`${customerRegister.status}\t${customerOk ? "PASS" : "MISS"}\t/register customer -> /account`);
+      if (!customerOk) {
+        hasFailure = true;
+      }
+
+      const shopRegister = await postJson("/api/auth/register", {
+        role: "shop",
+        name: "Shop Smoke",
+        email: shopEmail,
+        phone: "+216 20 000 222",
+        password: "smoke12345",
+        businessName: "Smoke Barber Lab",
+        categorySlug: "barbers",
+        citySlug: "tunis",
+        area: "Lac 2",
+      });
+      const shopJson = await shopRegister.json();
+      const shopCookie = getCookieHeader(shopRegister);
+      const shopDashboard = await fetchHtml("/dashboard", {
+        headers: {
+          cookie: shopCookie,
+        },
+      });
+      const shopOk =
+        shopRegister.ok &&
+        shopDashboard.response.ok &&
+        shopDashboard.html.includes("business dashboard");
+      console.log(`${shopRegister.status}\t${shopOk ? "PASS" : "MISS"}\t/register shop -> /dashboard`);
+      if (!shopOk) {
+        hasFailure = true;
+      }
+
+      const adminLogin = await postJson("/api/auth/login", {
+        email: "admin@reservee.tn",
+        password: "admin12345",
+      });
+      const adminJson = await adminLogin.json();
+      const adminCookie = getCookieHeader(adminLogin);
+      const adminPanel = await fetchHtml("/admin", {
+        headers: {
+          cookie: adminCookie,
+        },
+      });
+      const adminOk =
+        adminLogin.ok &&
+        adminPanel.response.ok &&
+        adminPanel.html.includes("Review pending businesses");
+      console.log(`${adminLogin.status}\t${adminOk ? "PASS" : "MISS"}\t/login admin -> /admin`);
+      if (!adminOk) {
+        hasFailure = true;
+      }
+
+      const logoutResponse = await fetch(`${baseUrl}/api/auth/logout`, {
+        method: "POST",
+        headers: {
+          cookie: customerCookie,
+        },
+      });
+      const logoutCheck = await fetch(`${baseUrl}/account`, {
+        redirect: "manual",
+      });
+      const logoutOk =
+        logoutResponse.ok &&
+        (logoutCheck.headers.get("location") ?? "").includes("/login?next=%2Faccount");
+      console.log(`${logoutResponse.status}\t${logoutOk ? "PASS" : "MISS"}\t/logout customer`);
+      if (!logoutOk) {
+        hasFailure = true;
+      }
+
+      void customerJson;
+      void shopJson;
+      void adminJson;
+    } catch (error) {
+      hasFailure = true;
+      console.log(`ERR\tFAIL\tauth-flow\t${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    if (hasFailure) {
+      process.exitCode = 1;
+    }
+  } finally {
+    child.kill("SIGTERM");
+  }
+}
+
+run().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

@@ -1,0 +1,98 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0f1115;
+  --foreground: #f5f7fb;
+  --color-surface: #151922;
+  --color-surface-elevated: #1c2230;
+  --color-secondary: #c7cfda;
+  --color-muted: #8e97a8;
+  --color-accent: #c8a96b;
+  --color-accent-soft: #d9a7a0;
+  --color-ink: #131820;
+  --color-success: #3bb273;
+  --color-warning: #f0a202;
+  --color-error: #e15554;
+  --color-info: #4d9de0;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-inter);
+  --font-heading: var(--font-manrope);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(200, 169, 107, 0.08), transparent 28%),
+    radial-gradient(circle at top right, rgba(77, 157, 224, 0.06), transparent 18%),
+    var(--background);
+  color: var(--foreground);
+  font-family: var(--font-inter), sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  background: rgba(200, 169, 107, 0.3);
+  color: white;
+}
+
+@layer base {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-manrope), sans-serif;
+  }
+}
+
+@layer components {
+  .panel {
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background:
+      linear-gradient(180deg, rgba(28, 34, 48, 0.86), rgba(21, 25, 34, 0.9));
+    border-radius: 1.75rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
+  }
+
+  .input-field {
+    width: 100%;
+    min-height: 48px;
+    border-radius: 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--foreground);
+    padding: 0 1rem;
+    outline: none;
+    transition:
+      border-color 180ms ease,
+      box-shadow 180ms ease,
+      background-color 180ms ease;
+  }
+
+  .input-field::placeholder {
+    color: var(--color-muted);
+  }
+
+  .input-field:focus {
+    border-color: rgba(200, 169, 107, 0.3);
+    box-shadow: 0 0 0 4px rgba(200, 169, 107, 0.1);
+  }
+}
