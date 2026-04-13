@@ -171,6 +171,19 @@ export async function findBookingsByPhone(customerPhone: string) {
   return rows.map(mapRowToBooking);
 }
 
+export async function findAllBookings(limit = 200) {
+  const pool = getDbPool();
+  const [rows] = await pool.query<BookingRow[]>(
+    `
+      SELECT * FROM bookings
+      ORDER BY start_at DESC
+      LIMIT ?
+    `,
+    [limit],
+  );
+  return rows.map(mapRowToBooking);
+}
+
 export async function updateBookingStatus(
   bookingId: string,
   status: BookingStatus,

@@ -9,9 +9,13 @@ import {
   createBlockedSlot,
   deleteBlockedSlot,
 } from "@/lib/blocked-slots-repository";
+import { recordActivity } from "@/lib/activity-log-repository";
+import { generateAvailableSlots, findNextAvailableSlot } from "@/lib/availability";
+import { findBookingsByBusiness } from "@/lib/booking-repository";
 import { findBusinessById } from "@/lib/business-repository";
 import { getDatabaseErrorMessage } from "@/lib/db";
 import { getApiSession } from "@/lib/auth-session";
+import { findServiceById } from "@/lib/service-repository";
 import type { BreakWindow } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -21,12 +25,76 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const businessId = searchParams.get("businessId");
     const type = searchParams.get("type");
+    const serviceId = searchParams.get("serviceId");
+    const date = searchParams.get("date");
 
     if (!businessId) {
       return NextResponse.json(
         { ok: false, message: "Business ID is required" },
         { status: 400 },
       );
+    }
+
+    if (type === "slots" || type === "next") {
+      if (!serviceId) {
+        return NextResponse.json(
+          { ok: false, message: "Service ID is required" },
+          { status: 400 },
+        );
+      }
+
+      const [business, service, bookings] = await Promise.all([
+        findBusinessById(businessId),
+        findServiceById(serviceId),
+        findBookingsByBusiness(businessId),
+      ]);
+
+      if (!business || !service || service.businessId !== businessId) {
+        return NextResponse.json(
+          { ok: false, message: "Business or service not found" },
+          { status: 404 },
+        );
+      }
+
+      if (!service.active) {
+        return NextResponse.json({
+          ok: true,
+          data: type === "slots" ? [] : null,
+        });
+      }
+
+      if (type === "next") {
+        const nextSlot = findNextAvailableSlot(business, service, bookings, 14);
+        return NextResponse.json({
+          ok: true,
+          data: nextSlot?.toISOString() ?? null,
+        });
+      }
+
+      if (!date) {
+        return NextResponse.json(
+          { ok: false, message: "Date is required for slot lookups" },
+          { status: 400 },
+        );
+      }
+
+      const selectedDate = new Date(`${date}T00:00:00`);
+
+      if (Number.isNaN(selectedDate.getTime())) {
+        return NextResponse.json(
+          { ok: false, message: "Date must be valid" },
+          { status: 400 },
+        );
+      }
+
+      const slots = generateAvailableSlots(business, service, bookings, selectedDate).map((slot) =>
+        slot.toISOString(),
+      );
+
+      return NextResponse.json({
+        ok: true,
+        data: slots,
+      });
     }
 
     if (type === "hours") {
@@ -129,6 +197,13 @@ export async function POST(request: Request) {
       });
 
       const hours = await findBusinessHours(body.businessId);
+
+      await recordActivity({
+        type: "business_settings_edited",
+        businessId: body.businessId,
+        summary: "Opening hours were updated.",
+      });
+
       return NextResponse.json(
         {
           ok: true,
@@ -152,6 +227,12 @@ export async function POST(request: Request) {
         startAt: body.startAt,
         endAt: body.endAt,
         reason: body.reason ?? "",
+      });
+
+      await recordActivity({
+        type: "business_settings_edited",
+        businessId: body.businessId,
+        summary: "A blocked slot was added.",
       });
 
       return NextResponse.json(
@@ -214,6 +295,12 @@ export async function DELETE(request: Request) {
     // Admins can delete any business's availability
 
     await deleteBlockedSlot(slotId, businessId);
+
+    await recordActivity({
+      type: "business_settings_edited",
+      businessId,
+      summary: "A blocked slot was removed.",
+    });
 
     return NextResponse.json({
       ok: true,

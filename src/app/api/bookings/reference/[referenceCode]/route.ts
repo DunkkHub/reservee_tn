@@ -4,9 +4,15 @@ import {
   normalizePhone,
   parseBookingReferenceAccessToken,
 } from "@/lib/booking-reference-access";
-import { findBookingByReference } from "@/lib/booking-repository";
+import {
+  findBookingByReference,
+  requestBookingReschedule,
+  updateBookingStatus,
+} from "@/lib/booking-repository";
+import { recordActivity } from "@/lib/activity-log-repository";
 import { getDatabaseErrorMessage } from "@/lib/db";
 import { consumeRateLimit } from "@/lib/rate-limit";
+import type { BookingStatus } from "@/lib/types";
 
 export const runtime = "nodejs";
 
@@ -84,6 +90,91 @@ export async function GET(request: Request, context: RouteContext) {
         },
       },
     );
+  } catch (error) {
+    return NextResponse.json(
+      {
+        ok: false,
+        message: getDatabaseErrorMessage(error),
+      },
+      { status: 500 },
+    );
+  }
+}
+
+export async function PATCH(request: Request, context: RouteContext) {
+  try {
+    const { referenceCode } = await context.params;
+    const { searchParams } = new URL(request.url);
+    const token = searchParams.get("token");
+    const parsedToken = parseBookingReferenceAccessToken(token);
+
+    if (!parsedToken || parsedToken.referenceCode !== referenceCode.toUpperCase()) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: "Booking verification required. Request and verify a code first.",
+        },
+        { status: 401 },
+      );
+    }
+
+    const booking = await findBookingByReference(referenceCode);
+
+    if (
+      !booking ||
+      normalizePhone(booking.customerPhone) !== parsedToken.customerPhone
+    ) {
+      return NextResponse.json(
+        { ok: false, message: "Booking not found" },
+        { status: 404 },
+      );
+    }
+
+    const body = (await request.json()) as {
+      action?: "cancel" | "requestReschedule";
+    };
+
+    if (body.action === "requestReschedule") {
+      const updated = await requestBookingReschedule(booking.id);
+
+      await recordActivity({
+        type: "booking_reschedule_requested",
+        businessId: booking.businessId,
+        bookingId: booking.id,
+        summary: `Customer requested a reschedule for ${booking.referenceCode}.`,
+      });
+
+      return NextResponse.json({
+        ok: true,
+        message: "Reschedule requested",
+        data: updated,
+      });
+    }
+
+    if (body.action !== "cancel") {
+      return NextResponse.json(
+        { ok: false, message: "Unsupported booking action" },
+        { status: 400 },
+      );
+    }
+
+    const updated = await updateBookingStatus(
+      booking.id,
+      "cancelled_by_customer" as BookingStatus,
+    );
+
+    await recordActivity({
+      type: "booking_status_changed",
+      businessId: booking.businessId,
+      bookingId: booking.id,
+      summary: `Customer cancelled booking ${booking.referenceCode}.`,
+    });
+
+    return NextResponse.json({
+      ok: true,
+      message: "Booking cancelled",
+      data: updated,
+    });
   } catch (error) {
     return NextResponse.json(
       {

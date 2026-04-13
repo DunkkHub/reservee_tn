@@ -1,18 +1,28 @@
 import "server-only";
 
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
+import { endOfWeek, startOfWeek } from "date-fns";
+
+import { findNextAvailableSlot, generateAvailableSlots } from "@/lib/availability";
+import { ensureBusinessHoursExist } from "@/lib/business-hours-repository";
 import { getDbPool } from "@/lib/db";
+import { normalizeBusiness } from "@/lib/platform-rules";
 import type {
+  ActivityType,
   Audience,
+  Booking,
   BookingMode,
+  BookingStatus,
   Business,
   BusinessMetrics,
   BusinessPolicy,
   BusinessStatus,
   BusinessTrust,
   CategorySlug,
+  MediaType,
   OperatingMode,
 } from "@/lib/types";
+import { calculateProfileCompletion } from "@/lib/utils";
 
 type BusinessRow = RowDataPacket & {
   id: string;
@@ -35,6 +45,17 @@ type BusinessRow = RowDataPacket & {
   booking_mode: BookingMode;
   operating_mode: OperatingMode;
   response_window: string;
+  phone_verified: boolean | number;
+  address_verified: boolean | number;
+  response_time_tracked: boolean | number;
+  cancellation_notice: string;
+  late_arrival_grace_minutes: number;
+  no_show_rule: string;
+  hygiene_note: string | null;
+  deposit_required: boolean | number;
+  children_accepted: boolean | number;
+  policy_clarity: BusinessPolicy["policyClarity"];
+  profile_views: number;
   featured_until: string | null;
   featured_rank: number | null;
   featured_city_slug: string | null;
@@ -45,113 +66,524 @@ type BusinessRow = RowDataPacket & {
   updated_at: string;
 };
 
-const defaultTrust: BusinessTrust = {
-  phoneVerified: false,
-  addressVerified: false,
-  adminApproved: false,
-  responseTimeTracked: false,
-  policyClarityBadge: false,
+type ServiceRow = RowDataPacket & {
+  id: string;
+  business_id: string;
+  title: string;
+  description: string;
+  price: number;
+  duration_minutes: number;
+  active: boolean | number;
+  featured: boolean | number;
+  gender_target: Business["services"][number]["genderTarget"];
+  sort_order: number;
 };
 
-const defaultPolicies: BusinessPolicy = {
-  cancellationNotice: "",
-  lateArrivalGraceMinutes: 10,
-  noShowRule: "Deux absences non annulees peuvent limiter la priorite sur les prochains creneaux.",
-  depositRequired: false,
-  childrenAccepted: true,
-  policyClarity: "needs_review",
+type BusinessHoursRow = RowDataPacket & {
+  id: string;
+  business_id: string;
+  day_of_week: number;
+  open_time: string;
+  close_time: string;
+  is_closed: boolean | number;
+  breaks: string | null;
 };
 
-const defaultMetrics: BusinessMetrics = {
-  profileViews: 0,
-  bookingsThisWeek: 0,
-  missedBookings: 0,
-  busyDays: [],
-  mostBookedServiceId: "",
+type BlockedSlotRow = RowDataPacket & {
+  id: string;
+  business_id: string;
+  start_at: string;
+  end_at: string;
+  reason: string;
 };
+
+type MediaRow = RowDataPacket & {
+  id: string;
+  business_id: string;
+  type: MediaType;
+  url: string;
+  alt: string;
+  sort_order: number;
+};
+
+type ModerationRow = RowDataPacket & {
+  id: string;
+  business_id: string;
+  status: BusinessStatus;
+  internal_note: string;
+  business_message: string;
+  changed_at: string;
+};
+
+type BookingAggregateRow = RowDataPacket & {
+  id: string;
+  business_id: string;
+  service_id: string;
+  status: BookingStatus;
+  start_at: string;
+  end_at: string;
+  created_at: string;
+};
+
+type BusinessQueryOptions = {
+  ids?: string[];
+  slug?: string;
+  ownerUserId?: string;
+  citySlug?: string;
+  categorySlug?: string;
+  statuses?: BusinessStatus[];
+  limit?: number;
+  offset?: number;
+};
+
+const weekdayLabels = [
+  "Dimanche",
+  "Lundi",
+  "Mardi",
+  "Mercredi",
+  "Jeudi",
+  "Vendredi",
+  "Samedi",
+];
+
+function toBool(value: boolean | number | null | undefined) {
+  return value === true || value === 1;
+}
+
+function buildInClause(values: string[]) {
+  return values.map(() => "?").join(", ");
+}
+
+function groupRowsByBusinessId<T extends { business_id: string }>(rows: T[]) {
+  return rows.reduce<Record<string, T[]>>((groups, row) => {
+    groups[row.business_id] ??= [];
+    groups[row.business_id].push(row);
+    return groups;
+  }, {});
+}
+
+function mapRowToBusinessTrust(row: BusinessRow): BusinessTrust {
+  return {
+    phoneVerified: toBool(row.phone_verified),
+    addressVerified: toBool(row.address_verified),
+    adminApproved: row.status === "approved" || row.status === "featured",
+    responseTimeTracked: toBool(row.response_time_tracked),
+    policyClarityBadge: row.policy_clarity === "clear",
+  };
+}
+
+function mapRowToBusinessPolicy(row: BusinessRow): BusinessPolicy {
+  return {
+    cancellationNotice: row.cancellation_notice ?? "",
+    lateArrivalGraceMinutes: row.late_arrival_grace_minutes ?? 10,
+    noShowRule: row.no_show_rule ?? "",
+    hygieneNote: row.hygiene_note ?? "",
+    depositRequired: toBool(row.deposit_required),
+    childrenAccepted: toBool(row.children_accepted),
+    policyClarity: row.policy_clarity ?? "needs_review",
+  };
+}
+
+function mapServiceRow(row: ServiceRow): Business["services"][number] {
+  return {
+    id: row.id,
+    businessId: row.business_id,
+    title: row.title,
+    description: row.description,
+    price: Number(row.price),
+    durationMinutes: row.duration_minutes,
+    active: toBool(row.active),
+    featured: toBool(row.featured),
+    genderTarget: row.gender_target,
+  };
+}
+
+function mapBusinessHoursRow(row: BusinessHoursRow): Business["hours"][number] {
+  return {
+    id: row.id,
+    businessId: row.business_id,
+    dayOfWeek: row.day_of_week,
+    openTime: row.open_time,
+    closeTime: row.close_time,
+    isClosed: toBool(row.is_closed),
+    breaks: row.breaks ? JSON.parse(row.breaks) : [],
+  };
+}
+
+function mapBlockedSlotRow(row: BlockedSlotRow): Business["blockedSlots"][number] {
+  return {
+    id: row.id,
+    businessId: row.business_id,
+    startAt: row.start_at,
+    endAt: row.end_at,
+    reason: row.reason,
+  };
+}
+
+function mapMediaRow(row: MediaRow): Business["media"][number] {
+  return {
+    id: row.id,
+    businessId: row.business_id,
+    type: row.type,
+    url: row.url,
+    alt: row.alt,
+  };
+}
+
+function mapModerationRow(row: ModerationRow): Business["moderationHistory"][number] {
+  return {
+    id: row.id,
+    businessId: row.business_id,
+    status: row.status,
+    internalNote: row.internal_note,
+    businessMessage: row.business_message,
+    changedAt: row.changed_at,
+  };
+}
+
+function mapBookingAggregateRow(row: BookingAggregateRow): Booking {
+  return {
+    id: row.id,
+    referenceCode: "",
+    businessId: row.business_id,
+    serviceId: row.service_id,
+    customerName: "",
+    customerPhone: "",
+    customerNote: undefined,
+    status: row.status,
+    startAt: row.start_at,
+    endAt: row.end_at,
+    source: "web",
+    expiresAt: null,
+    rescheduleRequestedAt: null,
+    statusUpdatedAt: null,
+    createdAt: row.created_at,
+  };
+}
+
+function buildMetrics(
+  row: BusinessRow,
+  bookings: ReturnType<typeof mapBookingAggregateRow>[],
+): BusinessMetrics {
+  const now = new Date();
+  const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
+  const serviceCounts = new Map<string, number>();
+  const weekdayCounts = new Map<number, number>();
+  let bookingsThisWeek = 0;
+  let missedBookings = 0;
+
+  for (const booking of bookings) {
+    const startAt = new Date(booking.startAt);
+    const isCountable =
+      booking.status === "pending" ||
+      booking.status === "confirmed" ||
+      booking.status === "completed" ||
+      booking.status === "no_show";
+
+    if (
+      isCountable &&
+      startAt.getTime() >= weekStart.getTime() &&
+      startAt.getTime() <= weekEnd.getTime()
+    ) {
+      bookingsThisWeek += 1;
+    }
+
+    if (booking.status === "no_show") {
+      missedBookings += 1;
+    }
+
+    if (booking.status === "confirmed" || booking.status === "completed") {
+      serviceCounts.set(
+        booking.serviceId,
+        (serviceCounts.get(booking.serviceId) ?? 0) + 1,
+      );
+      weekdayCounts.set(
+        startAt.getDay(),
+        (weekdayCounts.get(startAt.getDay()) ?? 0) + 1,
+      );
+    }
+  }
+
+  const mostBookedServiceId =
+    [...serviceCounts.entries()].sort((left, right) => right[1] - left[1])[0]?.[0] ?? "";
+  const busyDays = [...weekdayCounts.entries()]
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, 3)
+    .map(([day]) => weekdayLabels[day] ?? "");
+
+  return {
+    profileViews: row.profile_views ?? 0,
+    bookingsThisWeek,
+    missedBookings,
+    busyDays,
+    mostBookedServiceId,
+  };
+}
+
+function buildBusinessFromRow(
+  row: BusinessRow,
+  related: {
+    services: Business["services"];
+    hours: Business["hours"];
+    blockedSlots: Business["blockedSlots"];
+    media: Business["media"];
+    moderationHistory: Business["moderationHistory"];
+    bookingRows: ReturnType<typeof mapBookingAggregateRow>[];
+  },
+) {
+  const draftBusiness = normalizeBusiness({
+    id: row.id,
+    ownerId: row.owner_user_id,
+    name: row.business_name,
+    slug: row.slug,
+    categoryId: `cat-${row.category_slug}`,
+    cityId: `city-${row.city_slug}`,
+    area: row.area,
+    address: row.address,
+    phone: row.phone,
+    whatsapp: row.whatsapp,
+    instagram: row.instagram,
+    tagline: row.tagline,
+    description: row.description,
+    logoText: row.logo_text,
+    coverUrl: row.cover_url,
+    status: row.status,
+    featuredUntil: row.featured_until,
+    featuredRank: row.featured_rank,
+    featuredCitySlug:
+      row.featured_city_slug ?? (row.status === "featured" ? row.city_slug : null),
+    featuredCategorySlug:
+      row.featured_category_slug ??
+      (row.status === "featured" ? row.category_slug : null),
+    audience: row.audience,
+    yearsInBusiness: row.years_in_business,
+    bookingMode: row.booking_mode,
+    operatingMode: row.operating_mode,
+    featuredCopy: row.featured_copy ?? undefined,
+    responseWindow: row.response_window,
+    trust: mapRowToBusinessTrust(row),
+    policies: mapRowToBusinessPolicy(row),
+    services: related.services,
+    hours: related.hours,
+    blockedSlots: related.blockedSlots,
+    media: related.media,
+    moderationHistory: related.moderationHistory,
+    metrics: buildMetrics(row, related.bookingRows),
+    createdAt: row.created_at,
+  });
+
+  const firstActiveService = draftBusiness.services.find((service) => service.active);
+  const nextAvailableDate = firstActiveService
+    ? findNextAvailableSlot(draftBusiness, firstActiveService, related.bookingRows, 14)
+    : null;
+  const hasAvailabilityToday = firstActiveService
+    ? generateAvailableSlots(draftBusiness, firstActiveService, related.bookingRows, new Date())
+        .length > 0
+    : false;
+
+  const nextBusiness = {
+    ...draftBusiness,
+    nextAvailableAt: nextAvailableDate?.toISOString() ?? null,
+    hasAvailabilityToday,
+  };
+
+  return {
+    ...nextBusiness,
+    profileCompletion: calculateProfileCompletion(nextBusiness),
+  };
+}
+
+async function findBusinessRows(options: BusinessQueryOptions = {}) {
+  const pool = getDbPool();
+  const whereClauses: string[] = [];
+  const params: Array<string | number> = [];
+
+  if (options.ids?.length) {
+    whereClauses.push(`id IN (${buildInClause(options.ids)})`);
+    params.push(...options.ids);
+  }
+
+  if (options.slug) {
+    whereClauses.push("slug = ?");
+    params.push(options.slug);
+  }
+
+  if (options.ownerUserId) {
+    whereClauses.push("owner_user_id = ?");
+    params.push(options.ownerUserId);
+  }
+
+  if (options.citySlug) {
+    whereClauses.push("city_slug = ?");
+    params.push(options.citySlug);
+  }
+
+  if (options.categorySlug) {
+    whereClauses.push("category_slug = ?");
+    params.push(options.categorySlug);
+  }
+
+  if (options.statuses?.length) {
+    whereClauses.push(`status IN (${buildInClause(options.statuses)})`);
+    params.push(...options.statuses);
+  }
+
+  let query = "SELECT * FROM business_profiles";
+
+  if (whereClauses.length > 0) {
+    query += ` WHERE ${whereClauses.join(" AND ")}`;
+  }
+
+  query += " ORDER BY created_at DESC";
+
+  if (options.limit !== undefined) {
+    query += " LIMIT ?";
+    params.push(options.limit);
+  }
+
+  if (options.offset !== undefined) {
+    query += " OFFSET ?";
+    params.push(options.offset);
+  }
+
+  const [rows] = await pool.query<BusinessRow[]>(query, params);
+  return rows;
+}
+
+async function hydrateBusinesses(rows: BusinessRow[], ensureHours = false) {
+  if (rows.length === 0) {
+    return [];
+  }
+
+  const pool = getDbPool();
+  const businessIds = rows.map((row) => row.id);
+  const businessIdClause = buildInClause(businessIds);
+
+  if (ensureHours) {
+    await Promise.all(businessIds.map((businessId) => ensureBusinessHoursExist(businessId)));
+  }
+
+  const [serviceRows, hoursRows, blockedSlotRows, mediaRows, moderationRows, bookingRows] =
+    await Promise.all([
+      pool.query<ServiceRow[]>(
+        `
+          SELECT * FROM services
+          WHERE business_id IN (${businessIdClause})
+          ORDER BY business_id ASC, sort_order ASC, created_at ASC
+        `,
+        businessIds,
+      ),
+      pool.query<BusinessHoursRow[]>(
+        `
+          SELECT * FROM business_hours
+          WHERE business_id IN (${businessIdClause})
+          ORDER BY business_id ASC, day_of_week ASC
+        `,
+        businessIds,
+      ),
+      pool.query<BlockedSlotRow[]>(
+        `
+          SELECT * FROM blocked_slots
+          WHERE business_id IN (${businessIdClause})
+          ORDER BY business_id ASC, start_at DESC
+        `,
+        businessIds,
+      ),
+      pool.query<MediaRow[]>(
+        `
+          SELECT * FROM media_items
+          WHERE business_id IN (${businessIdClause})
+          ORDER BY business_id ASC, type ASC, sort_order ASC, created_at ASC
+        `,
+        businessIds,
+      ),
+      pool.query<ModerationRow[]>(
+        `
+          SELECT * FROM moderation_history
+          WHERE business_id IN (${businessIdClause})
+          ORDER BY business_id ASC, changed_at DESC, created_at DESC
+        `,
+        businessIds,
+      ),
+      pool.query<BookingAggregateRow[]>(
+        `
+          SELECT id, business_id, service_id, status, start_at, end_at, created_at
+          FROM bookings
+          WHERE business_id IN (${businessIdClause})
+        `,
+        businessIds,
+      ),
+    ]);
+
+  const servicesByBusinessId = groupRowsByBusinessId(serviceRows[0]);
+  const hoursByBusinessId = groupRowsByBusinessId(hoursRows[0]);
+  const blockedByBusinessId = groupRowsByBusinessId(blockedSlotRows[0]);
+  const mediaByBusinessId = groupRowsByBusinessId(mediaRows[0]);
+  const moderationByBusinessId = groupRowsByBusinessId(moderationRows[0]);
+  const bookingsByBusinessId = groupRowsByBusinessId(bookingRows[0]);
+
+  return rows.map((row) =>
+    buildBusinessFromRow(row, {
+      services: (servicesByBusinessId[row.id] ?? []).map(mapServiceRow),
+      hours: (hoursByBusinessId[row.id] ?? []).map(mapBusinessHoursRow),
+      blockedSlots: (blockedByBusinessId[row.id] ?? []).map(mapBlockedSlotRow),
+      media: (mediaByBusinessId[row.id] ?? []).map(mapMediaRow),
+      moderationHistory: (moderationByBusinessId[row.id] ?? []).map(mapModerationRow),
+      bookingRows: (bookingsByBusinessId[row.id] ?? []).map(mapBookingAggregateRow),
+    }),
+  );
+}
+
+export async function findBusinesses(options: BusinessQueryOptions = {}) {
+  const rows = await findBusinessRows(options);
+  return await hydrateBusinesses(rows, Boolean(options.ownerUserId || options.ids?.length));
+}
 
 export async function findBusinessById(id: string) {
-  const pool = getDbPool();
-  const [rows] = await pool.query<BusinessRow[]>(
-    "SELECT * FROM business_profiles WHERE id = ? LIMIT 1",
-    [id],
-  );
-
-  if (!rows[0]) return null;
-
-  return mapRowToBusiness(rows[0]);
+  return (await findBusinesses({ ids: [id], limit: 1 }))[0] ?? null;
 }
 
 export async function findBusinessBySlug(slug: string) {
-  const pool = getDbPool();
-  const [rows] = await pool.query<BusinessRow[]>(
-    "SELECT * FROM business_profiles WHERE slug = ? LIMIT 1",
-    [slug],
-  );
-
-  if (!rows[0]) return null;
-
-  return mapRowToBusiness(rows[0]);
+  return (await findBusinesses({ slug, limit: 1 }))[0] ?? null;
 }
 
 export async function findBusinessByOwner(ownerUserId: string) {
-  const pool = getDbPool();
-  const [rows] = await pool.query<BusinessRow[]>(
-    "SELECT * FROM business_profiles WHERE owner_user_id = ? LIMIT 1",
-    [ownerUserId],
-  );
-
-  if (!rows[0]) return null;
-
-  return mapRowToBusiness(rows[0]);
+  return (await findBusinesses({ ownerUserId, limit: 1 }))[0] ?? null;
 }
 
 export async function findFeaturedBusinesses() {
-  const pool = getDbPool();
-  const [rows] = await pool.query<BusinessRow[]>(
-    `
-      SELECT * FROM business_profiles
-      WHERE status = 'featured'
-        AND (featured_until IS NULL OR featured_until > NOW())
-      ORDER BY featured_rank ASC, created_at DESC
-    `,
-  );
-
-  return rows.map(mapRowToBusiness);
+  return await findBusinesses({
+    statuses: ["featured"],
+  });
 }
 
 export async function findBusinessesByCity(citySlug: string) {
-  const pool = getDbPool();
-  const [rows] = await pool.query<BusinessRow[]>(
-    `
-      SELECT * FROM business_profiles
-      WHERE city_slug = ? AND status IN ('approved', 'featured')
-      ORDER BY created_at DESC
-    `,
-    [citySlug],
-  );
-
-  return rows.map(mapRowToBusiness);
+  return await findBusinesses({
+    citySlug,
+    statuses: ["approved", "featured"],
+  });
 }
 
 export async function findBusinessesByCategory(categorySlug: string) {
-  const pool = getDbPool();
-  const [rows] = await pool.query<BusinessRow[]>(
-    `
-      SELECT * FROM business_profiles
-      WHERE category_slug = ? AND status IN ('approved', 'featured')
-      ORDER BY created_at DESC
-    `,
-    [categorySlug],
-  );
+  return await findBusinesses({
+    categorySlug: categorySlug as CategorySlug,
+    statuses: ["approved", "featured"],
+  });
+}
 
-  return rows.map(mapRowToBusiness);
+export async function findPublicBusinesses(filters: Pick<BusinessQueryOptions, "citySlug" | "categorySlug"> = {}) {
+  return await findBusinesses({
+    ...filters,
+    statuses: ["approved", "featured"],
+  });
 }
 
 export async function updateBusinessProfile(
   businessId: string,
   updates: Partial<{
     business_name: string;
+    area: string;
     address: string;
     phone: string;
     whatsapp: string;
@@ -160,67 +592,67 @@ export async function updateBusinessProfile(
     description: string;
     logo_text: string;
     cover_url: string;
-    audience: string;
+    audience: Audience;
     years_in_business: number;
     response_window: string;
+    booking_mode: BookingMode;
+    operating_mode: OperatingMode;
+    status: BusinessStatus;
+    phone_verified: boolean;
+    address_verified: boolean;
+    response_time_tracked: boolean;
+    cancellation_notice: string;
+    late_arrival_grace_minutes: number;
+    no_show_rule: string;
+    hygiene_note: string;
+    deposit_required: boolean;
+    children_accepted: boolean;
+    policy_clarity: BusinessPolicy["policyClarity"];
   }>,
 ) {
   const pool = getDbPool();
-
   const updateFields: string[] = ["updated_at = NOW()"];
-  const values: Array<string | number> = [];
+  const values: Array<string | number | boolean> = [];
 
-  if (updates.business_name !== undefined) {
-    updateFields.push("business_name = ?");
-    values.push(updates.business_name);
-  }
-  if (updates.address !== undefined) {
-    updateFields.push("address = ?");
-    values.push(updates.address);
-  }
-  if (updates.phone !== undefined) {
-    updateFields.push("phone = ?");
-    values.push(updates.phone);
-  }
-  if (updates.whatsapp !== undefined) {
-    updateFields.push("whatsapp = ?");
-    values.push(updates.whatsapp);
-  }
-  if (updates.instagram !== undefined) {
-    updateFields.push("instagram = ?");
-    values.push(updates.instagram);
-  }
-  if (updates.tagline !== undefined) {
-    updateFields.push("tagline = ?");
-    values.push(updates.tagline);
-  }
-  if (updates.description !== undefined) {
-    updateFields.push("description = ?");
-    values.push(updates.description);
-  }
-  if (updates.logo_text !== undefined) {
-    updateFields.push("logo_text = ?");
-    values.push(updates.logo_text);
-  }
-  if (updates.cover_url !== undefined) {
-    updateFields.push("cover_url = ?");
-    values.push(updates.cover_url);
-  }
-  if (updates.audience !== undefined) {
-    updateFields.push("audience = ?");
-    values.push(updates.audience);
-  }
-  if (updates.years_in_business !== undefined) {
-    updateFields.push("years_in_business = ?");
-    values.push(updates.years_in_business);
-  }
-  if (updates.response_window !== undefined) {
-    updateFields.push("response_window = ?");
-    values.push(updates.response_window);
+  const fieldMap: Record<string, string> = {
+    business_name: "business_name",
+    area: "area",
+    address: "address",
+    phone: "phone",
+    whatsapp: "whatsapp",
+    instagram: "instagram",
+    tagline: "tagline",
+    description: "description",
+    logo_text: "logo_text",
+    cover_url: "cover_url",
+    audience: "audience",
+    years_in_business: "years_in_business",
+    response_window: "response_window",
+    booking_mode: "booking_mode",
+    operating_mode: "operating_mode",
+    status: "status",
+    phone_verified: "phone_verified",
+    address_verified: "address_verified",
+    response_time_tracked: "response_time_tracked",
+    cancellation_notice: "cancellation_notice",
+    late_arrival_grace_minutes: "late_arrival_grace_minutes",
+    no_show_rule: "no_show_rule",
+    hygiene_note: "hygiene_note",
+    deposit_required: "deposit_required",
+    children_accepted: "children_accepted",
+    policy_clarity: "policy_clarity",
+  };
+
+  for (const [key, column] of Object.entries(fieldMap)) {
+    const value = updates[key as keyof typeof updates];
+
+    if (value !== undefined) {
+      updateFields.push(`${column} = ?`);
+      values.push(value as string | number | boolean);
+    }
   }
 
   if (updateFields.length === 1) {
-    // Only updated_at was added
     return await findBusinessById(businessId);
   }
 
@@ -240,10 +672,11 @@ export async function moderateBusiness(
     status: BusinessStatus;
     featured_until?: string | null;
     featured_rank?: number | null;
+    featured_city_slug?: string | null;
+    featured_category_slug?: CategorySlug | null;
   },
 ) {
   const pool = getDbPool();
-
   const updateFields = ["status = ?", "updated_at = NOW()"];
   const values: Array<string | number | null> = [updates.status];
 
@@ -251,9 +684,20 @@ export async function moderateBusiness(
     updateFields.push("featured_until = ?");
     values.push(updates.featured_until);
   }
+
   if (updates.featured_rank !== undefined) {
     updateFields.push("featured_rank = ?");
     values.push(updates.featured_rank);
+  }
+
+  if (updates.featured_city_slug !== undefined) {
+    updateFields.push("featured_city_slug = ?");
+    values.push(updates.featured_city_slug);
+  }
+
+  if (updates.featured_category_slug !== undefined) {
+    updateFields.push("featured_category_slug = ?");
+    values.push(updates.featured_category_slug);
   }
 
   values.push(businessId);
@@ -266,42 +710,16 @@ export async function moderateBusiness(
   return await findBusinessById(businessId);
 }
 
-function mapRowToBusiness(row: BusinessRow): Business {
-  return {
-    id: row.id,
-    ownerId: row.owner_user_id,
-    name: row.business_name,
-    slug: row.slug,
-    categoryId: `cat-${row.category_slug}`,
-    cityId: `city-${row.city_slug}`,
-    area: row.area,
-    address: row.address,
-    phone: row.phone,
-    whatsapp: row.whatsapp,
-    instagram: row.instagram,
-    tagline: row.tagline,
-    description: row.description,
-    logoText: row.logo_text,
-    coverUrl: row.cover_url,
-    status: row.status,
-    audience: row.audience,
-    yearsInBusiness: row.years_in_business,
-    bookingMode: row.booking_mode,
-    operatingMode: row.operating_mode,
-    responseWindow: row.response_window,
-    featuredUntil: row.featured_until,
-    featuredRank: row.featured_rank,
-    featuredCitySlug: row.featured_city_slug,
-    featuredCategorySlug: row.featured_category_slug,
-    profileCompletion: 0, // Will be calculated separately
-    services: [],
-    hours: [],
-    blockedSlots: [],
-    media: [],
-    policies: defaultPolicies,
-    trust: defaultTrust,
-    moderationHistory: [],
-    metrics: defaultMetrics,
-    createdAt: row.created_at,
-  };
+export async function incrementBusinessProfileViews(businessId: string) {
+  const pool = getDbPool();
+  await pool.execute<ResultSetHeader>(
+    `
+      UPDATE business_profiles
+      SET profile_views = profile_views + 1, updated_at = NOW()
+      WHERE id = ?
+    `,
+    [businessId],
+  );
 }
+
+export type { ActivityType };

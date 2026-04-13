@@ -13,16 +13,20 @@ const nextBin = path.resolve(
   "bin",
   "next",
 );
+const seedScript = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "seed-dev-db.mjs",
+);
 
 const routes = [
   { path: "/", expect: "Book your next beauty appointment in minutes" },
   { path: "/explore", expect: "Discover and compare beauty businesses" },
   { path: "/login", expect: "Sign in to the right space" },
   { path: "/register", expect: "Create a customer or shop account" },
-  { path: "/business/atlas-barber-club", expect: "Atlas Barber Club" },
-  { path: "/book/atlas-barber-club", expect: "Reserve in less than 60 seconds" },
+  { path: "/business/atlas-barber-club", expect: "atlas-barber-club" },
+  { path: "/book/atlas-barber-club", expect: "atlas-barber-club" },
   { path: "/manage-booking", expect: "Find your booking" },
-  { path: "/manage-booking/TEST-0000", expect: "Booking not found" },
+  { path: "/manage-booking/TEST-0000", expect: "Verify your booking" },
   { path: "/partner", expect: "partner" },
 ];
 
@@ -76,6 +80,27 @@ async function postJson(pathname, body) {
 }
 
 async function run() {
+  await new Promise((resolve, reject) => {
+    const seedChild = spawn(process.execPath, [seedScript], {
+      cwd: process.cwd(),
+      env: process.env,
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true,
+    });
+
+    seedChild.stdout.on("data", (chunk) => process.stdout.write(chunk));
+    seedChild.stderr.on("data", (chunk) => process.stderr.write(chunk));
+    seedChild.on("error", reject);
+    seedChild.on("exit", (code) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+
+      reject(new Error(`Dev database seed failed with exit code ${code}`));
+    });
+  });
+
   const child = spawn(process.execPath, [nextBin, "start", "--port", String(port)], {
     cwd: process.cwd(),
     env: {

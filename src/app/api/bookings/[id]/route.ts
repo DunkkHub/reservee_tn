@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { recordActivity } from "@/lib/activity-log-repository";
 import { getApiSession } from "@/lib/auth-session";
 import {
   findBookingById,
@@ -117,6 +118,14 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     if (body.action === "requestReschedule") {
       const updatedBooking = await requestBookingReschedule(id);
+
+      await recordActivity({
+        type: "booking_reschedule_requested",
+        businessId: booking.businessId,
+        bookingId: booking.id,
+        summary: `Customer requested a reschedule for ${booking.referenceCode}.`,
+      });
+
       return NextResponse.json({
         ok: true,
         message: "Reschedule requested",
@@ -146,6 +155,13 @@ export async function PATCH(request: Request, context: RouteContext) {
         { status: 404 },
       );
     }
+
+    await recordActivity({
+      type: "booking_status_changed",
+      businessId: booking.businessId,
+      bookingId: booking.id,
+      summary: `Booking status changed to ${body.status}.`,
+    });
 
     return NextResponse.json({
       ok: true,

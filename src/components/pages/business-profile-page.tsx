@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   AtSign,
   CalendarClock,
@@ -22,7 +22,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LogoMark } from "@/components/ui/logo-mark";
-import { generateAvailableSlots, generateDateOptions, findNextAvailableSlot } from "@/lib/availability";
+import { generateDateOptions } from "@/lib/availability";
+import { fetchApi } from "@/lib/client-api";
 import { isBusinessFeatured } from "@/lib/platform-rules";
 import { categories, cities } from "@/lib/seed-data";
 import {
@@ -46,7 +47,7 @@ const weekDays = [
 ];
 
 export function BusinessProfilePage({ slug }: { slug: string }) {
-  const { liveBusinesses, bookings, addWaitlistRequest } = usePlatform();
+  const { liveBusinesses, addWaitlistRequest } = usePlatform();
   const business = liveBusinesses.find((item) => item.slug === slug);
   const category = categories.find((item) => item.id === business?.categoryId);
   const city = cities.find((item) => item.id === business?.cityId);
@@ -56,6 +57,8 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
       "",
   );
   const [selectedDate, setSelectedDate] = useState(generateDateOptions(6)[0]);
+  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+  const [nextBestSlot, setNextBestSlot] = useState<string | null>(business?.nextAvailableAt ?? null);
   const [waitlist, setWaitlist] = useState({
     customerName: "",
     customerPhone: "",
@@ -68,18 +71,49 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
     (service) => service.id === selectedServiceId,
   );
   const activeServices = business?.services.filter((service) => service.active) ?? [];
-  const availableSlots =
-    business && selectedService
-      ? generateAvailableSlots(business, selectedService, bookings, selectedDate)
-      : [];
-  const nextBestSlot =
-    business && selectedService
-      ? findNextAvailableSlot(business, selectedService, bookings)
-      : null;
   const startingPrice =
     activeServices.length > 0
       ? Math.min(...activeServices.map((service) => service.price))
       : 0;
+
+  useEffect(() => {
+    if (!business || !selectedService) {
+      return;
+    }
+
+    const currentBusiness = business;
+    const currentService = selectedService;
+    let cancelled = false;
+
+    async function loadAvailability() {
+      try {
+        const [slots, nextAvailableAt] = await Promise.all([
+          fetchApi<string[]>(
+            `/api/availability?businessId=${encodeURIComponent(currentBusiness.id)}&serviceId=${encodeURIComponent(currentService.id)}&type=slots&date=${selectedDate.toISOString().slice(0, 10)}`,
+          ),
+          fetchApi<string | null>(
+            `/api/availability?businessId=${encodeURIComponent(currentBusiness.id)}&serviceId=${encodeURIComponent(currentService.id)}&type=next`,
+          ),
+        ]);
+
+        if (!cancelled) {
+          setAvailableSlots(slots);
+          setNextBestSlot(nextAvailableAt);
+        }
+      } catch {
+        if (!cancelled) {
+          setAvailableSlots([]);
+          setNextBestSlot(null);
+        }
+      }
+    }
+
+    void loadAvailability();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [business, selectedDate, selectedService]);
 
   if (!business || !category || !city) {
     return (
@@ -491,7 +525,7 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
                 {availableSlots.length > 0 ? (
                   availableSlots.slice(0, 12).map((slot) => (
                     <span
-                      key={slot.toISOString()}
+                      key={slot}
                       className="inline-flex rounded-full border border-[rgba(59,178,115,0.26)] bg-[rgba(59,178,115,0.12)] px-3 py-2 text-sm text-[var(--color-success)] transition hover:-translate-y-0.5"
                     >
                       {formatTime(slot)}

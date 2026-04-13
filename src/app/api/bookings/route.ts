@@ -5,9 +5,11 @@ import {
   checkSlotAvailability,
   createBooking,
   expireOldBookings,
+  findAllBookings,
   findBookingsByBusiness,
   findBookingsByPhone,
 } from "@/lib/booking-repository";
+import { recordActivity } from "@/lib/activity-log-repository";
 import { getApiSession } from "@/lib/auth-session";
 import { findBusinessById, findBusinessByOwner } from "@/lib/business-repository";
 import { getDatabaseErrorMessage } from "@/lib/db";
@@ -77,6 +79,14 @@ export async function GET(request: Request) {
 
     if (customerPhone) {
       const bookings = await findBookingsByPhone(customerPhone);
+      return NextResponse.json({
+        ok: true,
+        data: bookings,
+      });
+    }
+
+    if (session.user.role === "admin") {
+      const bookings = await findAllBookings();
       return NextResponse.json({
         ok: true,
         data: bookings,
@@ -252,6 +262,13 @@ export async function POST(request: Request) {
         initialStatus === "pending"
           ? getBookingExpiryAt(createdAt, startAtDate.toISOString())
           : null,
+    });
+
+    await recordActivity({
+      type: "booking_created",
+      businessId: body.businessId,
+      bookingId: booking?.id,
+      summary: `Booking ${booking?.referenceCode ?? ""} created with ${initialStatus} status.`,
     });
 
     return NextResponse.json(

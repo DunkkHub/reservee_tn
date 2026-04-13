@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils";
 
 export function MarketplaceHomePage() {
   const router = useRouter();
-  const { liveBusinesses, bookings } = usePlatform();
+  const { liveBusinesses } = usePlatform();
   const { canInstall, installPwa } = usePwa();
   const [search, setSearch] = useState({
     city: "",
@@ -225,7 +225,6 @@ export function MarketplaceHomePage() {
                 business={business}
                 categoryName={category?.name ?? ""}
                 cityName={city?.name ?? ""}
-                bookings={bookings}
               />
             );
           })}

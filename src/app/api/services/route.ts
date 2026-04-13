@@ -5,8 +5,11 @@ import {
   createService,
   updateService,
   toggleService,
+  duplicateService,
+  reorderService,
   deleteService,
 } from "@/lib/service-repository";
+import { recordActivity } from "@/lib/activity-log-repository";
 import { findBusinessById } from "@/lib/business-repository";
 import { getDatabaseErrorMessage } from "@/lib/db";
 import { getApiSession } from "@/lib/auth-session";
@@ -117,6 +120,12 @@ export async function POST(request: Request) {
       genderTarget: body.genderTarget ?? "unisex",
     });
 
+    await recordActivity({
+      type: "business_settings_edited",
+      businessId: body.businessId,
+      summary: `Service ${body.title.trim()} was added.`,
+    });
+
     return NextResponse.json(
       {
         ok: true,
@@ -148,7 +157,8 @@ export async function PATCH(request: Request) {
       genderTarget?: Audience;
       active?: boolean;
       featured?: boolean;
-      actionType?: "toggle";
+      actionType?: "toggle" | "duplicate" | "move";
+      direction?: "up" | "down";
     };
 
     // Auth check: Updating services requires authentication
@@ -192,6 +202,16 @@ export async function PATCH(request: Request) {
 
     if (body.actionType === "toggle" && body.businessId) {
       service = await toggleService(body.businessId, body.serviceId);
+    } else if (body.actionType === "duplicate") {
+      service = await duplicateService(existingService.businessId, body.serviceId);
+    } else if (body.actionType === "move") {
+      const reorderedServices = await reorderService(
+        existingService.businessId,
+        body.serviceId,
+        body.direction ?? "up",
+      );
+      service =
+        reorderedServices.find((item) => item.id === body.serviceId) ?? existingService;
     } else {
       service = await updateService(body.serviceId, {
         title: body.title,
@@ -210,6 +230,19 @@ export async function PATCH(request: Request) {
         { status: 404 },
       );
     }
+
+    await recordActivity({
+      type: "business_settings_edited",
+      businessId: existingService.businessId,
+      summary:
+        body.actionType === "duplicate"
+          ? "A service was duplicated."
+          : body.actionType === "move"
+            ? "Service ordering changed."
+            : body.actionType === "toggle"
+              ? "A service activation state changed."
+              : "Business services were updated.",
+    });
 
     return NextResponse.json({
       ok: true,
@@ -270,6 +303,12 @@ export async function DELETE(request: Request) {
     // Admins can delete any service
 
     await deleteService(serviceId);
+
+    await recordActivity({
+      type: "business_settings_edited",
+      businessId: service.businessId,
+      summary: "A service was deleted.",
+    });
 
     return NextResponse.json({
       ok: true,

@@ -37,6 +37,17 @@ CREATE TABLE IF NOT EXISTS business_profiles (
   booking_mode ENUM('instant', 'approval_required') NOT NULL DEFAULT 'approval_required',
   operating_mode ENUM('appointment_only', 'walk_ins', 'both') NOT NULL DEFAULT 'appointment_only',
   response_window VARCHAR(120) NOT NULL DEFAULT 'moins de 1h',
+  phone_verified BOOLEAN NOT NULL DEFAULT FALSE,
+  address_verified BOOLEAN NOT NULL DEFAULT FALSE,
+  response_time_tracked BOOLEAN NOT NULL DEFAULT FALSE,
+  cancellation_notice VARCHAR(190) NOT NULL DEFAULT '',
+  late_arrival_grace_minutes INT NOT NULL DEFAULT 10,
+  no_show_rule TEXT NOT NULL,
+  hygiene_note TEXT NULL,
+  deposit_required BOOLEAN NOT NULL DEFAULT FALSE,
+  children_accepted BOOLEAN NOT NULL DEFAULT TRUE,
+  policy_clarity ENUM('clear', 'needs_review') NOT NULL DEFAULT 'needs_review',
+  profile_views INT NOT NULL DEFAULT 0,
   featured_until DATETIME NULL,
   featured_rank INT NULL,
   featured_city_slug VARCHAR(80) NULL,
@@ -206,6 +217,8 @@ CREATE TABLE IF NOT EXISTS waitlist_requests (
   customer_name VARCHAR(120) NOT NULL,
   customer_phone VARCHAR(32) NOT NULL,
   customer_note TEXT NULL,
+  preferred_date DATETIME NULL,
+  preferred_time VARCHAR(60) NOT NULL DEFAULT '',
   preferred_date_range VARCHAR(120) NULL,
   status ENUM('active', 'fulfilled', 'cancelled') NOT NULL DEFAULT 'active',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -220,6 +233,35 @@ CREATE TABLE IF NOT EXISTS waitlist_requests (
     ON DELETE CASCADE,
   KEY idx_waitlist_business_id (business_id),
   KEY idx_waitlist_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS activity_logs (
+  id VARCHAR(36) NOT NULL PRIMARY KEY,
+  type ENUM(
+    'business_status_changed',
+    'business_featured',
+    'business_unfeatured',
+    'business_settings_edited',
+    'booking_created',
+    'booking_status_changed',
+    'booking_reschedule_requested',
+    'waitlist_request_created'
+  ) NOT NULL,
+  business_id VARCHAR(36) NULL,
+  booking_id VARCHAR(36) NULL,
+  summary TEXT NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_activity_logs_business
+    FOREIGN KEY (business_id)
+    REFERENCES business_profiles (id)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_activity_logs_booking
+    FOREIGN KEY (booking_id)
+    REFERENCES bookings (id)
+    ON DELETE CASCADE,
+  KEY idx_activity_logs_business_id (business_id),
+  KEY idx_activity_logs_booking_id (booking_id),
+  KEY idx_activity_logs_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO app_users (id, role, name, email, phone, password_hash)

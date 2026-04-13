@@ -11,7 +11,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionHeading } from "@/components/ui/section-heading";
-import { findNextAvailableSlot, generateAvailableSlots } from "@/lib/availability";
 import { isBusinessFeatured } from "@/lib/platform-rules";
 import { categories, cities } from "@/lib/seed-data";
 import type { Audience, Business } from "@/lib/types";
@@ -27,7 +26,10 @@ interface ExploreBrowserProps {
 }
 
 function getStartingPrice(business: Business) {
-  return Math.min(...business.services.filter((service) => service.active).map((service) => service.price));
+  const prices = business.services
+    .filter((service) => service.active)
+    .map((service) => service.price);
+  return prices.length > 0 ? Math.min(...prices) : 0;
 }
 
 function getCategorySlug(business: Business) {
@@ -88,7 +90,7 @@ export function ExploreBrowser({
   presetCitySlug,
 }: ExploreBrowserProps) {
   const searchParams = useSearchParams();
-  const { liveBusinesses, bookings } = usePlatform();
+  const { liveBusinesses } = usePlatform();
   const [query, setQuery] = useState(searchParams.get("q") ?? "");
   const [categoryFilter, setCategoryFilter] = useState(
     presetCategorySlug ?? searchParams.get("category") ?? "",
@@ -150,11 +152,7 @@ export function ExploreBrowser({
         }
 
         if (availableTodayOnly) {
-          const service = business.services.find((item) => item.active);
-          if (
-            !service ||
-            generateAvailableSlots(business, service, bookings, new Date()).length === 0
-          ) {
+          if (!business.hasAvailabilityToday) {
             return false;
           }
         }
@@ -185,14 +183,8 @@ export function ExploreBrowser({
         }
 
         if (sortBy === "available_today") {
-          const leftService = left.services.find((service) => service.active);
-          const rightService = right.services.find((service) => service.active);
-          const leftNext = leftService
-            ? findNextAvailableSlot(left, leftService, bookings, 1)
-            : null;
-          const rightNext = rightService
-            ? findNextAvailableSlot(right, rightService, bookings, 1)
-            : null;
+          const leftNext = left.nextAvailableAt ? new Date(left.nextAvailableAt) : null;
+          const rightNext = right.nextAvailableAt ? new Date(right.nextAvailableAt) : null;
 
           if (!leftNext && !rightNext) return 0;
           if (!leftNext) return 1;
@@ -217,7 +209,6 @@ export function ExploreBrowser({
   }, [
     audienceFilter,
     availableTodayOnly,
-    bookings,
     categoryFilter,
     cityFilter,
     areaFilter,
@@ -408,7 +399,6 @@ export function ExploreBrowser({
                 business={business}
                 categoryName={category?.name ?? ""}
                 cityName={city?.name ?? ""}
-                bookings={bookings}
                 compact
               />
             );

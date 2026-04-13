@@ -28,6 +28,22 @@ Admin users can now:
 - access `/admin`
 - stay separated from customer and shop spaces
 
+### Persistence model
+
+Core product behavior now comes from MySQL-backed API routes instead of browser `localStorage`.
+
+That includes:
+
+- live marketplace businesses
+- business profile edits
+- services
+- weekly hours and blocked slots
+- bookings
+- gallery changes
+- waitlist requests
+- moderation history
+- audit activity
+
 ### Discovery and search
 
 Customers can:
@@ -90,6 +106,7 @@ Security behavior:
 - code request and verification are rate-limited
 - development environments can expose a preview code for local testing
 - production environments are structured for SMS delivery instead
+- public manage-booking UI now follows this same OTP-backed flow
 
 ## Business dashboard
 

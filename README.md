@@ -12,28 +12,27 @@ The product solves two problems at once:
 - Next.js App Router
 - TypeScript
 - Tailwind CSS
-- MySQL auth layer for customer, shop, and admin accounts
-- Local demo state with seeded marketplace, business dashboard, and admin moderation data
+- MySQL-backed marketplace, booking, availability, moderation, media, waitlist, and auth flows
+- Client-side provider that reads and mutates state through API routes instead of `localStorage`
 - PWA metadata and installable shell
 
 ## Run locally
 
 ```bash
 npm install
+npm run db:seed-dev
 npm run lint
 ```
 
-Import the MySQL schema in phpMyAdmin or with XAMPP first:
+The dev seed script applies the base schema, runs the local migrations, and inserts repeatable marketplace sample data such as `atlas-barber-club`.
+
+If you prefer phpMyAdmin/XAMPP manually, import the schema first:
 
 ```bash
 # import database/reservee_tn.sql in phpMyAdmin
+# import database/migrations/2026-04-13-sync-backend-schema.sql
+# import database/migrations/2026-04-13-production-state-foundation.sql
 npm run dev
-```
-
-If you already had an older local `reservee_tn` database before the newer backend routes were added, run the upgrade script too:
-
-```bash
-# run database/migrations/2026-04-13-sync-backend-schema.sql in phpMyAdmin
 ```
 
 Production checks:
@@ -66,7 +65,7 @@ npm run build
 - Customer account with role-protected access
 - Business onboarding and operating dashboard
 - Admin moderation panel
-- MySQL-backed login and session handling
+- MySQL-backed auth and operational state
 - Installable PWA shell
 - Stronger business status model and richer booking lifecycle
 
@@ -82,5 +81,6 @@ npm run build
 ## Notes
 
 - Version 1 does not include doctors, clinics, padel, football, wallets, loyalty, chat, or multi-branch logic.
-- Authentication now uses MySQL, but bookings, services, moderation, and gallery edits still persist in the browser demo store for now.
+- Core business actions, booking actions, moderation actions, gallery changes, waitlist requests, and availability updates now persist through MySQL-backed API routes.
+- Local development now has a repeatable database seed via `npm run db:seed-dev`.
 - Public booking-reference API access now requires a short-lived OTP-style verification flow before full booking details are returned.

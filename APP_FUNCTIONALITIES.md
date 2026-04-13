@@ -29,16 +29,16 @@ Implementation notes:
 
 - Built with Next.js App Router and TypeScript
 - Uses a premium dark visual system
-- Uses seeded Tunisia beauty business data
-- Uses MySQL through XAMPP/phpMyAdmin for authentication
-- Uses local browser storage to simulate the rest of the platform state
+- Uses repeatable MySQL dev seed data for local marketplace content
+- Uses MySQL through XAMPP/phpMyAdmin for auth and core operational state
+- Uses API-backed client state instead of browser `localStorage` for core product actions
 
 Important:
 
-- Bookings, dashboard edits, moderation actions, and gallery additions are saved in `localStorage`
-- Customer, shop, and admin login now use MySQL plus signed session cookies
-- Data resets when the user presses the dashboard reset action
-- The product is now hybrid: real auth backend plus demo marketplace data
+- Customer, shop, and admin login use MySQL plus signed session cookies
+- Business edits, services, availability, bookings, gallery updates, moderation, waitlist, and audit trail are persisted in MySQL
+- Local setup can be prepared with `npm run db:seed-dev`
+- The main remaining backend compromise is in-memory OTP and rate-limit state, not browser demo storage
 
 ## 3. Customer Marketplace Functionalities
 
@@ -246,8 +246,8 @@ Steps:
 
 What happens on confirm:
 
-- A new booking is created in local app state
-- Booking is saved with `pending` status
+- A new booking is created through the bookings API
+- Booking status is derived from the business booking mode
 - Confirmation screen is shown
 - User sees business name, time, service, and WhatsApp fallback
 
@@ -255,7 +255,27 @@ Main file:
 
 - `src/components/pages/booking-flow-page.tsx`
 
-### 3.7 Partner Landing Page
+### 3.7 Manage Booking
+
+Routes:
+
+- `/manage-booking`
+- `/manage-booking/[referenceCode]`
+
+What it does:
+
+- Lets the customer enter a reference code
+- Requires phone verification before booking details are shown
+- Loads booking details through the public OTP-backed booking API
+- Allows eligible cancellation
+- Allows reschedule request
+- Keeps WhatsApp fallback available
+
+Main file:
+
+- `src/components/pages/manage-booking-page.tsx`
+
+### 3.8 Partner Landing Page
 
 Route:
 

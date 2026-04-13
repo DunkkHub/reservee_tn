@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "db:seed-dev": "node scripts/seed-dev-db.mjs",
     "smoke": "node scripts/smoke-test.mjs"
   },
   "dependencies": {

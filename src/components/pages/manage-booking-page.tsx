@@ -2,15 +2,28 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CalendarClock, Clock3, MessageCircle, Search, ShieldCheck } from "lucide-react";
 
 import { usePlatform } from "@/components/providers/platform-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { fetchApi } from "@/lib/client-api";
 import { canCustomerCancel, canRequestReschedule, bookingStatusTone } from "@/lib/platform-rules";
+import type { Booking, Business } from "@/lib/types";
 import { formatDateTime, formatTime, statusLabel } from "@/lib/utils";
+
+type ChallengeResponse = {
+  challengeId: string;
+  expiresAt: string;
+  deliveryChannel: string;
+  developmentCodePreview: string | null;
+};
+
+type VerifyResponse = {
+  token: string;
+};
 
 export function ManageBookingLookupPage() {
   const router = useRouter();
@@ -29,7 +42,7 @@ export function ManageBookingLookupPage() {
         <div>
           <h1 className="font-heading text-4xl font-semibold text-white">Find your booking</h1>
           <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--color-secondary)]">
-            Enter the booking reference code from the confirmation screen to cancel or request a reschedule without creating an account.
+            Enter the booking reference code from the confirmation screen. You will verify your phone before you can cancel or request a reschedule.
           </p>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row">
@@ -49,26 +62,273 @@ export function ManageBookingLookupPage() {
 }
 
 export function ManageBookingPage({ referenceCode }: { referenceCode: string }) {
-  const { businesses, cancelBookingByCustomer, findBookingByReference, requestBookingReschedule } =
-    usePlatform();
-  const booking = findBookingByReference(referenceCode);
-  const business = businesses.find((item) => item.id === booking?.businessId);
-  const service = business?.services.find((item) => item.id === booking?.serviceId);
+  const { businesses } = usePlatform();
+  const [phone, setPhone] = useState("");
+  const [challenge, setChallenge] = useState<ChallengeResponse | null>(null);
+  const [verificationCode, setVerificationCode] = useState("");
+  const [token, setToken] = useState("");
+  const [booking, setBooking] = useState<Booking | null>(null);
+  const [business, setBusiness] = useState<Business | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  if (!booking || !business) {
+  useEffect(() => {
+    if (!booking) {
+      setBusiness(null);
+      return;
+    }
+
+    const matchedBusiness = businesses.find((item) => item.id === booking.businessId) ?? null;
+    setBusiness(matchedBusiness);
+  }, [booking, businesses]);
+
+  useEffect(() => {
+    if (!booking || business) {
+      return;
+    }
+
+    const currentBooking = booking;
+    let cancelled = false;
+
+    async function loadBusiness() {
+      try {
+        const loadedBusiness = await fetchApi<Business>(
+          `/api/businesses?id=${encodeURIComponent(currentBooking.businessId)}`,
+        );
+
+        if (!cancelled) {
+          setBusiness(loadedBusiness);
+        }
+      } catch {
+        if (!cancelled) {
+          setBusiness(null);
+        }
+      }
+    }
+
+    void loadBusiness();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [booking, business]);
+
+  useEffect(() => {
+    if (!token) {
+      setBooking(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadBooking() {
+      try {
+        const loadedBooking = await fetchApi<Booking>(
+          `/api/bookings/reference/${encodeURIComponent(referenceCode)}?token=${encodeURIComponent(token)}`,
+        );
+
+        if (!cancelled) {
+          setBooking(loadedBooking);
+        }
+      } catch (loadError) {
+        if (!cancelled) {
+          setError(
+            loadError instanceof Error
+              ? loadError.message
+              : "Unable to load this booking.",
+          );
+        }
+      }
+    }
+
+    void loadBooking();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [referenceCode, token]);
+
+  const service = business?.services.find((item) => item.id === booking?.serviceId);
+  const customerCanCancel = booking ? canCustomerCancel(booking) : false;
+  const canReschedule = booking
+    ? canRequestReschedule(booking) && !booking.rescheduleRequestedAt
+    : false;
+
+  async function requestChallenge() {
+    try {
+      setIsSubmitting(true);
+      setError(null);
+      setMessage(null);
+
+      const nextChallenge = await fetchApi<ChallengeResponse>(
+        `/api/bookings/reference/${encodeURIComponent(referenceCode)}/challenge`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            customerPhone: phone,
+          }),
+        },
+      );
+
+      setChallenge(nextChallenge);
+      setMessage(
+        nextChallenge.developmentCodePreview
+          ? `Verification code generated. Dev preview: ${nextChallenge.developmentCodePreview}`
+          : "Verification code sent to your phone.",
+      );
+    } catch (challengeError) {
+      setError(
+        challengeError instanceof Error
+          ? challengeError.message
+          : "Unable to request a verification code.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function verifyChallenge() {
+    if (!challenge) {
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      setError(null);
+      setMessage(null);
+
+      const verified = await fetchApi<VerifyResponse>(
+        `/api/bookings/reference/${encodeURIComponent(referenceCode)}/verify`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            challengeId: challenge.challengeId,
+            code: verificationCode,
+          }),
+        },
+      );
+
+      setToken(verified.token);
+      setMessage("Booking verified.");
+    } catch (verifyError) {
+      setError(
+        verifyError instanceof Error
+          ? verifyError.message
+          : "Verification failed.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function manageBooking(action: "cancel" | "requestReschedule") {
+    try {
+      setIsSubmitting(true);
+      setError(null);
+      setMessage(null);
+
+      const updatedBooking = await fetchApi<Booking>(
+        `/api/bookings/reference/${encodeURIComponent(referenceCode)}?token=${encodeURIComponent(token)}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ action }),
+        },
+      );
+
+      setBooking(updatedBooking);
+      setMessage(
+        action === "cancel"
+          ? "Booking cancelled."
+          : "Reschedule request sent.",
+      );
+    } catch (manageError) {
+      setError(
+        manageError instanceof Error
+          ? manageError.message
+          : "Unable to update the booking.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  if (!booking) {
     return (
-      <EmptyState
-        icon={ShieldCheck}
-        title="Booking not found"
-        description="The reference code does not match a current booking. Double-check the code from your confirmation screen and try again."
-        ctaLabel="Try another code"
-        ctaHref="/manage-booking"
-      />
+      <div className="mx-auto max-w-3xl space-y-6">
+        <div className="panel space-y-5 p-8">
+          <Badge tone="accent">Secure lookup</Badge>
+          <div>
+            <h1 className="font-heading text-4xl font-semibold text-white">Verify your booking</h1>
+            <p className="mt-3 text-sm leading-7 text-[var(--color-secondary)]">
+              We only show booking details after a phone verification step tied to your reference code.
+            </p>
+          </div>
+          <div className="rounded-2xl border border-white/8 bg-white/4 px-4 py-3 text-sm">
+            <p className="text-[var(--color-secondary)]">Reference code</p>
+            <p className="mt-2 font-semibold text-white">{referenceCode}</p>
+          </div>
+          <label className="space-y-2 text-sm">
+            <span className="text-[var(--color-secondary)]">Phone number used at booking</span>
+            <input
+              className="input-field"
+              value={phone}
+              onChange={(event) => setPhone(event.target.value)}
+              placeholder="+216 ..."
+            />
+          </label>
+          {challenge ? (
+            <label className="space-y-2 text-sm">
+              <span className="text-[var(--color-secondary)]">Verification code</span>
+              <input
+                className="input-field"
+                value={verificationCode}
+                onChange={(event) => setVerificationCode(event.target.value)}
+                placeholder="6-digit code"
+              />
+            </label>
+          ) : null}
+          {message ? (
+            <div className="rounded-2xl border border-[rgba(59,178,115,0.22)] bg-[rgba(59,178,115,0.1)] p-4 text-sm text-[var(--color-success)]">
+              {message}
+            </div>
+          ) : null}
+          {error ? (
+            <div className="rounded-2xl border border-[rgba(225,85,84,0.22)] bg-[rgba(225,85,84,0.1)] p-4 text-sm text-[var(--color-error)]">
+              {error}
+            </div>
+          ) : null}
+          <div className="flex flex-wrap gap-3">
+            {!challenge ? (
+              <Button disabled={!phone.trim() || isSubmitting} onClick={() => void requestChallenge()}>
+                Send verification code
+              </Button>
+            ) : (
+              <Button
+                disabled={!verificationCode.trim() || isSubmitting}
+                onClick={() => void verifyChallenge()}
+              >
+                Verify booking
+              </Button>
+            )}
+            <Link href="/manage-booking">
+              <Button variant="ghost">Try another reference</Button>
+            </Link>
+          </div>
+        </div>
+      </div>
     );
   }
 
-  const customerCanCancel = canCustomerCancel(booking);
-  const canReschedule = canRequestReschedule(booking) && !booking.rescheduleRequestedAt;
+  if (!business) {
+    return (
+      <EmptyState
+        icon={ShieldCheck}
+        title="Booking loaded"
+        description="The booking was verified, but the business profile could not be loaded right now."
+      />
+    );
+  }
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -87,6 +347,17 @@ export function ManageBookingPage({ referenceCode }: { referenceCode: string }) 
           </div>
         </div>
       </div>
+
+      {message ? (
+        <div className="rounded-2xl border border-[rgba(59,178,115,0.22)] bg-[rgba(59,178,115,0.1)] p-4 text-sm text-[var(--color-success)]">
+          {message}
+        </div>
+      ) : null}
+      {error ? (
+        <div className="rounded-2xl border border-[rgba(225,85,84,0.22)] bg-[rgba(225,85,84,0.1)] p-4 text-sm text-[var(--color-error)]">
+          {error}
+        </div>
+      ) : null}
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-6">
@@ -107,10 +378,17 @@ export function ManageBookingPage({ referenceCode }: { referenceCode: string }) 
           <div className="panel space-y-4 p-6">
             <h2 className="font-heading text-2xl font-semibold text-white">Self-service actions</h2>
             <div className="flex flex-wrap gap-3">
-              <Button disabled={!customerCanCancel} onClick={() => cancelBookingByCustomer(booking.referenceCode)}>
+              <Button
+                disabled={!customerCanCancel || isSubmitting}
+                onClick={() => void manageBooking("cancel")}
+              >
                 Cancel booking
               </Button>
-              <Button variant="secondary" disabled={!canReschedule} onClick={() => requestBookingReschedule(booking.referenceCode)}>
+              <Button
+                variant="secondary"
+                disabled={!canReschedule || isSubmitting}
+                onClick={() => void manageBooking("requestReschedule")}
+              >
                 Request reschedule
               </Button>
               <a

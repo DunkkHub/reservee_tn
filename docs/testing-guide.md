@@ -4,7 +4,10 @@
 
 1. Start `Apache` and `MySQL` in XAMPP.
 2. Import [database/reservee_tn.sql](/D:/barber/database/reservee_tn.sql) in phpMyAdmin.
-3. Start the app with `npm run dev`.
+3. Import [database/migrations/2026-04-13-sync-backend-schema.sql](/D:/barber/database/migrations/2026-04-13-sync-backend-schema.sql) if your DB is older.
+4. Import [database/migrations/2026-04-13-production-state-foundation.sql](/D:/barber/database/migrations/2026-04-13-production-state-foundation.sql) if your DB is older.
+5. Or run `npm run db:seed-dev` to prepare schema plus sample marketplace data automatically.
+6. Start the app with `npm run dev`.
 
 ## Auth and role separation
 
@@ -69,9 +72,11 @@
 
 1. Open `/manage-booking`.
 2. Enter the reference code from a confirmed booking.
-3. Verify booking details render correctly.
-4. Test cancellation on an eligible booking.
-5. Test reschedule request on a pending or confirmed booking.
+3. Request a verification code with the booking phone number.
+4. In local development, use the preview code returned by the API.
+5. Verify booking details render correctly after OTP verification.
+6. Test cancellation on an eligible booking.
+7. Test reschedule request on a pending or confirmed booking.
 
 ### Public booking API verification
 
@@ -142,5 +147,5 @@ After major changes, verify:
 - customer, shop, and admin roles redirect correctly
 - booking creation still works
 - booking management still finds the correct booking by reference
-- business dashboard still loads with seeded state
-- admin moderation still persists in browser storage
+- business dashboard still loads with database-backed state
+- admin moderation still persists in MySQL

@@ -175,6 +175,8 @@ export interface Business {
   moderationHistory: ModerationRecord[];
   metrics: BusinessMetrics;
   createdAt: string;
+  nextAvailableAt?: string | null;
+  hasAvailabilityToday?: boolean;
 }
 
 export interface Booking {

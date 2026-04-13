@@ -36,7 +36,7 @@ const dashboardLinks = [
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
-  const { ownerBusiness, resetDemo } = usePlatform();
+  const { ownerBusiness, refreshData } = usePlatform();
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(200,169,107,0.1),transparent_30%)]">
@@ -110,8 +110,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                 Ouvrir le panneau admin
               </Link>
             ) : null}
-            <Button variant="secondary" fullWidth onClick={resetDemo}>
-              Reset demo
+            <Button variant="secondary" fullWidth onClick={() => void refreshData()}>
+              Refresh data
             </Button>
             <Button
               variant="ghost"
@@ -137,8 +137,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
               </div>
             </Link>
             <div className="flex items-center gap-2">
-              <Button variant="secondary" size="sm" onClick={resetDemo}>
-                Reset
+              <Button variant="secondary" size="sm" onClick={() => void refreshData()}>
+                Refresh
               </Button>
               <Button variant="ghost" size="sm" onClick={logout}>
                 Logout

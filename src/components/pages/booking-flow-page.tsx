@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -18,8 +18,10 @@ import { usePlatform } from "@/components/providers/platform-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { generateAvailableSlots, generateDateOptions } from "@/lib/availability";
+import { generateDateOptions } from "@/lib/availability";
+import { fetchApi } from "@/lib/client-api";
 import { BOOKING_EXPIRY_HOURS } from "@/lib/platform-rules";
+import type { Booking } from "@/lib/types";
 import {
   bookingModeLabel,
   formatCurrency,
@@ -38,28 +40,63 @@ const steps = [
 
 export function BookingFlowPage({ slug }: { slug: string }) {
   const searchParams = useSearchParams();
-  const { liveBusinesses, bookings, createBooking } = usePlatform();
+  const { liveBusinesses, createBooking } = usePlatform();
   const business = liveBusinesses.find((item) => item.slug === slug);
   const requestedServiceId = searchParams.get("service") ?? "";
   const [step, setStep] = useState(0);
   const [selectedServiceId, setSelectedServiceId] = useState(requestedServiceId);
   const [selectedDate, setSelectedDate] = useState(generateDateOptions(6)[0]);
   const [selectedSlot, setSelectedSlot] = useState("");
+  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+  const [slotsLoading, setSlotsLoading] = useState(false);
   const [formData, setFormData] = useState({
     customerName: "",
     customerPhone: "",
     customerNote: "",
   });
-  const [confirmedBookingId, setConfirmedBookingId] = useState("");
+  const [confirmedBooking, setConfirmedBooking] = useState<Booking | null>(null);
 
   const selectedService = business?.services.find(
     (service) => service.id === selectedServiceId,
   );
-  const availableSlots =
-    business && selectedService
-      ? generateAvailableSlots(business, selectedService, bookings, selectedDate)
-      : [];
-  const confirmedBooking = bookings.find((booking) => booking.id === confirmedBookingId);
+
+  useEffect(() => {
+    if (!business || !selectedService) {
+      setAvailableSlots([]);
+      return;
+    }
+
+    const currentBusiness = business;
+    const currentService = selectedService;
+    let cancelled = false;
+
+    async function loadSlots() {
+      try {
+        setSlotsLoading(true);
+        const slots = await fetchApi<string[]>(
+          `/api/availability?businessId=${encodeURIComponent(currentBusiness.id)}&serviceId=${encodeURIComponent(currentService.id)}&type=slots&date=${selectedDate.toISOString().slice(0, 10)}`,
+        );
+
+        if (!cancelled) {
+          setAvailableSlots(slots);
+        }
+      } catch {
+        if (!cancelled) {
+          setAvailableSlots([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setSlotsLoading(false);
+        }
+      }
+    }
+
+    void loadSlots();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [business, selectedDate, selectedService]);
 
   const summaryLabel = useMemo(() => {
     if (!selectedSlot) {
@@ -182,12 +219,12 @@ export function BookingFlowPage({ slug }: { slug: string }) {
     setStep((current) => Math.max(current - 1, 0));
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!business || !selectedService || !selectedSlot) {
       return;
     }
 
-    const booking = createBooking({
+    const booking = await createBooking({
       businessId: business.id,
       serviceId: selectedService.id,
       customerName: formData.customerName,
@@ -197,7 +234,7 @@ export function BookingFlowPage({ slug }: { slug: string }) {
     });
 
     if (booking) {
-      setConfirmedBookingId(booking.id);
+      setConfirmedBooking(booking);
     }
   }
 
@@ -315,11 +352,11 @@ export function BookingFlowPage({ slug }: { slug: string }) {
               {availableSlots.length > 0 ? (
                 availableSlots.map((slot) => (
                   <button
-                    key={slot.toISOString()}
+                    key={slot}
                     type="button"
-                    onClick={() => setSelectedSlot(slot.toISOString())}
+                    onClick={() => setSelectedSlot(slot)}
                     className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
-                      selectedSlot === slot.toISOString()
+                      selectedSlot === slot
                         ? "border-[rgba(200,169,107,0.28)] bg-[rgba(200,169,107,0.14)] text-[var(--color-accent)]"
                         : "border-white/8 bg-white/4 text-[var(--color-secondary)]"
                     }`}
@@ -327,6 +364,10 @@ export function BookingFlowPage({ slug }: { slug: string }) {
                     {formatTime(slot)}
                   </button>
                 ))
+              ) : slotsLoading ? (
+                <div className="w-full rounded-2xl border border-white/8 bg-white/4 px-4 py-4 text-sm text-[var(--color-muted)]">
+                  Loading available times...
+                </div>
               ) : (
                 <div className="w-full rounded-2xl border border-white/8 bg-white/4 px-4 py-4 text-sm text-[var(--color-muted)]">
                   No slots on this day. Go back to the profile to request a preferred time instead of hitting a dead end.
@@ -410,7 +451,7 @@ export function BookingFlowPage({ slug }: { slug: string }) {
                 ))}
               </div>
             </div>
-            <Button fullWidth size="lg" onClick={handleSubmit}>
+            <Button fullWidth size="lg" onClick={() => void handleSubmit()}>
               Confirm booking
             </Button>
           </div>

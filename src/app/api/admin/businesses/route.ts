@@ -1,43 +1,37 @@
 import { NextResponse } from "next/server";
-import { getDbPool, getDatabaseErrorMessage } from "@/lib/db";
-import { moderateBusiness } from "@/lib/business-repository";
+
+import { recordActivity } from "@/lib/activity-log-repository";
 import { getApiSession } from "@/lib/auth-session";
-import type { RowDataPacket } from "mysql2/promise";
-import type { BusinessStatus } from "@/lib/types";
+import { findBusinesses, findBusinessById, moderateBusiness } from "@/lib/business-repository";
+import { getDatabaseErrorMessage } from "@/lib/db";
+import { getDbPool } from "@/lib/db";
+import type { CategorySlug, BusinessStatus } from "@/lib/types";
 
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
   try {
-    // Auth check: Only admins can view moderation queue
     const session = await getApiSession();
+
     if (!session || session.user.role !== "admin") {
       return NextResponse.json(
         { ok: false, message: "Only admins can access this endpoint" },
-        { status: 403 },
+        { status: session ? 403 : 401 },
       );
     }
 
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
-    const limit = parseInt(searchParams.get("limit") ?? "50", 10);
-    const offset = parseInt(searchParams.get("offset") ?? "0", 10);
+    const city = searchParams.get("city");
+    const category = searchParams.get("category");
+    const limit = parseInt(searchParams.get("limit") ?? "100", 10);
 
-    const pool = getDbPool();
-
-    let query =
-      "SELECT id, business_name, slug, status, created_at FROM business_profiles";
-    const params: unknown[] = [];
-
-    if (status) {
-      query += " WHERE status = ?";
-      params.push(status);
-    }
-
-    query += " ORDER BY created_at DESC LIMIT ? OFFSET ?";
-    params.push(limit, offset);
-
-    const [businesses] = await pool.query<RowDataPacket[]>(query, params);
+    const businesses = await findBusinesses({
+      citySlug: city ?? undefined,
+      categorySlug: (category as CategorySlug | null) ?? undefined,
+      statuses: status ? [status as BusinessStatus] : undefined,
+      limit,
+    });
 
     return NextResponse.json({
       ok: true,
@@ -56,19 +50,12 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    // Auth check: Only admins can moderate businesses
     const session = await getApiSession();
-    if (!session) {
-      return NextResponse.json(
-        { ok: false, message: "Authentication required" },
-        { status: 401 },
-      );
-    }
 
-    if (session.user.role !== "admin") {
+    if (!session || session.user.role !== "admin") {
       return NextResponse.json(
         { ok: false, message: "Only admins can moderate businesses" },
-        { status: 403 },
+        { status: session ? 403 : 401 },
       );
     }
 
@@ -95,10 +82,26 @@ export async function PATCH(request: Request) {
       );
     }
 
+    const currentBusiness = await findBusinessById(body.businessId);
+
+    if (!currentBusiness) {
+      return NextResponse.json(
+        { ok: false, message: "Business not found" },
+        { status: 404 },
+      );
+    }
+
     const updated = await moderateBusiness(body.businessId, {
       status: body.status,
       featured_until: body.featuredUntil,
       featured_rank: body.featuredRank,
+      featured_city_slug:
+        body.status === "featured" ? currentBusiness.featuredCitySlug ?? currentBusiness.cityId.replace("city-", "") : null,
+      featured_category_slug:
+        body.status === "featured"
+          ? currentBusiness.featuredCategorySlug ??
+            (currentBusiness.categoryId.replace("cat-", "") as CategorySlug)
+          : null,
     });
 
     if (!updated) {
@@ -108,7 +111,6 @@ export async function PATCH(request: Request) {
       );
     }
 
-    // Store moderation record
     if (body.internalNote || body.businessMessage) {
       const pool = getDbPool();
       await pool.execute(
@@ -119,6 +121,12 @@ export async function PATCH(request: Request) {
         [body.businessId, body.status, body.internalNote ?? "", body.businessMessage ?? ""],
       );
     }
+
+    await recordActivity({
+      type: body.status === "featured" ? "business_featured" : "business_status_changed",
+      businessId: body.businessId,
+      summary: `Business moderation moved to ${body.status}.`,
+    });
 
     return NextResponse.json({
       ok: true,

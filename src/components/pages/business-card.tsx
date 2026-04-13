@@ -5,16 +5,14 @@ import { ArrowRight, Clock3, MapPin, MessageCircle, Zap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LogoMark } from "@/components/ui/logo-mark";
-import { findNextAvailableSlot } from "@/lib/availability";
 import { isBusinessFeatured } from "@/lib/platform-rules";
-import type { Booking, Business } from "@/lib/types";
+import type { Business } from "@/lib/types";
 import { bookingModeLabel, formatCurrency, formatRelativeDay, formatTime } from "@/lib/utils";
 
 interface BusinessCardProps {
   business: Business;
   categoryName: string;
   cityName: string;
-  bookings: Booking[];
   compact?: boolean;
 }
 
@@ -22,16 +20,13 @@ export function BusinessCard({
   business,
   categoryName,
   cityName,
-  bookings,
   compact,
 }: BusinessCardProps) {
-  const firstService = business.services.find((service) => service.active);
-  const nextAvailable = firstService
-    ? findNextAvailableSlot(business, firstService, bookings)
-    : null;
-  const startingPrice = Math.min(
-    ...business.services.filter((service) => service.active).map((service) => service.price),
-  );
+  const nextAvailable = business.nextAvailableAt ? new Date(business.nextAvailableAt) : null;
+  const activePrices = business.services
+    .filter((service) => service.active)
+    .map((service) => service.price);
+  const startingPrice = activePrices.length > 0 ? Math.min(...activePrices) : 0;
 
   return (
     <article className="panel group overflow-hidden transition duration-200 hover:-translate-y-1">

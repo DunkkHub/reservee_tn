@@ -8,7 +8,16 @@ This project now includes a real MySQL-backed authentication layer for:
 - shop accounts
 - admin sign-in
 
-Marketplace content, booking demo data, and dashboard editing still use the in-browser demo store for now, but login and role separation are already backed by MySQL.
+It also now stores core operational state in MySQL:
+
+- public businesses
+- services
+- availability
+- bookings
+- gallery/media
+- waitlist requests
+- moderation history
+- activity logs
 
 ## Local defaults
 
@@ -34,6 +43,13 @@ This creates:
 
 - `app_users`
 - `business_profiles`
+- `services`
+- `business_hours`
+- `bookings`
+- `blocked_slots`
+- `media_items`
+- `moderation_history`
+- `waitlist_requests`
 
 It also inserts one local admin account.
 
@@ -42,8 +58,24 @@ It also inserts one local admin account.
 If you created `reservee_tn` before the newer backend API tables were added, also import:
 
 - [database/migrations/2026-04-13-sync-backend-schema.sql](/D:/barber/database/migrations/2026-04-13-sync-backend-schema.sql)
+- [database/migrations/2026-04-13-production-state-foundation.sql](/D:/barber/database/migrations/2026-04-13-production-state-foundation.sql)
 
-That upgrades older local schemas with the newer business, service, bookings, availability, media, moderation, and waitlist tables.
+That upgrades older local schemas with the newer business trust/policy fields, activity log table, and waitlist date/time columns.
+
+## Fast local setup
+
+If you want the repo to prepare the schema and sample marketplace data for you, run:
+
+```bash
+npm run db:seed-dev
+```
+
+That command:
+
+- applies the base schema
+- applies the local migrations
+- seeds repeatable live businesses like `atlas-barber-club`
+- seeds services, hours, media, moderation history, and activity logs for local testing
 
 ## Default admin login
 
@@ -74,9 +106,8 @@ After the SQL import:
 
 ## Current limitation
 
-The app is now hybrid:
+The main remaining infra gap is not browser storage anymore. It is production hardening:
 
-- auth and role separation: real MySQL backend
-- bookings, services, moderation demo state: local browser persistence
-
-That means login is real, but the rest of the product still behaves like a polished MVP demo until bookings, services, and moderation move to MySQL too.
+- OTP and rate-limit state are still in memory
+- XAMPP-style local defaults are still present for development
+- media upload still uses URL-based placeholder input instead of signed file upload
