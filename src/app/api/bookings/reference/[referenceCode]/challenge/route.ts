@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 
 import {
+  createBookingReferenceChallenge,
   normalizePhone,
-  parseBookingReferenceAccessToken,
 } from "@/lib/booking-reference-access";
 import { findBookingByReference } from "@/lib/booking-repository";
 import { getDatabaseErrorMessage } from "@/lib/db";
@@ -24,21 +24,20 @@ function getClientIp(request: Request) {
   );
 }
 
-export async function GET(request: Request, context: RouteContext) {
+export async function POST(request: Request, context: RouteContext) {
   try {
     const { referenceCode } = await context.params;
-    const token = new URL(request.url).searchParams.get("token");
     const rateLimit = consumeRateLimit({
-      key: `public-booking-reference-read:${getClientIp(request)}`,
-      windowMs: 5 * 60 * 1000,
-      maxRequests: 20,
+      key: `public-booking-reference-challenge:${getClientIp(request)}:${referenceCode.toUpperCase()}`,
+      windowMs: 10 * 60 * 1000,
+      maxRequests: 5,
     });
 
     if (!rateLimit.allowed) {
       return NextResponse.json(
         {
           ok: false,
-          message: "Too many booking lookups. Please try again in a few minutes.",
+          message: "Too many verification requests. Please try again later.",
         },
         {
           status: 429,
@@ -49,15 +48,14 @@ export async function GET(request: Request, context: RouteContext) {
       );
     }
 
-    const parsedToken = parseBookingReferenceAccessToken(token);
+    const body = (await request.json()) as {
+      customerPhone?: string;
+    };
 
-    if (!parsedToken || parsedToken.referenceCode !== referenceCode.toUpperCase()) {
+    if (!body.customerPhone?.trim()) {
       return NextResponse.json(
-        {
-          ok: false,
-          message: "Booking verification required. Request and verify a code first.",
-        },
-        { status: 401 },
+        { ok: false, message: "Customer phone is required to request a verification code." },
+        { status: 400 },
       );
     }
 
@@ -65,25 +63,35 @@ export async function GET(request: Request, context: RouteContext) {
 
     if (
       !booking ||
-      normalizePhone(booking.customerPhone) !== parsedToken.customerPhone
+      normalizePhone(booking.customerPhone) !== normalizePhone(body.customerPhone)
     ) {
       return NextResponse.json(
-        { ok: false, message: "Booking not found" },
+        {
+          ok: false,
+          message: "Booking reference and phone number do not match.",
+        },
         { status: 404 },
       );
     }
 
-    return NextResponse.json(
-      {
-        ok: true,
-        data: booking,
+    const challenge = createBookingReferenceChallenge({
+      referenceCode,
+      customerPhone: booking.customerPhone,
+    });
+
+    return NextResponse.json({
+      ok: true,
+      message:
+        challenge.code
+          ? "Verification code generated. Development preview is included because this environment is not sending SMS."
+          : "Verification code sent to the booking phone number.",
+      data: {
+        challengeId: challenge.challengeId,
+        expiresAt: challenge.expiresAt,
+        deliveryChannel: "sms",
+        developmentCodePreview: challenge.code ?? null,
       },
-      {
-        headers: {
-          "X-RateLimit-Remaining": String(rateLimit.remaining),
-        },
-      },
-    );
+    });
   } catch (error) {
     return NextResponse.json(
       {

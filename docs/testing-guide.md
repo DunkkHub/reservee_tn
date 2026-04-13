@@ -73,6 +73,16 @@
 4. Test cancellation on an eligible booking.
 5. Test reschedule request on a pending or confirmed booking.
 
+### Public booking API verification
+
+1. Create a booking through the API or booking UI.
+2. Call `/api/bookings/reference/[referenceCode]/challenge` with the booking phone number.
+3. Confirm the route returns a challenge ID.
+4. In local development, use the preview code from the response.
+5. Call `/api/bookings/reference/[referenceCode]/verify`.
+6. Use the returned token with `/api/bookings/reference/[referenceCode]?token=...`.
+7. Confirm unauthenticated direct GET without the token returns `401`.
+
 ## Business flow
 
 ### Dashboard overview

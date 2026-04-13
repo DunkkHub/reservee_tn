@@ -54,6 +54,8 @@ npm run build
 - `/book/[slug]` booking flow with status-aware confirmation and reference code
 - `/manage-booking` booking lookup page
 - `/manage-booking/[referenceCode]` customer-side booking management
+- `/api/bookings/reference/[referenceCode]/challenge` request a short-lived phone verification code
+- `/api/bookings/reference/[referenceCode]/verify` exchange the code for a short-lived booking access token
 - `/dashboard` business operating dashboard
 - `/dashboard/*` onboarding, bookings, services, availability, gallery, insights, and settings
 - `/admin` moderation, featured logic, filters, notes, and audit trail
@@ -81,3 +83,4 @@ npm run build
 
 - Version 1 does not include doctors, clinics, padel, football, wallets, loyalty, chat, or multi-branch logic.
 - Authentication now uses MySQL, but bookings, services, moderation, and gallery edits still persist in the browser demo store for now.
+- Public booking-reference API access now requires a short-lived OTP-style verification flow before full booking details are returned.

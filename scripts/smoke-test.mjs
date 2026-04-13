@@ -78,6 +78,10 @@ async function postJson(pathname, body) {
 async function run() {
   const child = spawn(process.execPath, [nextBin, "start", "--port", String(port)], {
     cwd: process.cwd(),
+    env: {
+      ...process.env,
+      BOOKING_OTP_DEV_PREVIEW: "true",
+    },
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,
   });
@@ -221,9 +225,78 @@ async function run() {
         hasFailure = true;
       }
 
+      const serviceResponse = await fetch(`${baseUrl}/api/services`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          cookie: shopCookie,
+        },
+        body: JSON.stringify({
+          businessId: shopJson.session.user.businessProfileId,
+          title: "Free consultation",
+          description: "Zero-cost intro slot",
+          price: 0,
+          durationMinutes: 30,
+          genderTarget: "unisex",
+        }),
+      });
+      const serviceJson = await serviceResponse.json();
+      const startAt = new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString();
+      const wrongEndAt = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString();
+      const bookingResponse = await postJson("/api/bookings", {
+        businessId: shopJson.session.user.businessProfileId,
+        serviceId: serviceJson.data.id,
+        customerName: "Public Booking Smoke",
+        customerPhone: "+216 20 100 333",
+        startAt,
+        endAt: wrongEndAt,
+      });
+      const bookingJson = await bookingResponse.json();
+      const challengeResponse = await postJson(
+        `/api/bookings/reference/${bookingJson.data.referenceCode}/challenge`,
+        {
+          customerPhone: "+216 20 100 333",
+        },
+      );
+      const challengeJson = await challengeResponse.json();
+      const verifyResponse = await postJson(
+        `/api/bookings/reference/${bookingJson.data.referenceCode}/verify`,
+        {
+          challengeId: challengeJson.data.challengeId,
+          code: challengeJson.data.developmentCodePreview,
+        },
+      );
+      const verifyJson = await verifyResponse.json();
+      const unauthorizedReferenceGet = await fetch(
+        `${baseUrl}/api/bookings/reference/${bookingJson.data.referenceCode}`,
+      );
+      const authorizedReferenceGet = await fetch(
+        `${baseUrl}/api/bookings/reference/${bookingJson.data.referenceCode}?token=${encodeURIComponent(
+          verifyJson.data.token,
+        )}`,
+      );
+      const authorizedReferenceJson = await authorizedReferenceGet.json();
+      const bookingAccessOk =
+        serviceResponse.status === 201 &&
+        bookingResponse.status === 201 &&
+        challengeResponse.status === 200 &&
+        verifyResponse.status === 200 &&
+        unauthorizedReferenceGet.status === 401 &&
+        authorizedReferenceGet.status === 200 &&
+        bookingJson.data.endAt !== wrongEndAt &&
+        authorizedReferenceJson.data.customerPhone === "+216 20 100 333";
+      console.log(`${authorizedReferenceGet.status}\t${bookingAccessOk ? "PASS" : "MISS"}\t/public booking otp flow`);
+      if (!bookingAccessOk) {
+        hasFailure = true;
+      }
+
       void customerJson;
       void shopJson;
       void adminJson;
+      void serviceJson;
+      void bookingJson;
+      void challengeJson;
+      void verifyJson;
     } catch (error) {
       hasFailure = true;
       console.log(`ERR\tFAIL\tauth-flow\t${error instanceof Error ? error.message : String(error)}`);

@@ -76,6 +76,21 @@ Customers can:
 - contact the business by WhatsApp
 - review bookings from the protected `/account` page when the booking phone matches their account phone
 
+### Public booking verification API
+
+The public booking-reference API now uses a three-step verification flow:
+
+- request a short-lived code with booking reference plus phone number
+- verify the code
+- use the returned short-lived access token to read the booking
+
+Security behavior:
+
+- no raw booking payload is returned from reference code alone
+- code request and verification are rate-limited
+- development environments can expose a preview code for local testing
+- production environments are structured for SMS delivery instead
+
 ## Business dashboard
 
 ### Dashboard overview
