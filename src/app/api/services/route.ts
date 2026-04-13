@@ -89,7 +89,12 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!body.price || body.price < 0) {
+    if (
+      body.price === undefined ||
+      body.price === null ||
+      Number.isNaN(Number(body.price)) ||
+      body.price < 0
+    ) {
       return NextResponse.json(
         { ok: false, message: "Valid price is required" },
         { status: 400 },

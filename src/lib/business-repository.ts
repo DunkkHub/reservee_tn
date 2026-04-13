@@ -1,15 +1,24 @@
 import "server-only";
 
-import { randomUUID } from "node:crypto";
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { getDbPool } from "@/lib/db";
-import type { Business, BusinessStatus, BusinessPolicy, BusinessTrust, BusinessMetrics, OperatingMode, BookingMode } from "@/lib/types";
+import type {
+  Audience,
+  BookingMode,
+  Business,
+  BusinessMetrics,
+  BusinessPolicy,
+  BusinessStatus,
+  BusinessTrust,
+  CategorySlug,
+  OperatingMode,
+} from "@/lib/types";
 
 type BusinessRow = RowDataPacket & {
   id: string;
   owner_user_id: string;
   business_name: string;
-  category_slug: string;
+  category_slug: CategorySlug;
   city_slug: string;
   area: string;
   address: string;
@@ -21,7 +30,7 @@ type BusinessRow = RowDataPacket & {
   logo_text: string;
   cover_url: string;
   slug: string;
-  audience: string;
+  audience: Audience;
   years_in_business: number;
   booking_mode: BookingMode;
   operating_mode: OperatingMode;
@@ -29,7 +38,7 @@ type BusinessRow = RowDataPacket & {
   featured_until: string | null;
   featured_rank: number | null;
   featured_city_slug: string | null;
-  featured_category_slug: string | null;
+  featured_category_slug: CategorySlug | null;
   featured_copy: string | null;
   status: BusinessStatus;
   created_at: string;
@@ -159,7 +168,7 @@ export async function updateBusinessProfile(
   const pool = getDbPool();
 
   const updateFields: string[] = ["updated_at = NOW()"];
-  const values: unknown[] = [];
+  const values: Array<string | number> = [];
 
   if (updates.business_name !== undefined) {
     updateFields.push("business_name = ?");
@@ -236,7 +245,7 @@ export async function moderateBusiness(
   const pool = getDbPool();
 
   const updateFields = ["status = ?", "updated_at = NOW()"];
-  const values: unknown[] = [updates.status];
+  const values: Array<string | number | null> = [updates.status];
 
   if (updates.featured_until !== undefined) {
     updateFields.push("featured_until = ?");
@@ -275,7 +284,7 @@ function mapRowToBusiness(row: BusinessRow): Business {
     logoText: row.logo_text,
     coverUrl: row.cover_url,
     status: row.status,
-    audience: row.audience as any,
+    audience: row.audience,
     yearsInBusiness: row.years_in_business,
     bookingMode: row.booking_mode,
     operatingMode: row.operating_mode,
@@ -283,7 +292,7 @@ function mapRowToBusiness(row: BusinessRow): Business {
     featuredUntil: row.featured_until,
     featuredRank: row.featured_rank,
     featuredCitySlug: row.featured_city_slug,
-    featuredCategorySlug: row.featured_category_slug as any,
+    featuredCategorySlug: row.featured_category_slug,
     profileCompletion: 0, // Will be calculated separately
     services: [],
     hours: [],

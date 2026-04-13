@@ -37,6 +37,14 @@ This creates:
 
 It also inserts one local admin account.
 
+## If your local database is older
+
+If you created `reservee_tn` before the newer backend API tables were added, also import:
+
+- [database/migrations/2026-04-13-sync-backend-schema.sql](/D:/barber/database/migrations/2026-04-13-sync-backend-schema.sql)
+
+That upgrades older local schemas with the newer business, service, bookings, availability, media, moderation, and waitlist tables.
+
 ## Default admin login
 
 - email: `admin@reservee.tn`

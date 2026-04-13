@@ -111,7 +111,7 @@ export async function updateService(
   const pool = getDbPool();
 
   const updateFields: string[] = [];
-  const values: unknown[] = [];
+  const values: Array<string | number | boolean> = [];
 
   if (updates.title !== undefined) {
     updateFields.push("title = ?");

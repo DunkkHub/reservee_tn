@@ -4,7 +4,6 @@ import {
   useCallback,
   createContext,
   useContext,
-  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -32,18 +31,7 @@ export function AuthProvider({
   initialSession: AuthSession | null;
 }) {
   const router = useRouter();
-  const [session, setSession] = useState<AuthSession | null>(initialSession);
-  const [isHydrated, setIsHydrated] = useState(false);
-
-  useEffect(() => {
-    setIsHydrated(true);
-  }, []);
-
-  useEffect(() => {
-    if (isHydrated) {
-      setSession(initialSession);
-    }
-  }, [initialSession, isHydrated]);
+  const [session, setSession] = useState<AuthSession | null>(() => initialSession);
 
   const refreshSession = useCallback(async () => {
     const response = await fetch("/api/auth/session", {

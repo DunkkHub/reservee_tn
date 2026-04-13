@@ -1,6 +1,6 @@
 import "server-only";
 
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { getDbPool } from "@/lib/db";
 import type { Booking, BookingStatus } from "@/lib/types";
@@ -44,12 +44,20 @@ function mapRowToBooking(row: BookingRow): Booking {
 }
 
 export function generateBookingReferenceCode() {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let code = "";
-  for (let i = 0; i < 8; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return code;
+  return randomBytes(5)
+    .toString("base64url")
+    .replace(/[^A-Z0-9]/gi, "")
+    .slice(0, 10)
+    .toUpperCase();
+}
+
+function isDuplicateEntryError(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "ER_DUP_ENTRY"
+  );
 }
 
 export async function createBooking(input: {
@@ -65,46 +73,57 @@ export async function createBooking(input: {
   expiresAt?: string | null;
 }) {
   const pool = getDbPool();
+  const maxAttempts = 5;
 
-  const bookingId = randomUUID();
-  const referenceCode = generateBookingReferenceCode();
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const bookingId = randomUUID();
+    const referenceCode = generateBookingReferenceCode();
 
-  await pool.execute<ResultSetHeader>(
-    `
-      INSERT INTO bookings (
-        id,
-        reference_code,
-        business_id,
-        service_id,
-        customer_name,
-        customer_phone,
-        customer_note,
-        start_at,
-        end_at,
-        status,
-        source,
-        expires_at,
-        status_updated_at
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
-    `,
-    [
-      bookingId,
-      referenceCode,
-      input.businessId,
-      input.serviceId,
-      input.customerName.trim(),
-      input.customerPhone.trim(),
-      input.customerNote?.trim() ?? null,
-      input.startAt,
-      input.endAt,
-      input.status,
-      input.source,
-      input.expiresAt ?? null,
-    ],
-  );
+    try {
+      await pool.execute<ResultSetHeader>(
+        `
+          INSERT INTO bookings (
+            id,
+            reference_code,
+            business_id,
+            service_id,
+            customer_name,
+            customer_phone,
+            customer_note,
+            start_at,
+            end_at,
+            status,
+            source,
+            expires_at,
+            status_updated_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+        `,
+        [
+          bookingId,
+          referenceCode,
+          input.businessId,
+          input.serviceId,
+          input.customerName.trim(),
+          input.customerPhone.trim(),
+          input.customerNote?.trim() ?? null,
+          input.startAt,
+          input.endAt,
+          input.status,
+          input.source,
+          input.expiresAt ?? null,
+        ],
+      );
 
-  return await findBookingById(bookingId);
+      return await findBookingById(bookingId);
+    } catch (error) {
+      if (!isDuplicateEntryError(error) || attempt === maxAttempts - 1) {
+        throw error;
+      }
+    }
+  }
+
+  throw new Error("Unable to generate a unique booking reference code.");
 }
 
 export async function findBookingById(id: string) {

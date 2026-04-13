@@ -1,57 +1,69 @@
 import { NextResponse } from "next/server";
+
+import { getApiSession } from "@/lib/auth-session";
 import {
   findBookingById,
-  findBookingByReference,
-  findBookingsByBusiness,
-  findBookingsByPhone,
-  updateBookingStatus,
   requestBookingReschedule,
-  expireOldBookings,
+  updateBookingStatus,
 } from "@/lib/booking-repository";
 import { findBusinessById } from "@/lib/business-repository";
 import { getDatabaseErrorMessage } from "@/lib/db";
-import { getApiSession } from "@/lib/auth-session";
-import type { BookingStatus } from "@/lib/types";
+import type { Booking, BookingStatus } from "@/lib/types";
 
 export const runtime = "nodejs";
 
-export async function GET(request: Request) {
+type RouteContext = {
+  params: Promise<{
+    id: string;
+  }>;
+};
+
+function normalizePhone(value: string) {
+  return value.replace(/\D/g, "");
+}
+
+async function canAccessBooking(session: NonNullable<Awaited<ReturnType<typeof getApiSession>>>, booking: Booking) {
+  if (session.user.role === "admin") {
+    return true;
+  }
+
+  if (session.user.role === "shop") {
+    const business = await findBusinessById(booking.businessId);
+    return Boolean(business && business.ownerId === session.user.id);
+  }
+
+  if (session.user.role === "customer") {
+    return normalizePhone(session.user.phone) === normalizePhone(booking.customerPhone);
+  }
+
+  return false;
+}
+
+export async function GET(_: Request, context: RouteContext) {
   try {
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get("id");
-    const reference = searchParams.get("reference");
-    const businessId = searchParams.get("businessId");
-    const customerPhone = searchParams.get("customerPhone");
+    const session = await getApiSession();
 
-    let booking;
-
-    if (id) {
-      booking = await findBookingById(id);
-    } else if (reference) {
-      booking = await findBookingByReference(reference);
-    } else if (businessId) {
-      const bookings = await findBookingsByBusiness(businessId);
-      return NextResponse.json({
-        ok: true,
-        data: bookings,
-      });
-    } else if (customerPhone) {
-      const bookings = await findBookingsByPhone(customerPhone);
-      return NextResponse.json({
-        ok: true,
-        data: bookings,
-      });
-    } else {
+    if (!session) {
       return NextResponse.json(
-        { ok: false, message: "Please provide id, reference, businessId, or customerPhone" },
-        { status: 400 },
+        { ok: false, message: "Authentication required" },
+        { status: 401 },
       );
     }
+
+    const { id } = await context.params;
+    const booking = await findBookingById(id);
 
     if (!booking) {
       return NextResponse.json(
         { ok: false, message: "Booking not found" },
         { status: 404 },
+      );
+    }
+
+    if (!(await canAccessBooking(session, booking))) {
+      return NextResponse.json(
+        { ok: false, message: "You don't have permission to view this booking" },
+        { status: 403 },
       );
     }
 
@@ -70,16 +82,10 @@ export async function GET(request: Request) {
   }
 }
 
-export async function PATCH(request: Request) {
+export async function PATCH(request: Request, context: RouteContext) {
   try {
-    const body = (await request.json()) as {
-      bookingId?: string;
-      status?: BookingStatus;
-      action?: "updateStatus" | "requestReschedule" | "expireOld";
-    };
-
-    // Auth check: All write operations require authentication
     const session = await getApiSession();
+
     if (!session) {
       return NextResponse.json(
         { ok: false, message: "Authentication required" },
@@ -87,30 +93,14 @@ export async function PATCH(request: Request) {
       );
     }
 
-    if (body.action === "expireOld") {
-      // Only admins can expire old bookings
-      if (session.user.role !== "admin") {
-        return NextResponse.json(
-          { ok: false, message: "Only admins can expire old bookings" },
-          { status: 403 },
-        );
-      }
-      await expireOldBookings();
-      return NextResponse.json({
-        ok: true,
-        message: "Expired old bookings",
-      });
-    }
+    const { id } = await context.params;
+    const body = (await request.json()) as {
+      status?: BookingStatus;
+      action?: "updateStatus" | "requestReschedule";
+    };
 
-    if (!body.bookingId) {
-      return NextResponse.json(
-        { ok: false, message: "Booking ID is required" },
-        { status: 400 },
-      );
-    }
+    const booking = await findBookingById(id);
 
-    // Get the booking to verify ownership
-    const booking = await findBookingById(body.bookingId);
     if (!booking) {
       return NextResponse.json(
         { ok: false, message: "Booking not found" },
@@ -118,20 +108,15 @@ export async function PATCH(request: Request) {
       );
     }
 
-    // Ownership check: shop owners can only manage their own business's bookings
-    if (session.user.role === "shop") {
-      const business = await findBusinessById(booking.businessId);
-      if (!business || business.ownerId !== session.user.id) {
-        return NextResponse.json(
-          { ok: false, message: "You don't have permission to manage this booking" },
-          { status: 403 },
-        );
-      }
+    if (!(await canAccessBooking(session, booking))) {
+      return NextResponse.json(
+        { ok: false, message: "You don't have permission to manage this booking" },
+        { status: 403 },
+      );
     }
-    // Admins can manage any booking
 
     if (body.action === "requestReschedule") {
-      const updatedBooking = await requestBookingReschedule(body.bookingId);
+      const updatedBooking = await requestBookingReschedule(id);
       return NextResponse.json({
         ok: true,
         message: "Reschedule requested",
@@ -146,7 +131,14 @@ export async function PATCH(request: Request) {
       );
     }
 
-    const updatedBooking = await updateBookingStatus(body.bookingId, body.status);
+    if (session.user.role === "customer" && body.status !== "cancelled_by_customer") {
+      return NextResponse.json(
+        { ok: false, message: "Customers can only cancel their own bookings" },
+        { status: 403 },
+      );
+    }
+
+    const updatedBooking = await updateBookingStatus(id, body.status);
 
     if (!updatedBooking) {
       return NextResponse.json(

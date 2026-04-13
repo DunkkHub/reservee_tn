@@ -113,7 +113,6 @@ export function validateBookingInput(input: {
   customerName?: string;
   customerPhone?: string;
   startAt?: string;
-  endAt?: string;
 }): ValidationResult {
   const errors: ValidationError[] = [];
 
@@ -148,24 +147,8 @@ export function validateBookingInput(input: {
     });
   }
 
-  if (!input.endAt) {
-    errors.push({
-      field: "endAt",
-      message: "End time is required",
-    });
-  }
-
-  if (input.startAt && input.endAt) {
+  if (input.startAt) {
     const start = new Date(input.startAt);
-    const end = new Date(input.endAt);
-
-    if (start >= end) {
-      errors.push({
-        field: "endAt",
-        message: "End time must be after start time",
-      });
-    }
-
     if (start < new Date()) {
       errors.push({
         field: "startAt",

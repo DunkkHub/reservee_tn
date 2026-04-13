@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -30,11 +29,6 @@ const navItems = [
 export function PublicShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, isAuthenticated, logout } = useAuth();
-  const [isHydrated, setIsHydrated] = useState(false);
-
-  useEffect(() => {
-    setIsHydrated(true);
-  }, []);
 
   const accountHref =
     user?.role === "shop"
@@ -108,7 +102,7 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
             ))}
           </nav>
           <div className="hidden items-center gap-3 md:flex">
-            {isHydrated && isAuthenticated ? (
+            {isAuthenticated ? (
               <>
                 <Link
                   href={accountHref}

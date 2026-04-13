@@ -54,7 +54,7 @@ export async function updateBusinessHours(
   const pool = getDbPool();
 
   const updateFields: string[] = [];
-  const values: unknown[] = [];
+  const values: Array<string | number> = [];
 
   if (updates.openTime !== undefined) {
     updateFields.push("open_time = ?");

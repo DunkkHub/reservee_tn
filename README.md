@@ -30,6 +30,12 @@ Import the MySQL schema in phpMyAdmin or with XAMPP first:
 npm run dev
 ```
 
+If you already had an older local `reservee_tn` database before the newer backend routes were added, run the upgrade script too:
+
+```bash
+# run database/migrations/2026-04-13-sync-backend-schema.sql in phpMyAdmin
+```
+
 Production checks:
 
 ```bash

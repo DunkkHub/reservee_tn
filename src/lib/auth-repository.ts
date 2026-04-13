@@ -14,6 +14,7 @@ import { categories, cities } from "@/lib/seed-data";
 import type { BusinessStatus } from "@/lib/types";
 import { getDbPool } from "@/lib/db";
 import { hashPassword, verifyPassword } from "@/lib/password";
+import { toSlug } from "@/lib/utils";
 
 type UserRow = RowDataPacket & {
   id: string;
@@ -182,6 +183,8 @@ export async function registerUser(input: RegistrationInput) {
     );
 
     if (input.role === "shop") {
+      const slugBase = toSlug(input.businessName.trim()) || "business";
+
       await connection.execute<ResultSetHeader>(
         `
           INSERT INTO business_profiles (
@@ -192,9 +195,12 @@ export async function registerUser(input: RegistrationInput) {
             city_slug,
             area,
             address,
+            phone,
+            whatsapp,
+            slug,
             status
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
           randomUUID(),
@@ -206,6 +212,9 @@ export async function registerUser(input: RegistrationInput) {
           `${input.area.trim()}, ${
             cities.find((city) => city.slug === input.citySlug)?.name ?? "Tunisia"
           }`,
+          normalizePhone(input.phone),
+          normalizePhone(input.phone),
+          `${slugBase}-${userId.slice(-6).toLowerCase()}`,
           "draft",
         ],
       );

@@ -12,7 +12,13 @@ export const AUTH_COOKIE_NAME = "reservee_auth";
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 
 function getAuthSecret() {
-  return process.env.AUTH_SECRET ?? "reservee-local-dev-secret";
+  const secret = process.env.AUTH_SECRET;
+
+  if (!secret) {
+    throw new Error("AUTH_SECRET is required to sign user sessions.");
+  }
+
+  return secret;
 }
 
 function sign(payload: string) {
@@ -198,7 +204,7 @@ export async function requireApiRole(roles: UserRole[]) {
 /**
  * Validate that the user owns the specified business
  */
-export async function requireBusinessOwnership(businessId: string) {
+export async function requireBusinessOwnership() {
   const session = await getApiSession();
 
   if (!session) {

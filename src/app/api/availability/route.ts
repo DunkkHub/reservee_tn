@@ -30,6 +30,7 @@ export async function GET(request: Request) {
     }
 
     if (type === "hours") {
+      await ensureBusinessHoursExist(businessId);
       const hours = await findBusinessHours(businessId);
       return NextResponse.json({
         ok: true,
@@ -46,6 +47,7 @@ export async function GET(request: Request) {
     }
 
     // Default: return both
+    await ensureBusinessHoursExist(businessId);
     const hours = await findBusinessHours(businessId);
     const blocked = await findBlockedSlots(businessId);
 
@@ -118,6 +120,7 @@ export async function POST(request: Request) {
         );
       }
 
+      await ensureBusinessHoursExist(body.businessId);
       await updateBusinessHours(body.businessId, body.dayOfWeek, {
         openTime: body.openTime,
         closeTime: body.closeTime,
