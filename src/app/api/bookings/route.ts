@@ -5,6 +5,7 @@ import {
 } from "@/lib/booking-repository";
 import { findServiceById } from "@/lib/service-repository";
 import { getDatabaseErrorMessage } from "@/lib/db";
+import { getApiSession } from "@/lib/auth-session";
 import type { BookingStatus } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -21,6 +22,24 @@ export async function POST(request: Request) {
       endAt?: string;
       source?: "web" | "dashboard";
     };
+
+    // Auth check: Dashboard bookings require authentication
+    if (body.source === "dashboard") {
+      const session = await getApiSession();
+      if (!session) {
+        return NextResponse.json(
+          { ok: false, message: "Authentication required for dashboard bookings" },
+          { status: 401 },
+        );
+      }
+      // Only shop owners and admins can create dashboard bookings
+      if (session.user.role !== "shop" && session.user.role !== "admin") {
+        return NextResponse.json(
+          { ok: false, message: "Only shop owners and admins can create dashboard bookings" },
+          { status: 403 },
+        );
+      }
+    }
 
     // Validation
     if (!body.businessId?.trim()) {
@@ -65,12 +84,20 @@ export async function POST(request: Request) {
       );
     }
 
-    // Check service exists
+    // Check service exists AND belongs to the specified business
     const service = await findServiceById(body.serviceId);
     if (!service) {
       return NextResponse.json(
         { ok: false, message: "Service not found" },
         { status: 404 },
+      );
+    }
+
+    // CRITICAL: Enforce service-to-business validation
+    if (service.businessId !== body.businessId) {
+      return NextResponse.json(
+        { ok: false, message: "Service does not belong to the specified business" },
+        { status: 400 },
       );
     }
 

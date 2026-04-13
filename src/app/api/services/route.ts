@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
 import {
   findServicesByBusiness,
+  findServiceById,
   createService,
   updateService,
   toggleService,
   deleteService,
 } from "@/lib/service-repository";
+import { findBusinessById } from "@/lib/business-repository";
 import { getDatabaseErrorMessage } from "@/lib/db";
+import { getApiSession } from "@/lib/auth-session";
 import type { Audience } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -51,12 +54,33 @@ export async function POST(request: Request) {
       genderTarget?: Audience;
     };
 
+    // Auth check: Creating services requires authentication
+    const session = await getApiSession();
+    if (!session) {
+      return NextResponse.json(
+        { ok: false, message: "Authentication required" },
+        { status: 401 },
+      );
+    }
+
     if (!body.businessId) {
       return NextResponse.json(
         { ok: false, message: "Business ID is required" },
         { status: 400 },
       );
     }
+
+    // Ownership check: Verify user owns the business
+    if (session.user.role === "shop") {
+      const business = await findBusinessById(body.businessId);
+      if (!business || business.ownerId !== session.user.id) {
+        return NextResponse.json(
+          { ok: false, message: "You don't have permission to create services for this business" },
+          { status: 403 },
+        );
+      }
+    }
+    // Admins can create services for any business
 
     if (!body.title?.trim()) {
       return NextResponse.json(
@@ -122,12 +146,42 @@ export async function PATCH(request: Request) {
       actionType?: "toggle";
     };
 
+    // Auth check: Updating services requires authentication
+    const session = await getApiSession();
+    if (!session) {
+      return NextResponse.json(
+        { ok: false, message: "Authentication required" },
+        { status: 401 },
+      );
+    }
+
     if (!body.serviceId) {
       return NextResponse.json(
         { ok: false, message: "Service ID is required" },
         { status: 400 },
       );
     }
+
+    // Get the service to verify ownership
+    const existingService = await findServiceById(body.serviceId);
+    if (!existingService) {
+      return NextResponse.json(
+        { ok: false, message: "Service not found" },
+        { status: 404 },
+      );
+    }
+
+    // Ownership check: Verify user owns the business
+    if (session.user.role === "shop") {
+      const business = await findBusinessById(existingService.businessId);
+      if (!business || business.ownerId !== session.user.id) {
+        return NextResponse.json(
+          { ok: false, message: "You don't have permission to update this service" },
+          { status: 403 },
+        );
+      }
+    }
+    // Admins can update any service
 
     let service;
 
@@ -173,12 +227,42 @@ export async function DELETE(request: Request) {
     const { searchParams } = new URL(request.url);
     const serviceId = searchParams.get("serviceId");
 
+    // Auth check: Deleting services requires authentication
+    const session = await getApiSession();
+    if (!session) {
+      return NextResponse.json(
+        { ok: false, message: "Authentication required" },
+        { status: 401 },
+      );
+    }
+
     if (!serviceId) {
       return NextResponse.json(
         { ok: false, message: "Service ID is required" },
         { status: 400 },
       );
     }
+
+    // Get the service to verify ownership
+    const service = await findServiceById(serviceId);
+    if (!service) {
+      return NextResponse.json(
+        { ok: false, message: "Service not found" },
+        { status: 404 },
+      );
+    }
+
+    // Ownership check: Verify user owns the business
+    if (session.user.role === "shop") {
+      const business = await findBusinessById(service.businessId);
+      if (!business || business.ownerId !== session.user.id) {
+        return NextResponse.json(
+          { ok: false, message: "You don't have permission to delete this service" },
+          { status: 403 },
+        );
+      }
+    }
+    // Admins can delete any service
 
     await deleteService(serviceId);
 

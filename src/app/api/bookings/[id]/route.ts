@@ -8,7 +8,9 @@ import {
   requestBookingReschedule,
   expireOldBookings,
 } from "@/lib/booking-repository";
+import { findBusinessById } from "@/lib/business-repository";
 import { getDatabaseErrorMessage } from "@/lib/db";
+import { getApiSession } from "@/lib/auth-session";
 import type { BookingStatus } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -76,7 +78,23 @@ export async function PATCH(request: Request) {
       action?: "updateStatus" | "requestReschedule" | "expireOld";
     };
 
+    // Auth check: All write operations require authentication
+    const session = await getApiSession();
+    if (!session) {
+      return NextResponse.json(
+        { ok: false, message: "Authentication required" },
+        { status: 401 },
+      );
+    }
+
     if (body.action === "expireOld") {
+      // Only admins can expire old bookings
+      if (session.user.role !== "admin") {
+        return NextResponse.json(
+          { ok: false, message: "Only admins can expire old bookings" },
+          { status: 403 },
+        );
+      }
       await expireOldBookings();
       return NextResponse.json({
         ok: true,
@@ -91,12 +109,33 @@ export async function PATCH(request: Request) {
       );
     }
 
+    // Get the booking to verify ownership
+    const booking = await findBookingById(body.bookingId);
+    if (!booking) {
+      return NextResponse.json(
+        { ok: false, message: "Booking not found" },
+        { status: 404 },
+      );
+    }
+
+    // Ownership check: shop owners can only manage their own business's bookings
+    if (session.user.role === "shop") {
+      const business = await findBusinessById(booking.businessId);
+      if (!business || business.ownerId !== session.user.id) {
+        return NextResponse.json(
+          { ok: false, message: "You don't have permission to manage this booking" },
+          { status: 403 },
+        );
+      }
+    }
+    // Admins can manage any booking
+
     if (body.action === "requestReschedule") {
-      const booking = await requestBookingReschedule(body.bookingId);
+      const updatedBooking = await requestBookingReschedule(body.bookingId);
       return NextResponse.json({
         ok: true,
         message: "Reschedule requested",
-        data: booking,
+        data: updatedBooking,
       });
     }
 
@@ -107,9 +146,9 @@ export async function PATCH(request: Request) {
       );
     }
 
-    const booking = await updateBookingStatus(body.bookingId, body.status);
+    const updatedBooking = await updateBookingStatus(body.bookingId, body.status);
 
-    if (!booking) {
+    if (!updatedBooking) {
       return NextResponse.json(
         { ok: false, message: "Booking not found" },
         { status: 404 },
@@ -119,7 +158,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({
       ok: true,
       message: "Booking status updated",
-      data: booking,
+      data: updatedBooking,
     });
   } catch (error) {
     return NextResponse.json(

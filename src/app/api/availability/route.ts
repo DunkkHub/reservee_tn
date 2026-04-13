@@ -9,7 +9,9 @@ import {
   createBlockedSlot,
   deleteBlockedSlot,
 } from "@/lib/blocked-slots-repository";
+import { findBusinessById } from "@/lib/business-repository";
 import { getDatabaseErrorMessage } from "@/lib/db";
+import { getApiSession } from "@/lib/auth-session";
 import type { BreakWindow } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -80,12 +82,33 @@ export async function POST(request: Request) {
       reason?: string;
     };
 
+    // Auth check: Updating availability requires authentication
+    const session = await getApiSession();
+    if (!session) {
+      return NextResponse.json(
+        { ok: false, message: "Authentication required" },
+        { status: 401 },
+      );
+    }
+
     if (!body.businessId) {
       return NextResponse.json(
         { ok: false, message: "Business ID is required" },
         { status: 400 },
       );
     }
+
+    // Ownership check: Verify user owns the business
+    if (session.user.role === "shop") {
+      const business = await findBusinessById(body.businessId);
+      if (!business || business.ownerId !== session.user.id) {
+        return NextResponse.json(
+          { ok: false, message: "You don't have permission to update availability for this business" },
+          { status: 403 },
+        );
+      }
+    }
+    // Admins can update any business's availability
 
     if (body.type === "hours") {
       if (body.dayOfWeek === undefined) {
@@ -159,12 +182,33 @@ export async function DELETE(request: Request) {
     const businessId = searchParams.get("businessId");
     const slotId = searchParams.get("slotId");
 
+    // Auth check: Deleting availability requires authentication
+    const session = await getApiSession();
+    if (!session) {
+      return NextResponse.json(
+        { ok: false, message: "Authentication required" },
+        { status: 401 },
+      );
+    }
+
     if (!businessId || !slotId) {
       return NextResponse.json(
         { ok: false, message: "Business ID and slot ID are required" },
         { status: 400 },
       );
     }
+
+    // Ownership check: Verify user owns the business
+    if (session.user.role === "shop") {
+      const business = await findBusinessById(businessId);
+      if (!business || business.ownerId !== session.user.id) {
+        return NextResponse.json(
+          { ok: false, message: "You don't have permission to delete availability for this business" },
+          { status: 403 },
+        );
+      }
+    }
+    // Admins can delete any business's availability
 
     await deleteBlockedSlot(slotId, businessId);
 

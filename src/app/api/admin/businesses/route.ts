@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDbPool, getDatabaseErrorMessage } from "@/lib/db";
 import { moderateBusiness } from "@/lib/business-repository";
+import { getApiSession } from "@/lib/auth-session";
 import type { RowDataPacket } from "mysql2/promise";
 import type { BusinessStatus } from "@/lib/types";
 
@@ -8,6 +9,15 @@ export const runtime = "nodejs";
 
 export async function GET(request: Request) {
   try {
+    // Auth check: Only admins can view moderation queue
+    const session = await getApiSession();
+    if (!session || session.user.role !== "admin") {
+      return NextResponse.json(
+        { ok: false, message: "Only admins can access this endpoint" },
+        { status: 403 },
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
     const limit = parseInt(searchParams.get("limit") ?? "50", 10);
@@ -46,6 +56,22 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+    // Auth check: Only admins can moderate businesses
+    const session = await getApiSession();
+    if (!session) {
+      return NextResponse.json(
+        { ok: false, message: "Authentication required" },
+        { status: 401 },
+      );
+    }
+
+    if (session.user.role !== "admin") {
+      return NextResponse.json(
+        { ok: false, message: "Only admins can moderate businesses" },
+        { status: 403 },
+      );
+    }
+
     const body = (await request.json()) as {
       businessId?: string;
       status?: BusinessStatus;

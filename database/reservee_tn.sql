@@ -136,7 +136,7 @@ CREATE TABLE IF NOT EXISTS bookings (
   CONSTRAINT fk_bookings_service
     FOREIGN KEY (service_id)
     REFERENCES services (id)
-    ON DELETE SET NULL,
+    ON DELETE RESTRICT,
   KEY idx_bookings_business_id (business_id),
   KEY idx_bookings_status (status),
   KEY idx_bookings_start_at (start_at),
