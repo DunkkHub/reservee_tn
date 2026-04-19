@@ -26,7 +26,33 @@ export function PwaProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {
-      void navigator.serviceWorker.register("/sw.js");
+      if (process.env.NODE_ENV === "production") {
+        void navigator.serviceWorker.register("/sw.js");
+      } else {
+        void (async () => {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          const hadRegistrations = registrations.length > 0;
+
+          await Promise.all(
+            registrations.map((registration) => registration.unregister()),
+          );
+
+          let hadCaches = false;
+          if ("caches" in window) {
+            const cacheKeys = await window.caches.keys();
+            hadCaches = cacheKeys.length > 0;
+            await Promise.all(cacheKeys.map((cacheKey) => window.caches.delete(cacheKey)));
+          }
+
+          if (
+            (hadRegistrations || hadCaches) &&
+            !window.sessionStorage.getItem("reservee-dev-runtime-reset")
+          ) {
+            window.sessionStorage.setItem("reservee-dev-runtime-reset", "1");
+            window.location.reload();
+          }
+        })();
+      }
     }
 
     function handleBeforeInstallPrompt(event: Event) {

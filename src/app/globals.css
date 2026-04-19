@@ -95,4 +95,20 @@ a {
     border-color: rgba(200, 169, 107, 0.3);
     box-shadow: 0 0 0 4px rgba(200, 169, 107, 0.1);
   }
+
+  select.input-field {
+    cursor: pointer;
+  }
+
+  select.input-field option,
+  select.input-field optgroup {
+    background-color: #f3f6fb;
+    color: var(--color-ink);
+  }
+
+  select.input-field option:checked,
+  select.input-field option:focus {
+    background-color: rgba(200, 169, 107, 0.4);
+    color: var(--color-ink);
+  }
 }

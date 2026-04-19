@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   CalendarClock,
   Compass,
@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   UserRound,
 } from "lucide-react";
+import { useEffect } from "react";
 
 import { useAuth } from "@/components/providers/auth-provider";
 import { Button } from "@/components/ui/button";
@@ -22,13 +23,22 @@ import { cn } from "@/lib/utils";
 const navItems = [
   { href: "/", label: "Accueil" },
   { href: "/explore", label: "Explorer" },
-  { href: "/manage-booking", label: "Gerer ma reservation" },
+  { href: "/manage-booking", label: "Gerer mes reservations" },
   { href: "/partner", label: "Partenaires" },
 ];
 
 export function PublicShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { user, isAuthenticated, logout } = useAuth();
+
+  useEffect(() => {
+    for (const item of navItems) {
+      if (item.href !== pathname) {
+        router.prefetch(item.href);
+      }
+    }
+  }, [pathname, router]);
 
   const accountHref =
     user?.role === "shop"
@@ -85,16 +95,17 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
               </p>
             </div>
           </Link>
-          <nav className="hidden items-center gap-2 rounded-full border border-white/8 bg-white/4 p-1 md:flex">
+          <nav className="hidden items-center gap-1.5 rounded-full border border-white/12 bg-[rgba(255,255,255,0.03)] p-1.5 md:flex">
             {navItems.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch
                 className={cn(
-                  "rounded-full px-4 py-2 text-sm font-medium transition",
+                  "rounded-full px-4 py-2 text-sm font-medium transition-colors duration-200",
                   pathname === item.href
-                    ? "bg-white text-[var(--color-ink)]"
-                    : "text-[var(--color-secondary)] hover:text-white",
+                    ? "bg-[var(--color-accent)] text-[var(--color-ink)] shadow-[0_8px_22px_rgba(200,169,107,0.35)]"
+                    : "text-[rgba(241,245,252,0.86)] hover:bg-white/8 hover:text-white",
                 )}
               >
                 {item.label}
@@ -159,7 +170,7 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
                 className={cn(
                   "flex min-w-[92px] flex-col items-center gap-1 rounded-full px-4 py-2 text-xs font-medium transition",
                   active
-                    ? "bg-[var(--color-accent)] text-[var(--color-ink)]"
+                    ? "bg-[rgba(200,169,107,0.95)] text-[var(--color-ink)]"
                     : "text-[var(--color-secondary)]",
                 )}
               >

@@ -1,6 +1,6 @@
 "use client";
 
-import { useDeferredValue, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { CalendarClock, Clock3, Search, SlidersHorizontal } from "lucide-react";
@@ -106,108 +106,137 @@ export function ExploreBrowser({
   );
 
   const deferredQuery = useDeferredValue(query);
-  const filteredBusinesses = liveBusinesses
-    .filter((business) => {
-      const categorySlug = getCategorySlug(business);
-      const citySlug = getCitySlug(business);
-      const search = deferredQuery.toLowerCase().trim();
+  const normalizedQuery = deferredQuery.toLowerCase().trim();
 
-      if (categoryFilter && categorySlug !== categoryFilter) {
-        return false;
-      }
+  const filteredBusinesses = useMemo(() => {
+    return liveBusinesses
+      .filter((business) => {
+        const categorySlug = getCategorySlug(business);
+        const citySlug = getCitySlug(business);
 
-      if (cityFilter && citySlug !== cityFilter) {
-        return false;
-      }
-
-      if (areaFilter && business.area !== areaFilter) {
-        return false;
-      }
-
-      if (!matchesAudience(business.audience, audienceFilter)) {
-        return false;
-      }
-
-      if (priceFilter === "budget" && getStartingPrice(business) > 50) {
-        return false;
-      }
-
-      if (priceFilter === "mid" && (getStartingPrice(business) < 50 || getStartingPrice(business) > 90)) {
-        return false;
-      }
-
-      if (priceFilter === "premium" && getStartingPrice(business) < 90) {
-        return false;
-      }
-
-      if (openNowOnly && !isBusinessOpenNow(business)) {
-        return false;
-      }
-
-      if (availableTodayOnly) {
-        const service = business.services.find((item) => item.active);
-        if (!service || generateAvailableSlots(business, service, bookings, new Date()).length === 0) {
+        if (categoryFilter && categorySlug !== categoryFilter) {
           return false;
         }
-      }
 
-      if (sortBy === "featured" && !isBusinessFeatured(business)) {
-        return false;
-      }
+        if (cityFilter && citySlug !== cityFilter) {
+          return false;
+        }
 
-      if (!search) {
-        return true;
-      }
+        if (areaFilter && business.area !== areaFilter) {
+          return false;
+        }
 
-      const haystack = [
-        business.name,
-        business.area,
-        business.description,
-        business.tagline,
-        ...business.services.map((service) => service.title),
-      ]
-        .join(" ")
-        .toLowerCase();
+        if (!matchesAudience(business.audience, audienceFilter)) {
+          return false;
+        }
 
-      return haystack.includes(search);
-    })
-    .sort((left, right) => {
-      if (sortBy === "featured") {
-        return Number(isBusinessFeatured(right)) - Number(isBusinessFeatured(left));
-      }
+        if (priceFilter === "budget" && getStartingPrice(business) > 50) {
+          return false;
+        }
 
-      if (sortBy === "available_today") {
-        const leftNext = findNextAvailableSlot(left, left.services[0], bookings, 1);
-        const rightNext = findNextAvailableSlot(right, right.services[0], bookings, 1);
+        if (
+          priceFilter === "mid" &&
+          (getStartingPrice(business) < 50 || getStartingPrice(business) > 90)
+        ) {
+          return false;
+        }
 
-        if (!leftNext && !rightNext) return 0;
-        if (!leftNext) return 1;
-        if (!rightNext) return -1;
+        if (priceFilter === "premium" && getStartingPrice(business) < 90) {
+          return false;
+        }
 
-        return leftNext.getTime() - rightNext.getTime();
-      }
+        if (openNowOnly && !isBusinessOpenNow(business)) {
+          return false;
+        }
 
-      if (sortBy === "lowest_price") {
-        return getStartingPrice(left) - getStartingPrice(right);
-      }
+        if (availableTodayOnly) {
+          const service = business.services.find((item) => item.active);
+          if (
+            !service ||
+            generateAvailableSlots(business, service, bookings, new Date()).length === 0
+          ) {
+            return false;
+          }
+        }
 
-      if (sortBy === "newest") {
-        return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
-      }
+        if (sortBy === "featured" && !isBusinessFeatured(business)) {
+          return false;
+        }
 
-      return (
-        Number(isBusinessFeatured(right)) - Number(isBusinessFeatured(left)) ||
-        right.profileCompletion - left.profileCompletion
-      );
-    });
+        if (!normalizedQuery) {
+          return true;
+        }
 
-  const areas = Array.from(
-    new Set(
-      liveBusinesses
-        .filter((business) => !cityFilter || getCitySlug(business) === cityFilter)
-        .map((business) => business.area),
-    ),
-  );
+        const haystack = [
+          business.name,
+          business.area,
+          business.description,
+          business.tagline,
+          ...business.services.map((service) => service.title),
+        ]
+          .join(" ")
+          .toLowerCase();
+
+        return haystack.includes(normalizedQuery);
+      })
+      .sort((left, right) => {
+        if (sortBy === "featured") {
+          return Number(isBusinessFeatured(right)) - Number(isBusinessFeatured(left));
+        }
+
+        if (sortBy === "available_today") {
+          const leftService = left.services.find((service) => service.active);
+          const rightService = right.services.find((service) => service.active);
+          const leftNext = leftService
+            ? findNextAvailableSlot(left, leftService, bookings, 1)
+            : null;
+          const rightNext = rightService
+            ? findNextAvailableSlot(right, rightService, bookings, 1)
+            : null;
+
+          if (!leftNext && !rightNext) return 0;
+          if (!leftNext) return 1;
+          if (!rightNext) return -1;
+
+          return leftNext.getTime() - rightNext.getTime();
+        }
+
+        if (sortBy === "lowest_price") {
+          return getStartingPrice(left) - getStartingPrice(right);
+        }
+
+        if (sortBy === "newest") {
+          return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
+        }
+
+        return (
+          Number(isBusinessFeatured(right)) - Number(isBusinessFeatured(left)) ||
+          right.profileCompletion - left.profileCompletion
+        );
+      });
+  }, [
+    audienceFilter,
+    availableTodayOnly,
+    bookings,
+    categoryFilter,
+    cityFilter,
+    areaFilter,
+    liveBusinesses,
+    normalizedQuery,
+    openNowOnly,
+    priceFilter,
+    sortBy,
+  ]);
+
+  const areas = useMemo(() => {
+    return Array.from(
+      new Set(
+        liveBusinesses
+          .filter((business) => !cityFilter || getCitySlug(business) === cityFilter)
+          .map((business) => business.area),
+      ),
+    );
+  }, [cityFilter, liveBusinesses]);
 
   return (
     <div className="space-y-8">
