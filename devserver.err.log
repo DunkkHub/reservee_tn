@@ -1,0 +1,33 @@
+[browser] ⨯ unhandledRejection: Error: Start time cannot be in the past
+    at fetchApi (src/lib/client-api.ts:22:11)
+    at async createBooking (src/components/providers/platform-provider.tsx:256:21)
+    at async handleSubmit (src/components/pages/booking-flow-page.tsx:225:21)
+  20 |
+  21 |   if (!response.ok || !payload.ok) {
+> 22 |     throw new Error(payload.message || "Request failed");
+     |           ^
+  23 |   }
+  24 |
+  25 |   return payload.data as T;
+[browser] ⨯ unhandledRejection: Error: Start time cannot be in the past
+    at fetchApi (src/lib/client-api.ts:22:11)
+    at async createBooking (src/components/providers/platform-provider.tsx:256:21)
+    at async handleSubmit (src/components/pages/booking-flow-page.tsx:225:21)
+  20 |
+  21 |   if (!response.ok || !payload.ok) {
+> 22 |     throw new Error(payload.message || "Request failed");
+     |           ^
+  23 |   }
+  24 |
+  25 |   return payload.data as T;
+[browser] ⨯ unhandledRejection: Error: Start time cannot be in the past
+    at fetchApi (src/lib/client-api.ts:22:11)
+    at async createBooking (src/components/providers/platform-provider.tsx:256:21)
+    at async handleSubmit (src/components/pages/booking-flow-page.tsx:225:21)
+  20 |
+  21 |   if (!response.ok || !payload.ok) {
+> 22 |     throw new Error(payload.message || "Request failed");
+     |           ^
+  23 |   }
+  24 |
+  25 |   return payload.data as T;

@@ -17,6 +17,7 @@ import {
   Zap,
 } from "lucide-react";
 
+import { useLocale } from "@/components/providers/locale-provider";
 import { usePlatform } from "@/components/providers/platform-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,12 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { LogoMark } from "@/components/ui/logo-mark";
 import { generateDateOptions } from "@/lib/availability";
 import { fetchApi } from "@/lib/client-api";
+import {
+  getAudienceLabel,
+  getCategoryTranslation,
+  getCityTranslation,
+  getYesNoLabel,
+} from "@/lib/i18n";
 import { isBusinessFeatured } from "@/lib/platform-rules";
 import { categories, cities } from "@/lib/seed-data";
 import {
@@ -35,22 +42,18 @@ import {
   formatTime,
   operatingModeLabel,
 } from "@/lib/utils";
-
-const weekDays = [
-  "Dimanche",
-  "Lundi",
-  "Mardi",
-  "Mercredi",
-  "Jeudi",
-  "Vendredi",
-  "Samedi",
-];
+import { formatDateKey } from "@/lib/availability";
 
 export function BusinessProfilePage({ slug }: { slug: string }) {
   const { liveBusinesses, addWaitlistRequest } = usePlatform();
+  const { locale, messages } = useLocale();
   const business = liveBusinesses.find((item) => item.slug === slug);
   const category = categories.find((item) => item.id === business?.categoryId);
   const city = cities.find((item) => item.id === business?.cityId);
+  const localizedCategory = category
+    ? getCategoryTranslation(category.slug, locale)
+    : null;
+  const localizedCity = city ? getCityTranslation(city.slug, locale) : null;
   const [selectedServiceId, setSelectedServiceId] = useState(
     business?.services.find((service) => service.featured)?.id ??
       business?.services[0]?.id ??
@@ -89,7 +92,7 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
       try {
         const [slots, nextAvailableAt] = await Promise.all([
           fetchApi<string[]>(
-            `/api/availability?businessId=${encodeURIComponent(currentBusiness.id)}&serviceId=${encodeURIComponent(currentService.id)}&type=slots&date=${selectedDate.toISOString().slice(0, 10)}`,
+            `/api/availability?businessId=${encodeURIComponent(currentBusiness.id)}&serviceId=${encodeURIComponent(currentService.id)}&type=slots&date=${formatDateKey(selectedDate)}`,
           ),
           fetchApi<string | null>(
             `/api/availability?businessId=${encodeURIComponent(currentBusiness.id)}&serviceId=${encodeURIComponent(currentService.id)}&type=next`,
@@ -119,9 +122,9 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
     return (
       <EmptyState
         icon={ShieldCheck}
-        title="Business introuvable"
-        description="Cette fiche ne semble pas live pour le moment. Retourne vers l explore pour voir les adresses verifiees actuellement disponibles."
-        ctaLabel="Retour a l explore"
+        title={messages.businessProfile.notFoundTitle}
+        description={messages.businessProfile.notFoundDescription}
+        ctaLabel={messages.businessProfile.backToExplore}
         ctaHref="/explore"
       />
     );
@@ -142,7 +145,7 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
       serviceId: selectedService.id,
       customerName: waitlist.customerName,
       customerPhone: waitlist.customerPhone,
-      preferredDate: selectedDate.toISOString(),
+      preferredDate: formatDateKey(selectedDate),
       preferredTime: waitlist.preferredTime,
       note: waitlist.note,
     });
@@ -173,11 +176,19 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
             <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-end">
               <div className="space-y-5">
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge tone="default">{category.name}</Badge>
-                  {business.trust?.phoneVerified ? <Badge tone="success">Verified phone</Badge> : null}
-                  {business.trust?.addressVerified ? <Badge tone="success">Verified address</Badge> : null}
-                  {business.trust?.adminApproved ? <Badge tone="accent">Admin approved</Badge> : null}
-                  {isBusinessFeatured(business) ? <Badge tone="accent">Featured</Badge> : null}
+                  <Badge tone="default">{localizedCategory?.name ?? category.name}</Badge>
+                  {business.trust?.phoneVerified ? (
+                    <Badge tone="success">{messages.businessProfile.verifiedPhone}</Badge>
+                  ) : null}
+                  {business.trust?.addressVerified ? (
+                    <Badge tone="success">{messages.businessProfile.verifiedAddress}</Badge>
+                  ) : null}
+                  {business.trust?.adminApproved ? (
+                    <Badge tone="accent">{messages.businessProfile.adminApproved}</Badge>
+                  ) : null}
+                  {isBusinessFeatured(business) ? (
+                    <Badge tone="accent">{messages.businessProfile.featured}</Badge>
+                  ) : null}
                 </div>
                 <div className="flex items-end gap-4">
                   <LogoMark label={business.logoText} className="h-16 w-16 text-xl" />
@@ -187,40 +198,40 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
                     </h1>
                     <div className="flex flex-wrap items-center gap-2 text-base text-[var(--color-secondary)]">
                       <span>
-                        {city.name}, {business.area}
+                        {localizedCity?.name ?? city.name}, {business.area}
                       </span>
-                      <span className="text-white/30">•</span>
+                      <span className="text-white/30">&bull;</span>
                       <span>{business.responseWindow}</span>
-                      <span className="text-white/30">•</span>
-                      <span>{bookingModeLabel(business.bookingMode)}</span>
+                      <span className="text-white/30">&bull;</span>
+                      <span>{bookingModeLabel(business.bookingMode, locale)}</span>
                     </div>
                   </div>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-3">
                   <div className="rounded-2xl border border-white/10 bg-white/6 p-4">
                     <p className="text-xs uppercase tracking-[0.14em] text-[var(--color-muted)]">
-                      Starting price
+                      {messages.businessProfile.startingPrice}
                     </p>
                     <p className="mt-2 text-xl font-semibold text-white">
-                      {formatCurrency(startingPrice)}
+                      {formatCurrency(startingPrice, locale)}
                     </p>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-white/6 p-4">
                     <p className="text-xs uppercase tracking-[0.14em] text-[var(--color-muted)]">
-                      Next available
+                      {messages.businessProfile.nextAvailable}
                     </p>
                     <p className="mt-2 text-sm font-semibold text-white">
                       {nextBestSlot
-                        ? `${formatRelativeDay(nextBestSlot)} • ${formatTime(nextBestSlot)}`
-                        : "Full right now"}
+                        ? `${formatRelativeDay(nextBestSlot, locale)} • ${formatTime(nextBestSlot, locale)}`
+                        : messages.businessProfile.fullRightNow}
                     </p>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-white/6 p-4">
                     <p className="text-xs uppercase tracking-[0.14em] text-[var(--color-muted)]">
-                      Operating mode
+                      {messages.businessProfile.operatingMode}
                     </p>
                     <p className="mt-2 text-sm font-semibold text-white">
-                      {operatingModeLabel(business.operatingMode)}
+                      {operatingModeLabel(business.operatingMode, locale)}
                     </p>
                   </div>
                 </div>
@@ -230,7 +241,7 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
                   href={`/book/${business.slug}${selectedServiceId ? `?service=${selectedServiceId}` : ""}`}
                 >
                   <Button fullWidth size="lg">
-                    Book now
+                    {messages.businessProfile.bookNow}
                   </Button>
                 </Link>
                 <a
@@ -248,7 +259,7 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
                   </Button>
                 </a>
                 <div className="rounded-2xl border border-white/8 bg-white/4 p-4 text-sm text-[var(--color-secondary)]">
-                  Main action on this page is to book. If you are still deciding, WhatsApp is the soft fallback.
+                  {messages.businessProfile.bookingPageNote}
                 </div>
               </div>
             </div>
@@ -275,10 +286,22 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               {[
-                { label: "Joined", value: formatMonthYear(business.createdAt) },
-                { label: "Profile completion", value: `${business.profileCompletion}%` },
-                { label: "Audience", value: business.audience },
-                { label: "Years in business", value: `${business.yearsInBusiness}+` },
+                {
+                  label: messages.businessProfile.joined,
+                  value: formatMonthYear(business.createdAt, locale),
+                },
+                {
+                  label: messages.businessProfile.profileCompletion,
+                  value: `${business.profileCompletion}%`,
+                },
+                {
+                  label: messages.businessProfile.audience,
+                  value: getAudienceLabel(business.audience, locale),
+                },
+                {
+                  label: messages.businessProfile.yearsInBusiness,
+                  value: `${business.yearsInBusiness}+`,
+                },
               ].map((item) => (
                 <div
                   key={item.label}
@@ -296,12 +319,16 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
           <section className="space-y-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h2 className="font-heading text-3xl font-semibold text-white">Services</h2>
+                <h2 className="font-heading text-3xl font-semibold text-white">
+                  {messages.businessProfile.services}
+                </h2>
                 <p className="mt-2 text-sm text-[var(--color-secondary)]">
-                  Clear services, durations, prices and one tap selection.
+                  {messages.businessProfile.servicesDescription}
                 </p>
               </div>
-              <Badge tone="default">{activeServices.length} services</Badge>
+              <Badge tone="default">
+                {activeServices.length} {messages.businessProfile.services.toLowerCase()}
+              </Badge>
             </div>
             <div className="grid gap-4">
               {activeServices.map((service) => (
@@ -320,7 +347,9 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
                       <h3 className="font-heading text-xl font-semibold text-white">
                         {service.title}
                       </h3>
-                      {service.featured ? <Badge tone="accent">Featured service</Badge> : null}
+                      {service.featured ? (
+                        <Badge tone="accent">{messages.businessProfile.featuredService}</Badge>
+                      ) : null}
                     </div>
                     <p className="text-sm leading-7 text-[var(--color-secondary)]">
                       {service.description}
@@ -329,7 +358,7 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
                   <div className="flex items-center gap-5">
                     <div>
                       <p className="text-xs uppercase tracking-[0.14em] text-[var(--color-muted)]">
-                        Duration
+                        {messages.businessProfile.duration}
                       </p>
                       <p className="mt-1 text-sm font-semibold text-white">
                         {service.durationMinutes} min
@@ -337,10 +366,10 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
                     </div>
                     <div>
                       <p className="text-xs uppercase tracking-[0.14em] text-[var(--color-muted)]">
-                        Price
+                        {messages.businessProfile.price}
                       </p>
                       <p className="mt-1 text-lg font-semibold text-white">
-                        {formatCurrency(service.price)}
+                        {formatCurrency(service.price, locale)}
                       </p>
                     </div>
                   </div>
@@ -351,9 +380,11 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
 
           <section className="space-y-4">
             <div>
-              <h2 className="font-heading text-3xl font-semibold text-white">Gallery</h2>
+              <h2 className="font-heading text-3xl font-semibold text-white">
+                {messages.businessProfile.gallery}
+              </h2>
               <p className="mt-2 text-sm text-[var(--color-secondary)]">
-                Clean interiors and work examples make the listing feel credible before the first booking.
+                {messages.businessProfile.galleryDescription}
               </p>
             </div>
             {business.media.slice(1).length > 0 ? (
@@ -373,8 +404,8 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
             ) : (
               <EmptyState
                 icon={Sparkles}
-                title="No gallery yet"
-                description="This business still needs more photos. The rest of the profile is available while visuals are being completed."
+                title={messages.businessProfile.noGalleryTitle}
+                description={messages.businessProfile.noGalleryDescription}
               />
             )}
           </section>
@@ -382,7 +413,9 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
           <section className="grid gap-5 lg:grid-cols-2">
             <div className="panel space-y-4 p-5">
               <div>
-                <h2 className="font-heading text-2xl font-semibold text-white">About</h2>
+                <h2 className="font-heading text-2xl font-semibold text-white">
+                  {messages.businessProfile.about}
+                </h2>
                 <p className="mt-2 text-sm leading-7 text-[var(--color-secondary)]">
                   {business.description}
                 </p>
@@ -391,15 +424,15 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
                 {[
                   {
                     icon: ShieldCheck,
-                    text: "Phone verified, address verified, and admin approved before going live.",
+                    text: messages.businessProfile.verificationDetail,
                   },
                   {
                     icon: Clock3,
-                    text: `Response window: ${business.responseWindow}`,
+                    text: `${messages.businessProfile.responseWindowPrefix} ${business.responseWindow}`,
                   },
                   {
                     icon: Zap,
-                    text: `${bookingModeLabel(business.bookingMode)} with ${operatingModeLabel(business.operatingMode).toLowerCase()}.`,
+                    text: `${bookingModeLabel(business.bookingMode, locale)} / ${operatingModeLabel(business.operatingMode, locale).toLowerCase()}.`,
                   },
                 ].map((item) => {
                   const Icon = item.icon;
@@ -418,28 +451,32 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
               </div>
             </div>
             <div className="panel space-y-4 p-5">
-              <h2 className="font-heading text-2xl font-semibold text-white">Policies</h2>
+              <h2 className="font-heading text-2xl font-semibold text-white">
+                {messages.businessProfile.policies}
+              </h2>
               <div className="grid gap-3">
                 {[
                   {
-                    label: "Cancellation notice",
+                    label: messages.businessProfile.cancellationNotice,
                     value: business.policies.cancellationNotice,
                   },
                   {
-                    label: "Late arrival grace",
+                    label: messages.businessProfile.lateArrivalGrace,
                     value: `${business.policies.lateArrivalGraceMinutes} min`,
                   },
                   {
-                    label: "No-show rule",
+                    label: messages.businessProfile.noShowRule,
                     value: business.policies.noShowRule,
                   },
                   {
-                    label: "Children accepted",
-                    value: business.policies.childrenAccepted ? "Yes" : "No",
+                    label: messages.businessProfile.childrenAccepted,
+                    value: getYesNoLabel(business.policies.childrenAccepted, locale),
                   },
                   {
-                    label: "Deposit required",
-                    value: business.policies.depositRequired ? "Yes" : "Not in V1",
+                    label: messages.businessProfile.depositRequired,
+                    value: business.policies.depositRequired
+                      ? getYesNoLabel(true, locale)
+                      : messages.businessProfile.depositNotInV1,
                   },
                 ].map((item) => (
                   <div
@@ -457,16 +494,22 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
           </section>
 
           <section className="panel space-y-4 p-5">
-            <h2 className="font-heading text-2xl font-semibold text-white">Opening hours</h2>
+            <h2 className="font-heading text-2xl font-semibold text-white">
+              {messages.businessProfile.openingHours}
+            </h2>
             <div className="grid gap-3 md:grid-cols-2">
               {business.hours.map((hour) => (
                 <div
                   key={hour.id}
                   className="flex items-center justify-between rounded-2xl border border-white/6 bg-white/4 px-4 py-3 text-sm"
                 >
-                  <span className="text-white">{weekDays[hour.dayOfWeek]}</span>
+                  <span className="text-white">
+                    {messages.businessProfile.weekDays[hour.dayOfWeek]}
+                  </span>
                   <span className="text-[var(--color-secondary)]">
-                    {hour.isClosed ? "Ferme" : `${hour.openTime} - ${hour.closeTime}`}
+                    {hour.isClosed
+                      ? messages.businessProfile.closed
+                      : `${hour.openTime} - ${hour.closeTime}`}
                   </span>
                 </div>
               ))}
@@ -480,10 +523,10 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
               <CalendarClock className="h-5 w-5 text-[var(--color-accent)]" />
               <div>
                 <h2 className="font-heading text-2xl font-semibold text-white">
-                  Availability
+                  {messages.businessProfile.availability}
                 </h2>
                 <p className="text-sm text-[var(--color-secondary)]">
-                  One clear action: choose service, choose date, book.
+                  {messages.businessProfile.availabilityDescription}
                 </p>
               </div>
             </div>
@@ -501,7 +544,7 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
                   )}
                 >
                   <p className="text-xs uppercase tracking-[0.14em] text-[var(--color-muted)]">
-                    {formatRelativeDay(date)}
+                    {formatRelativeDay(date, locale)}
                   </p>
                   <p className="mt-2 text-sm font-semibold text-white">
                     {date.getDate()}/{date.getMonth() + 1}
@@ -512,9 +555,11 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
             <div className="rounded-3xl border border-white/8 bg-[rgba(28,34,48,0.75)] p-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm text-[var(--color-secondary)]">Selected service</p>
+                  <p className="text-sm text-[var(--color-secondary)]">
+                    {messages.businessProfile.selectedService}
+                  </p>
                   <p className="mt-1 text-lg font-semibold text-white">
-                    {selectedService?.title ?? "Choose a service"}
+                    {selectedService?.title ?? messages.businessProfile.chooseService}
                   </p>
                 </div>
                 {selectedService ? (
@@ -528,12 +573,12 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
                       key={slot}
                       className="inline-flex rounded-full border border-[rgba(59,178,115,0.26)] bg-[rgba(59,178,115,0.12)] px-3 py-2 text-sm text-[var(--color-success)] transition hover:-translate-y-0.5"
                     >
-                      {formatTime(slot)}
+                      {formatTime(slot, locale)}
                     </span>
                   ))
                 ) : (
                   <div className="rounded-2xl border border-white/8 bg-white/4 px-4 py-3 text-sm text-[var(--color-muted)]">
-                    No free slots on this day.
+                    {messages.businessProfile.noFreeSlots}
                   </div>
                 )}
               </div>
@@ -542,24 +587,49 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
               href={`/book/${business.slug}${selectedServiceId ? `?service=${selectedServiceId}` : ""}`}
             >
               <Button fullWidth size="lg">
-                Continue to booking
+                {messages.businessProfile.continueToBooking}
               </Button>
             </Link>
           </div>
 
           <div className="panel space-y-4 p-5">
-            <h3 className="font-heading text-2xl font-semibold text-white">Trust layer</h3>
+            <h3 className="font-heading text-2xl font-semibold text-white">
+              {messages.businessProfile.trustLayer}
+            </h3>
             <div className="space-y-3 text-sm text-[var(--color-secondary)]">
               {[
-                { icon: ShieldCheck, text: business.trust?.phoneVerified ? "Verified phone" : "Phone verification pending" },
-                { icon: ShieldCheck, text: business.trust?.addressVerified ? "Verified address" : "Address verification pending" },
-                { icon: CheckCircle2, text: business.trust?.adminApproved ? "Admin approved" : "Admin approval pending" },
-                { icon: Clock3, text: business.responseWindow },
-                { icon: Star, text: `${business.profileCompletion}% profile completeness` },
-                { icon: Sparkles, text: `Joined ${formatMonthYear(business.createdAt)}` },
+                {
+                  icon: ShieldCheck,
+                  text: business.trust?.phoneVerified
+                    ? messages.businessProfile.verifiedPhone
+                    : messages.businessProfile.phoneVerificationPending,
+                },
+                {
+                  icon: ShieldCheck,
+                  text: business.trust?.addressVerified
+                    ? messages.businessProfile.verifiedAddress
+                    : messages.businessProfile.addressVerificationPending,
+                },
                 {
                   icon: CheckCircle2,
-                  text: business.trust?.policyClarityBadge ? "Policy clarity badge" : "Policies need review",
+                  text: business.trust?.adminApproved
+                    ? messages.businessProfile.adminApproved
+                    : messages.businessProfile.adminApprovalPending,
+                },
+                { icon: Clock3, text: business.responseWindow },
+                {
+                  icon: Star,
+                  text: `${business.profileCompletion}% ${messages.businessProfile.profileCompleteness}`,
+                },
+                {
+                  icon: Sparkles,
+                  text: `${messages.businessProfile.joinedPrefix} ${formatMonthYear(business.createdAt, locale)}`,
+                },
+                {
+                  icon: CheckCircle2,
+                  text: business.trust?.policyClarityBadge
+                    ? messages.businessProfile.policyClarityBadge
+                    : messages.businessProfile.policiesNeedReview,
                 },
               ].map((item) => {
                 const Icon = item.icon;
@@ -581,13 +651,15 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
           {availableSlots.length === 0 && selectedService ? (
             <div className="panel space-y-4 p-5">
               <h3 className="font-heading text-2xl font-semibold text-white">
-                Request preferred time
+                {messages.businessProfile.requestPreferredTime}
               </h3>
               <p className="text-sm leading-7 text-[var(--color-secondary)]">
-                No slots available right now. Leave your preferred window so the business can follow up instead of ending the journey here.
+                {messages.businessProfile.requestPreferredTimeDescription}
               </p>
               <label className="space-y-2 text-sm">
-                <span className="text-[var(--color-secondary)]">Full name</span>
+                <span className="text-[var(--color-secondary)]">
+                  {messages.businessProfile.fullName}
+                </span>
                 <input
                   className="input-field"
                   value={waitlist.customerName}
@@ -600,7 +672,9 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
                 />
               </label>
               <label className="space-y-2 text-sm">
-                <span className="text-[var(--color-secondary)]">Phone number</span>
+                <span className="text-[var(--color-secondary)]">
+                  {messages.businessProfile.phoneNumber}
+                </span>
                 <input
                   className="input-field"
                   value={waitlist.customerPhone}
@@ -613,7 +687,9 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
                 />
               </label>
               <label className="space-y-2 text-sm">
-                <span className="text-[var(--color-secondary)]">Preferred time</span>
+                <span className="text-[var(--color-secondary)]">
+                  {messages.businessProfile.preferredTime}
+                </span>
                 <select
                   className="input-field"
                   value={waitlist.preferredTime}
@@ -624,14 +700,18 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
                     }))
                   }
                 >
-                  <option value="09:00 - 12:00">Morning</option>
-                  <option value="12:00 - 15:00">Midday</option>
-                  <option value="15:00 - 18:00">Afternoon</option>
-                  <option value="17:00 - 19:00">Late afternoon</option>
+                  <option value="09:00 - 12:00">{messages.businessProfile.morning}</option>
+                  <option value="12:00 - 15:00">{messages.businessProfile.midday}</option>
+                  <option value="15:00 - 18:00">{messages.businessProfile.afternoon}</option>
+                  <option value="17:00 - 19:00">
+                    {messages.businessProfile.lateAfternoon}
+                  </option>
                 </select>
               </label>
               <label className="space-y-2 text-sm">
-                <span className="text-[var(--color-secondary)]">Optional note</span>
+                <span className="text-[var(--color-secondary)]">
+                  {messages.businessProfile.optionalNote}
+                </span>
                 <textarea
                   className="input-field min-h-24 rounded-3xl py-3"
                   value={waitlist.note}
@@ -644,11 +724,11 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
                 />
               </label>
               <Button fullWidth onClick={submitWaitlist}>
-                Request preferred time
+                {messages.businessProfile.requestButton}
               </Button>
               {waitlistSent ? (
                 <div className="rounded-2xl border border-[rgba(59,178,115,0.22)] bg-[rgba(59,178,115,0.1)] p-4 text-sm text-[var(--color-success)]">
-                  Preferred-time request sent. The business can now follow up with you.
+                  {messages.businessProfile.requestSuccess}
                 </div>
               ) : null}
             </div>
@@ -660,21 +740,21 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-4">
           <div>
             <p className="text-xs uppercase tracking-[0.14em] text-[var(--color-muted)]">
-              Main action
+              {messages.businessProfile.mainAction}
             </p>
             <p className="text-sm font-semibold text-white">
-              {selectedService?.title ?? "Choose service"}
+              {selectedService?.title ?? messages.businessProfile.chooseService}
             </p>
             <p className="text-xs text-[var(--color-secondary)]">
               {nextBestSlot
-                ? `${formatRelativeDay(nextBestSlot)} • ${formatTime(nextBestSlot)}`
-                : "Use waitlist or WhatsApp"}
+                ? `${formatRelativeDay(nextBestSlot, locale)} • ${formatTime(nextBestSlot, locale)}`
+                : messages.businessProfile.useWaitlistOrWhatsapp}
             </p>
           </div>
           <Link
             href={`/book/${business.slug}${selectedServiceId ? `?service=${selectedServiceId}` : ""}`}
           >
-            <Button>Book now</Button>
+            <Button>{messages.businessProfile.bookNow}</Button>
           </Link>
         </div>
       </div>

@@ -3,21 +3,31 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CalendarClock, Compass, Home, LogOut, UserRound } from "lucide-react";
+import { useMemo } from "react";
 
 import { useAuth } from "@/components/providers/auth-provider";
+import { useLocale } from "@/components/providers/locale-provider";
 import { Button } from "@/components/ui/button";
+import { LanguageSwitcher } from "@/components/ui/language-switcher";
 import { LogoMark } from "@/components/ui/logo-mark";
 import { cn } from "@/lib/utils";
-
-const accountLinks = [
-  { href: "/account", label: "Overview", icon: UserRound },
-  { href: "/explore", label: "Explore", icon: Compass },
-  { href: "/manage-booking", label: "Manage booking", icon: CalendarClock },
-];
 
 export function AccountShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const { messages } = useLocale();
+  const accountLinks = useMemo(
+    () => [
+      { href: "/account", label: messages.account.overview, icon: UserRound },
+      { href: "/explore", label: messages.shell.explore, icon: Compass },
+      {
+        href: "/manage-booking",
+        label: messages.shell.manageBooking,
+        icon: CalendarClock,
+      },
+    ],
+    [messages],
+  );
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(200,169,107,0.1),transparent_28%)]">
@@ -31,12 +41,13 @@ export function AccountShell({ children }: { children: React.ReactNode }) {
                   {user?.name ?? "Reservee TN"}
                 </p>
                 <p className="text-sm text-[var(--color-secondary)]">
-                  Customer account and booking management
+                  {messages.account.shellSubtitle}
                 </p>
               </div>
             </Link>
           </div>
           <div className="flex flex-wrap gap-2">
+            <LanguageSwitcher />
             {accountLinks.map((item) => {
               const Icon = item.icon;
               const active = pathname === item.href;
@@ -62,7 +73,7 @@ export function AccountShell({ children }: { children: React.ReactNode }) {
               className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-[var(--color-secondary)] transition hover:text-white"
             >
               <Home className="h-4 w-4" />
-              Marketplace
+              {messages.account.marketplace}
             </Link>
             <Button
               variant="secondary"
@@ -70,7 +81,7 @@ export function AccountShell({ children }: { children: React.ReactNode }) {
               icon={<LogOut className="h-4 w-4" />}
               onClick={logout}
             >
-              Logout
+              {messages.shell.logout}
             </Button>
           </div>
         </header>

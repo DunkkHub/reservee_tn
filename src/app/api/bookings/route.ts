@@ -222,7 +222,9 @@ export async function POST(request: Request) {
       );
     }
 
-    if (startAtDate.getTime() <= Date.now()) {
+    // Allow a 2-minute buffer for booking form completion
+    const bufferMs = 2 * 60 * 1000;
+    if (startAtDate.getTime() < Date.now() - bufferMs) {
       return NextResponse.json(
         { ok: false, message: "Start time cannot be in the past" },
         { status: 400 },

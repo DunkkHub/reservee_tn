@@ -14,11 +14,12 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
+import { useLocale } from "@/components/providers/locale-provider";
 import { usePlatform } from "@/components/providers/platform-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { generateDateOptions } from "@/lib/availability";
+import { formatDateKey, generateDateOptions } from "@/lib/availability";
 import { fetchApi } from "@/lib/client-api";
 import { BOOKING_EXPIRY_HOURS } from "@/lib/platform-rules";
 import type { Booking } from "@/lib/types";
@@ -31,16 +32,10 @@ import {
   statusLabel,
 } from "@/lib/utils";
 
-const steps = [
-  "Choose service",
-  "Choose date & time",
-  "Your details",
-  "Review",
-];
-
 export function BookingFlowPage({ slug }: { slug: string }) {
   const searchParams = useSearchParams();
   const { liveBusinesses, createBooking } = usePlatform();
+  const { direction, locale, messages } = useLocale();
   const business = liveBusinesses.find((item) => item.slug === slug);
   const requestedServiceId = searchParams.get("service") ?? "";
   const [step, setStep] = useState(0);
@@ -54,11 +49,15 @@ export function BookingFlowPage({ slug }: { slug: string }) {
     customerPhone: "",
     customerNote: "",
   });
+  const [submitError, setSubmitError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [confirmedBooking, setConfirmedBooking] = useState<Booking | null>(null);
 
   const selectedService = business?.services.find(
     (service) => service.id === selectedServiceId,
   );
+  const ForwardIcon = direction === "rtl" ? ArrowLeft : ArrowRight;
+  const BackIcon = direction === "rtl" ? ArrowRight : ArrowLeft;
 
   useEffect(() => {
     if (!business || !selectedService) {
@@ -74,7 +73,7 @@ export function BookingFlowPage({ slug }: { slug: string }) {
       try {
         setSlotsLoading(true);
         const slots = await fetchApi<string[]>(
-          `/api/availability?businessId=${encodeURIComponent(currentBusiness.id)}&serviceId=${encodeURIComponent(currentService.id)}&type=slots&date=${selectedDate.toISOString().slice(0, 10)}`,
+          `/api/availability?businessId=${encodeURIComponent(currentBusiness.id)}&serviceId=${encodeURIComponent(currentService.id)}&type=slots&date=${formatDateKey(selectedDate)}`,
         );
 
         if (!cancelled) {
@@ -100,19 +99,19 @@ export function BookingFlowPage({ slug }: { slug: string }) {
 
   const summaryLabel = useMemo(() => {
     if (!selectedSlot) {
-      return "Choose a slot";
+      return messages.bookingFlow.chooseSlot;
     }
 
-    return formatDateTime(selectedSlot);
-  }, [selectedSlot]);
+    return formatDateTime(selectedSlot, locale);
+  }, [locale, messages.bookingFlow.chooseSlot, selectedSlot]);
 
   if (!business) {
     return (
       <EmptyState
         icon={ShieldCheck}
-        title="Booking unavailable"
-        description="This business is not live in the marketplace right now. Go back to explore and pick one of the verified beauty businesses currently available."
-        ctaLabel="Back to explore"
+        title={messages.bookingFlow.unavailableTitle}
+        description={messages.bookingFlow.unavailableDescription}
+        ctaLabel={messages.bookingFlow.backToExplore}
         ctaHref="/explore"
       />
     );
@@ -126,19 +125,20 @@ export function BookingFlowPage({ slug }: { slug: string }) {
             <CheckCircle2 className="h-8 w-8" />
           </div>
           <Badge tone="success" className="mt-6">
-            Booking {statusLabel(confirmedBooking.status).toLowerCase()}
+            {messages.bookingFlow.bookingPrefix}{" "}
+            {statusLabel(confirmedBooking.status, locale).toLowerCase()}
           </Badge>
           <h1 className="mt-4 font-heading text-4xl font-semibold text-white">
-            Reservation created
+            {messages.bookingFlow.reservationCreated}
           </h1>
           <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-[var(--color-secondary)]">
-            Your request now has a reference code and a self-service management page. That makes the flow feel more complete even before customer accounts are added.
+            {messages.bookingFlow.successDescription}
           </p>
         </div>
         <div className="panel grid gap-5 p-6 md:grid-cols-2">
           <div className="space-y-3">
             <p className="text-xs uppercase tracking-[0.14em] text-[var(--color-muted)]">
-              Business
+              {messages.bookingFlow.business}
             </p>
             <p className="font-heading text-2xl font-semibold text-white">
               {business.name}
@@ -146,7 +146,7 @@ export function BookingFlowPage({ slug }: { slug: string }) {
             <p className="text-sm text-[var(--color-secondary)]">{business.address}</p>
             <div className="rounded-2xl border border-white/8 bg-white/4 p-4">
               <p className="text-xs uppercase tracking-[0.14em] text-[var(--color-muted)]">
-                Booking reference
+                {messages.bookingFlow.bookingReference}
               </p>
               <p className="mt-2 text-xl font-semibold text-white">
                 {confirmedBooking.referenceCode}
@@ -156,7 +156,7 @@ export function BookingFlowPage({ slug }: { slug: string }) {
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-2xl border border-white/8 bg-white/4 p-4">
               <p className="text-xs uppercase tracking-[0.14em] text-[var(--color-muted)]">
-                Service
+                {messages.bookingFlow.service}
               </p>
               <p className="mt-2 text-sm font-semibold text-white">
                 {selectedService?.title}
@@ -164,18 +164,18 @@ export function BookingFlowPage({ slug }: { slug: string }) {
             </div>
             <div className="rounded-2xl border border-white/8 bg-white/4 p-4">
               <p className="text-xs uppercase tracking-[0.14em] text-[var(--color-muted)]">
-                Date & time
+                {messages.bookingFlow.dateTime}
               </p>
               <p className="mt-2 text-sm font-semibold text-white">
-                {formatDateTime(confirmedBooking.startAt)}
+                {formatDateTime(confirmedBooking.startAt, locale)}
               </p>
             </div>
             <div className="rounded-2xl border border-white/8 bg-white/4 p-4 sm:col-span-2">
               <p className="text-xs uppercase tracking-[0.14em] text-[var(--color-muted)]">
-                Manage booking
+                {messages.bookingFlow.manageBooking}
               </p>
               <p className="mt-2 text-sm text-[var(--color-secondary)]">
-                Use your reference to cancel or request a reschedule without needing an account.
+                {messages.bookingFlow.manageDescription}
               </p>
             </div>
           </div>
@@ -185,7 +185,7 @@ export function BookingFlowPage({ slug }: { slug: string }) {
             href={`/manage-booking/${confirmedBooking.referenceCode}`}
             className="flex-1"
           >
-            <Button fullWidth>Manage booking</Button>
+            <Button fullWidth>{messages.bookingFlow.manageBookingButton}</Button>
           </Link>
           <a
             href={`https://wa.me/${business.whatsapp.replace(/\D/g, "")}`}
@@ -198,7 +198,7 @@ export function BookingFlowPage({ slug }: { slug: string }) {
               variant="secondary"
               icon={<MessageCircle className="h-4 w-4" />}
             >
-              Contact on WhatsApp
+              {messages.bookingFlow.contactWhatsapp}
             </Button>
           </a>
         </div>
@@ -212,7 +212,7 @@ export function BookingFlowPage({ slug }: { slug: string }) {
     if (step === 2 && (!formData.customerName.trim() || !formData.customerPhone.trim())) {
       return;
     }
-    setStep((current) => Math.min(current + 1, steps.length - 1));
+    setStep((current) => Math.min(current + 1, messages.bookingFlow.steps.length - 1));
   }
 
   function goBack() {
@@ -224,17 +224,30 @@ export function BookingFlowPage({ slug }: { slug: string }) {
       return;
     }
 
-    const booking = await createBooking({
-      businessId: business.id,
-      serviceId: selectedService.id,
-      customerName: formData.customerName,
-      customerPhone: formData.customerPhone,
-      customerNote: formData.customerNote,
-      startAt: selectedSlot,
-    });
+    try {
+      setIsSubmitting(true);
+      setSubmitError("");
 
-    if (booking) {
-      setConfirmedBooking(booking);
+      const booking = await createBooking({
+        businessId: business.id,
+        serviceId: selectedService.id,
+        customerName: formData.customerName,
+        customerPhone: formData.customerPhone,
+        customerNote: formData.customerNote,
+        startAt: selectedSlot,
+      });
+
+      if (booking) {
+        setConfirmedBooking(booking);
+      }
+    } catch (error) {
+      setSubmitError(
+        error instanceof Error
+          ? error.message
+          : "Unable to create booking right now.",
+      );
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -244,22 +257,22 @@ export function BookingFlowPage({ slug }: { slug: string }) {
         <div className="panel p-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
-              <Badge tone="accent">Booking flow</Badge>
+              <Badge tone="accent">{messages.bookingFlow.heroBadge}</Badge>
               <h1 className="mt-4 font-heading text-4xl font-semibold text-white">
-                Reserve in less than 60 seconds
+                {messages.bookingFlow.heroTitle}
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--color-secondary)]">
-                Clear steps, reference code at the end, and a manage-booking page so the customer journey does not stop too early.
+                {messages.bookingFlow.heroDescription}
               </p>
             </div>
             <Link href={`/business/${business.slug}`}>
-              <Button variant="ghost" icon={<ArrowLeft className="h-4 w-4" />}>
-                Back to profile
+              <Button variant="ghost" icon={<BackIcon className="h-4 w-4" />}>
+                {messages.bookingFlow.backToProfile}
               </Button>
             </Link>
           </div>
           <div className="mt-6 grid gap-3 md:grid-cols-4">
-            {steps.map((item, index) => (
+            {messages.bookingFlow.steps.map((item, index) => (
               <div
                 key={item}
                 className={`rounded-2xl border p-4 ${
@@ -269,7 +282,7 @@ export function BookingFlowPage({ slug }: { slug: string }) {
                 }`}
               >
                 <p className="text-xs uppercase tracking-[0.14em] text-[var(--color-muted)]">
-                  Step {index + 1}
+                  {messages.bookingFlow.stepLabel} {index + 1}
                 </p>
                 <p className="mt-2 text-sm font-semibold text-white">{item}</p>
               </div>
@@ -297,7 +310,9 @@ export function BookingFlowPage({ slug }: { slug: string }) {
                       <h2 className="font-heading text-2xl font-semibold text-white">
                         {service.title}
                       </h2>
-                      {service.featured ? <Badge tone="accent">Featured</Badge> : null}
+                      {service.featured ? (
+                        <Badge tone="accent">{messages.bookingFlow.featured}</Badge>
+                      ) : null}
                     </div>
                     <p className="mt-2 text-sm leading-7 text-[var(--color-secondary)]">
                       {service.description}
@@ -305,13 +320,15 @@ export function BookingFlowPage({ slug }: { slug: string }) {
                   </div>
                   <div className="grid gap-3 text-sm sm:grid-cols-2">
                     <div className="rounded-2xl border border-white/8 bg-white/4 p-3">
-                      <p className="text-[var(--color-muted)]">Price</p>
+                      <p className="text-[var(--color-muted)]">{messages.bookingFlow.price}</p>
                       <p className="mt-2 font-semibold text-white">
-                        {formatCurrency(service.price)}
+                        {formatCurrency(service.price, locale)}
                       </p>
                     </div>
                     <div className="rounded-2xl border border-white/8 bg-white/4 p-3">
-                      <p className="text-[var(--color-muted)]">Duration</p>
+                      <p className="text-[var(--color-muted)]">
+                        {messages.bookingFlow.duration}
+                      </p>
                       <p className="mt-2 font-semibold text-white">
                         {service.durationMinutes} min
                       </p>
@@ -340,7 +357,7 @@ export function BookingFlowPage({ slug }: { slug: string }) {
                   }`}
                 >
                   <p className="text-xs uppercase tracking-[0.14em] text-[var(--color-muted)]">
-                    {formatRelativeDay(date)}
+                    {formatRelativeDay(date, locale)}
                   </p>
                   <p className="mt-2 text-sm font-semibold text-white">
                     {date.getDate()}/{date.getMonth() + 1}
@@ -361,16 +378,16 @@ export function BookingFlowPage({ slug }: { slug: string }) {
                         : "border-white/8 bg-white/4 text-[var(--color-secondary)]"
                     }`}
                   >
-                    {formatTime(slot)}
+                    {formatTime(slot, locale)}
                   </button>
                 ))
               ) : slotsLoading ? (
                 <div className="w-full rounded-2xl border border-white/8 bg-white/4 px-4 py-4 text-sm text-[var(--color-muted)]">
-                  Loading available times...
+                  {messages.bookingFlow.loadingTimes}
                 </div>
               ) : (
                 <div className="w-full rounded-2xl border border-white/8 bg-white/4 px-4 py-4 text-sm text-[var(--color-muted)]">
-                  No slots on this day. Go back to the profile to request a preferred time instead of hitting a dead end.
+                  {messages.bookingFlow.noSlotsDescription}
                 </div>
               )}
             </div>
@@ -380,7 +397,9 @@ export function BookingFlowPage({ slug }: { slug: string }) {
         {step === 2 ? (
           <div className="panel space-y-4 p-6">
             <label className="space-y-2 text-sm">
-              <span className="text-[var(--color-secondary)]">Full name</span>
+              <span className="text-[var(--color-secondary)]">
+                {messages.bookingFlow.fullName}
+              </span>
               <input
                 className="input-field"
                 value={formData.customerName}
@@ -394,7 +413,9 @@ export function BookingFlowPage({ slug }: { slug: string }) {
               />
             </label>
             <label className="space-y-2 text-sm">
-              <span className="text-[var(--color-secondary)]">Phone number</span>
+              <span className="text-[var(--color-secondary)]">
+                {messages.bookingFlow.phoneNumber}
+              </span>
               <input
                 className="input-field"
                 value={formData.customerPhone}
@@ -408,7 +429,9 @@ export function BookingFlowPage({ slug }: { slug: string }) {
               />
             </label>
             <label className="space-y-2 text-sm">
-              <span className="text-[var(--color-secondary)]">Optional note</span>
+              <span className="text-[var(--color-secondary)]">
+                {messages.bookingFlow.optionalNote}
+              </span>
               <textarea
                 className="input-field min-h-28 rounded-3xl py-3"
                 value={formData.customerNote}
@@ -418,7 +441,7 @@ export function BookingFlowPage({ slug }: { slug: string }) {
                     customerNote: event.target.value,
                   }))
                 }
-                placeholder="Any booking note for the business"
+                placeholder={messages.bookingFlow.bookingNotePlaceholder}
               />
             </label>
           </div>
@@ -428,18 +451,18 @@ export function BookingFlowPage({ slug }: { slug: string }) {
           <div className="panel space-y-5 p-6">
             <div className="rounded-3xl border border-white/8 bg-white/4 p-5">
               <h2 className="font-heading text-2xl font-semibold text-white">
-                Review booking
+                {messages.bookingFlow.reviewBooking}
               </h2>
               <div className="mt-5 grid gap-4 sm:grid-cols-2">
                 {[
-                  { label: "Business", value: business.name },
-                  { label: "Service", value: selectedService?.title ?? "-" },
-                  { label: "Date & time", value: summaryLabel },
-                  { label: "Customer", value: formData.customerName || "-" },
-                  { label: "Phone", value: formData.customerPhone || "-" },
+                  { label: messages.bookingFlow.business, value: business.name },
+                  { label: messages.bookingFlow.service, value: selectedService?.title ?? "-" },
+                  { label: messages.bookingFlow.dateTime, value: summaryLabel },
+                  { label: messages.bookingFlow.customer, value: formData.customerName || "-" },
+                  { label: messages.bookingFlow.phone, value: formData.customerPhone || "-" },
                   {
-                    label: "Booking mode",
-                    value: bookingModeLabel(business.bookingMode),
+                    label: messages.bookingFlow.bookingMode,
+                    value: bookingModeLabel(business.bookingMode, locale),
                   },
                 ].map((item) => (
                   <div key={item.label}>
@@ -451,8 +474,18 @@ export function BookingFlowPage({ slug }: { slug: string }) {
                 ))}
               </div>
             </div>
-            <Button fullWidth size="lg" onClick={() => void handleSubmit()}>
-              Confirm booking
+            {submitError ? (
+              <div className="rounded-2xl border border-[rgba(225,85,84,0.22)] bg-[rgba(225,85,84,0.1)] p-4 text-sm text-[var(--color-error)]">
+                {submitError}
+              </div>
+            ) : null}
+            <Button
+              fullWidth
+              size="lg"
+              onClick={() => void handleSubmit()}
+              disabled={isSubmitting}
+            >
+              {messages.bookingFlow.confirmBooking}
             </Button>
           </div>
         ) : null}
@@ -462,14 +495,14 @@ export function BookingFlowPage({ slug }: { slug: string }) {
             variant="secondary"
             onClick={goBack}
             disabled={step === 0}
-            icon={<ArrowLeft className="h-4 w-4" />}
+            icon={<BackIcon className="h-4 w-4" />}
           >
-            Previous
+            {messages.bookingFlow.previous}
           </Button>
-          {step < steps.length - 1 ? (
+          {step < messages.bookingFlow.steps.length - 1 ? (
             <Button
               onClick={goNext}
-              icon={<ArrowRight className="h-4 w-4" />}
+              icon={<ForwardIcon className="h-4 w-4" />}
               disabled={
                 (step === 0 && !selectedServiceId) ||
                 (step === 1 && !selectedSlot) ||
@@ -477,7 +510,7 @@ export function BookingFlowPage({ slug }: { slug: string }) {
                   (!formData.customerName.trim() || !formData.customerPhone.trim()))
               }
             >
-              Continue
+              {messages.bookingFlow.continue}
             </Button>
           ) : null}
         </div>
@@ -486,7 +519,7 @@ export function BookingFlowPage({ slug }: { slug: string }) {
       <aside className="space-y-5 xl:sticky xl:top-24 xl:self-start">
         <div className="panel space-y-4 p-5">
           <h2 className="font-heading text-2xl font-semibold text-white">
-            Booking summary
+            {messages.bookingFlow.bookingSummary}
           </h2>
           <div className="rounded-2xl border border-white/8 bg-white/4 p-4">
             <p className="font-medium text-white">{business.name}</p>
@@ -494,42 +527,50 @@ export function BookingFlowPage({ slug }: { slug: string }) {
           </div>
           <div className="space-y-3 text-sm">
             <div className="flex items-center justify-between gap-3">
-              <span className="text-[var(--color-secondary)]">Service</span>
+              <span className="text-[var(--color-secondary)]">
+                {messages.bookingFlow.service}
+              </span>
               <span className="font-semibold text-white">
                 {selectedService?.title ?? "-"}
               </span>
             </div>
             <div className="flex items-center justify-between gap-3">
-              <span className="text-[var(--color-secondary)]">Duration</span>
+              <span className="text-[var(--color-secondary)]">
+                {messages.bookingFlow.duration}
+              </span>
               <span className="font-semibold text-white">
                 {selectedService?.durationMinutes ? `${selectedService.durationMinutes} min` : "-"}
               </span>
             </div>
             <div className="flex items-center justify-between gap-3">
-              <span className="text-[var(--color-secondary)]">Price</span>
+              <span className="text-[var(--color-secondary)]">{messages.bookingFlow.price}</span>
               <span className="font-semibold text-white">
-                {selectedService ? formatCurrency(selectedService.price) : "-"}
+                {selectedService ? formatCurrency(selectedService.price, locale) : "-"}
               </span>
             </div>
             <div className="flex items-center justify-between gap-3">
-              <span className="text-[var(--color-secondary)]">Selected slot</span>
+              <span className="text-[var(--color-secondary)]">
+                {messages.bookingFlow.selectedSlot}
+              </span>
               <span className="text-right font-semibold text-white">{summaryLabel}</span>
             </div>
           </div>
         </div>
         <div className="panel space-y-4 p-5 text-sm text-[var(--color-secondary)]">
-          <h3 className="font-heading text-2xl font-semibold text-white">Professional rules</h3>
+          <h3 className="font-heading text-2xl font-semibold text-white">
+            {messages.bookingFlow.professionalRules}
+          </h3>
           <div className="flex items-start gap-3">
             <CalendarCheck2 className="mt-1 h-4 w-4 shrink-0 text-[var(--color-accent)]" />
-            No account is required before booking in version 1.
+            {messages.bookingFlow.rules[0]}
           </div>
           <div className="flex items-start gap-3">
             <Clock3 className="mt-1 h-4 w-4 shrink-0 text-[var(--color-accent)]" />
-            Pending bookings auto-expire after about {BOOKING_EXPIRY_HOURS} hours or before the slot starts, so requests do not stay open forever.
+            {messages.bookingFlow.rules[1].replace("{hours}", String(BOOKING_EXPIRY_HOURS))}
           </div>
           <div className="flex items-start gap-3">
             <Phone className="mt-1 h-4 w-4 shrink-0 text-[var(--color-accent)]" />
-            You can still contact the business by WhatsApp after confirmation.
+            {messages.bookingFlow.rules[2]}
           </div>
         </div>
       </aside>

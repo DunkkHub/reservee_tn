@@ -13,12 +13,8 @@ export default async function CategoryPage(props: PageProps<"/category/[slug]">)
   }
 
   return (
-    <Suspense fallback={<div className="panel p-6 text-sm text-[var(--color-secondary)]">Loading category listings...</div>}>
-      <ExploreBrowser
-        title={category.name}
-        description={category.description}
-        presetCategorySlug={category.slug}
-      />
+    <Suspense fallback={<div className="panel p-6 text-sm text-[var(--color-secondary)]">Loading...</div>}>
+      <ExploreBrowser presetCategorySlug={category.slug} />
     </Suspense>
   );
 }

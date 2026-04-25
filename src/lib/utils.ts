@@ -1,8 +1,21 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
+import {
+  defaultLocale,
+  getAudienceLabel as getLocalizedAudienceLabel,
+  getBookingModeLabel as getLocalizedBookingModeLabel,
+  getBookingStatusLabel as getLocalizedBookingStatusLabel,
+  getDateTimeConnector,
+  getIntlLocale,
+  getOperatingModeLabel as getLocalizedOperatingModeLabel,
+  getPolicyClarityLabel as getLocalizedPolicyClarityLabel,
+  getRelativeDayCopy,
+  type AppLocale,
+} from "@/lib/i18n";
 import { getGalleryItems } from "@/lib/platform-rules";
 import type {
+  Audience,
   BookingStatus,
   Business,
   BookingMode,
@@ -10,64 +23,130 @@ import type {
   PolicyClarity,
 } from "@/lib/types";
 
-const currency = new Intl.NumberFormat("fr-TN", {
-  style: "currency",
-  currency: "TND",
-  maximumFractionDigits: 0,
-});
+const numberFormatters = new Map<AppLocale, Intl.NumberFormat>();
+const shortDateFormatters = new Map<AppLocale, Intl.DateTimeFormat>();
+const fullDateFormatters = new Map<AppLocale, Intl.DateTimeFormat>();
+const timeFormatters = new Map<AppLocale, Intl.DateTimeFormat>();
+const monthYearFormatters = new Map<AppLocale, Intl.DateTimeFormat>();
 
-const shortDateFormatter = new Intl.DateTimeFormat("fr-TN", {
-  weekday: "short",
-  day: "numeric",
-  month: "short",
-});
+function getCurrencyFormatter(locale: AppLocale) {
+  if (!numberFormatters.has(locale)) {
+    numberFormatters.set(
+      locale,
+      new Intl.NumberFormat(getIntlLocale(locale), {
+        style: "currency",
+        currency: "TND",
+        maximumFractionDigits: 0,
+      }),
+    );
+  }
 
-const fullDateFormatter = new Intl.DateTimeFormat("fr-TN", {
-  weekday: "long",
-  day: "numeric",
-  month: "long",
-});
+  return numberFormatters.get(locale)!;
+}
 
-const timeFormatter = new Intl.DateTimeFormat("fr-TN", {
-  hour: "2-digit",
-  minute: "2-digit",
-});
+function getShortDateFormatter(locale: AppLocale) {
+  if (!shortDateFormatters.has(locale)) {
+    shortDateFormatters.set(
+      locale,
+      new Intl.DateTimeFormat(getIntlLocale(locale), {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+      }),
+    );
+  }
 
-const monthYearFormatter = new Intl.DateTimeFormat("fr-TN", {
-  month: "long",
-  year: "numeric",
-});
+  return shortDateFormatters.get(locale)!;
+}
+
+function getFullDateFormatter(locale: AppLocale) {
+  if (!fullDateFormatters.has(locale)) {
+    fullDateFormatters.set(
+      locale,
+      new Intl.DateTimeFormat(getIntlLocale(locale), {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+      }),
+    );
+  }
+
+  return fullDateFormatters.get(locale)!;
+}
+
+function getTimeFormatter(locale: AppLocale) {
+  if (!timeFormatters.has(locale)) {
+    timeFormatters.set(
+      locale,
+      new Intl.DateTimeFormat(getIntlLocale(locale), {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    );
+  }
+
+  return timeFormatters.get(locale)!;
+}
+
+function getMonthYearFormatter(locale: AppLocale) {
+  if (!monthYearFormatters.has(locale)) {
+    monthYearFormatters.set(
+      locale,
+      new Intl.DateTimeFormat(getIntlLocale(locale), {
+        month: "long",
+        year: "numeric",
+      }),
+    );
+  }
+
+  return monthYearFormatters.get(locale)!;
+}
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatCurrency(value: number) {
-  return currency.format(value).replace("TND", "DT");
+export function formatCurrency(value: number, locale: AppLocale = defaultLocale) {
+  return getCurrencyFormatter(locale).format(value).replace("TND", "DT");
 }
 
-export function formatShortDate(value: Date | string) {
-  return shortDateFormatter.format(toDate(value));
+export function formatShortDate(
+  value: Date | string,
+  locale: AppLocale = defaultLocale,
+) {
+  return getShortDateFormatter(locale).format(toDate(value));
 }
 
-export function formatFullDate(value: Date | string) {
-  return fullDateFormatter.format(toDate(value));
+export function formatFullDate(
+  value: Date | string,
+  locale: AppLocale = defaultLocale,
+) {
+  return getFullDateFormatter(locale).format(toDate(value));
 }
 
-export function formatMonthYear(value: Date | string) {
-  return monthYearFormatter.format(toDate(value));
+export function formatMonthYear(
+  value: Date | string,
+  locale: AppLocale = defaultLocale,
+) {
+  return getMonthYearFormatter(locale).format(toDate(value));
 }
 
-export function formatTime(value: Date | string) {
-  return timeFormatter.format(toDate(value));
+export function formatTime(value: Date | string, locale: AppLocale = defaultLocale) {
+  return getTimeFormatter(locale).format(toDate(value));
 }
 
-export function formatDateTime(value: Date | string) {
+export function formatDateTime(
+  value: Date | string,
+  locale: AppLocale = defaultLocale,
+) {
   const date = toDate(value);
-  return `${formatFullDate(date)} a ${formatTime(date)}`;
+  return `${formatFullDate(date, locale)} ${getDateTimeConnector(locale)} ${formatTime(date, locale)}`;
 }
 
-export function formatRelativeDay(value: Date | string) {
+export function formatRelativeDay(
+  value: Date | string,
+  locale: AppLocale = defaultLocale,
+) {
   const date = toDate(value);
   const today = new Date();
   const startOfToday = new Date(
@@ -83,16 +162,17 @@ export function formatRelativeDay(value: Date | string) {
   const diffDays = Math.round(
     (startOfValue.getTime() - startOfToday.getTime()) / (1000 * 60 * 60 * 24),
   );
+  const relativeCopy = getRelativeDayCopy(locale);
 
   if (diffDays === 0) {
-    return "Aujourd'hui";
+    return relativeCopy.today;
   }
 
   if (diffDays === 1) {
-    return "Demain";
+    return relativeCopy.tomorrow;
   }
 
-  return formatShortDate(date);
+  return formatShortDate(date, locale);
 }
 
 export function toDate(value: Date | string) {
@@ -117,48 +197,39 @@ export function getInitials(value: string) {
     .toUpperCase();
 }
 
-export function statusLabel(status: BookingStatus) {
-  switch (status) {
-    case "pending":
-      return "En attente";
-    case "confirmed":
-      return "Confirmee";
-    case "completed":
-      return "Terminee";
-    case "cancelled_by_customer":
-      return "Annulee client";
-    case "cancelled_by_business":
-      return "Annulee business";
-    case "rejected":
-      return "Rejetee";
-    case "expired":
-      return "Expiree";
-    case "no_show":
-      return "No-show";
-    default:
-      return status;
-  }
+export function statusLabel(
+  status: BookingStatus,
+  locale: AppLocale = defaultLocale,
+) {
+  return getLocalizedBookingStatusLabel(status, locale);
 }
 
-export function bookingModeLabel(mode: BookingMode) {
-  return mode === "instant" ? "Instant booking" : "Approval required";
+export function bookingModeLabel(
+  mode: BookingMode,
+  locale: AppLocale = defaultLocale,
+) {
+  return getLocalizedBookingModeLabel(mode, locale);
 }
 
-export function operatingModeLabel(mode: OperatingMode) {
-  switch (mode) {
-    case "appointment_only":
-      return "Appointment only";
-    case "walk_ins":
-      return "Walk-ins accepted";
-    case "both":
-      return "Appointment + walk-ins";
-    default:
-      return mode;
-  }
+export function operatingModeLabel(
+  mode: OperatingMode,
+  locale: AppLocale = defaultLocale,
+) {
+  return getLocalizedOperatingModeLabel(mode, locale);
 }
 
-export function policyClarityLabel(clarity: PolicyClarity) {
-  return clarity === "clear" ? "Policy clarity" : "Policy needs review";
+export function policyClarityLabel(
+  clarity: PolicyClarity,
+  locale: AppLocale = defaultLocale,
+) {
+  return getLocalizedPolicyClarityLabel(clarity, locale);
+}
+
+export function audienceLabel(
+  audience: Audience,
+  locale: AppLocale = defaultLocale,
+) {
+  return getLocalizedAudienceLabel(audience, locale);
 }
 
 export function calculateProfileCompletion(business: Business) {

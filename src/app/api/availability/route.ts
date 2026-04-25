@@ -10,7 +10,11 @@ import {
   deleteBlockedSlot,
 } from "@/lib/blocked-slots-repository";
 import { recordActivity } from "@/lib/activity-log-repository";
-import { generateAvailableSlots, findNextAvailableSlot } from "@/lib/availability";
+import {
+  findNextAvailableSlot,
+  generateAvailableSlots,
+  parseDateKey,
+} from "@/lib/availability";
 import { findBookingsByBusiness } from "@/lib/booking-repository";
 import { findBusinessById } from "@/lib/business-repository";
 import { getDatabaseErrorMessage } from "@/lib/db";
@@ -78,9 +82,9 @@ export async function GET(request: Request) {
         );
       }
 
-      const selectedDate = new Date(`${date}T00:00:00`);
+      const selectedDate = parseDateKey(date);
 
-      if (Number.isNaN(selectedDate.getTime())) {
+      if (!selectedDate) {
         return NextResponse.json(
           { ok: false, message: "Date must be valid" },
           { status: 400 },

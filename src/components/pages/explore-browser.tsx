@@ -5,12 +5,19 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { CalendarClock, Clock3, Search, SlidersHorizontal } from "lucide-react";
 
+import { useLocale } from "@/components/providers/locale-provider";
 import { usePlatform } from "@/components/providers/platform-provider";
 import { BusinessCard } from "@/components/pages/business-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionHeading } from "@/components/ui/section-heading";
+import {
+  getAudienceLabel,
+  getCategoryTranslation,
+  getCityTranslation,
+  getResultsLabel,
+} from "@/lib/i18n";
 import { isBusinessFeatured } from "@/lib/platform-rules";
 import { categories, cities } from "@/lib/seed-data";
 import type { Audience, Business } from "@/lib/types";
@@ -19,8 +26,8 @@ import { cn, formatCurrency } from "@/lib/utils";
 type SortOption = "recommended" | "available_today" | "lowest_price" | "newest" | "featured";
 
 interface ExploreBrowserProps {
-  title: string;
-  description: string;
+  title?: string;
+  description?: string;
   presetCategorySlug?: string;
   presetCitySlug?: string;
 }
@@ -90,6 +97,7 @@ export function ExploreBrowser({
   presetCitySlug,
 }: ExploreBrowserProps) {
   const searchParams = useSearchParams();
+  const { locale, messages } = useLocale();
   const { liveBusinesses } = usePlatform();
   const [query, setQuery] = useState(searchParams.get("q") ?? "");
   const [categoryFilter, setCategoryFilter] = useState(
@@ -109,6 +117,32 @@ export function ExploreBrowser({
 
   const deferredQuery = useDeferredValue(query);
   const normalizedQuery = deferredQuery.toLowerCase().trim();
+  const localizedCategories = categories.map((category) => ({
+    ...category,
+    ...getCategoryTranslation(category.slug, locale),
+  }));
+  const localizedCities = cities.map((city) => ({
+    ...city,
+    ...(getCityTranslation(city.slug, locale) ?? { name: city.name, heroCopy: city.heroCopy }),
+  }));
+  const selectedCategoryMeta = presetCategorySlug
+    ? localizedCategories.find((category) => category.slug === presetCategorySlug)
+    : null;
+  const selectedCityMeta = presetCitySlug
+    ? localizedCities.find((city) => city.slug === presetCitySlug)
+    : null;
+  const resolvedTitle =
+    title ??
+    (selectedCategoryMeta
+      ? selectedCategoryMeta.name
+      : selectedCityMeta
+        ? `${messages.explore.cityPrefix} ${selectedCityMeta.name}`
+        : messages.explore.title);
+  const resolvedDescription =
+    description ??
+    selectedCategoryMeta?.description ??
+    selectedCityMeta?.heroCopy ??
+    messages.explore.description;
 
   const filteredBusinesses = useMemo(() => {
     return liveBusinesses
@@ -151,10 +185,8 @@ export function ExploreBrowser({
           return false;
         }
 
-        if (availableTodayOnly) {
-          if (!business.hasAvailabilityToday) {
-            return false;
-          }
+        if (availableTodayOnly && !business.hasAvailabilityToday) {
+          return false;
         }
 
         if (sortBy === "featured" && !isBusinessFeatured(business)) {
@@ -209,9 +241,9 @@ export function ExploreBrowser({
   }, [
     audienceFilter,
     availableTodayOnly,
+    areaFilter,
     categoryFilter,
     cityFilter,
-    areaFilter,
     liveBusinesses,
     normalizedQuery,
     openNowOnly,
@@ -232,12 +264,12 @@ export function ExploreBrowser({
   return (
     <div className="space-y-8">
       <SectionHeading
-        eyebrow="Marketplace"
-        title={title}
-        description={description}
+        eyebrow={messages.explore.eyebrow}
+        title={resolvedTitle}
+        description={resolvedDescription}
         action={
           <Link href="/register?role=shop">
-            <Button variant="secondary">Ajouter mon business</Button>
+            <Button variant="secondary">{messages.explore.addBusiness}</Button>
           </Link>
         }
       />
@@ -247,25 +279,25 @@ export function ExploreBrowser({
           <label className="space-y-2 text-sm">
             <span className="inline-flex items-center gap-2 text-[var(--color-secondary)]">
               <Search className="h-4 w-4" />
-              Recherche
+              {messages.explore.search}
             </span>
             <input
               className="input-field"
-              placeholder="Nom, service ou quartier"
+              placeholder={messages.explore.searchPlaceholder}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />
           </label>
           <label className="space-y-2 text-sm">
-            <span className="text-[var(--color-secondary)]">Categorie</span>
+            <span className="text-[var(--color-secondary)]">{messages.explore.category}</span>
             <select
               className="input-field"
               value={categoryFilter}
               disabled={Boolean(presetCategorySlug)}
               onChange={(event) => setCategoryFilter(event.target.value)}
             >
-              <option value="">Toutes</option>
-              {categories.map((category) => (
+              <option value="">{messages.explore.allOptions}</option>
+              {localizedCategories.map((category) => (
                 <option key={category.id} value={category.slug}>
                   {category.name}
                 </option>
@@ -273,15 +305,15 @@ export function ExploreBrowser({
             </select>
           </label>
           <label className="space-y-2 text-sm">
-            <span className="text-[var(--color-secondary)]">Ville</span>
+            <span className="text-[var(--color-secondary)]">{messages.explore.city}</span>
             <select
               className="input-field"
               value={cityFilter}
               disabled={Boolean(presetCitySlug)}
               onChange={(event) => setCityFilter(event.target.value)}
             >
-              <option value="">Toutes</option>
-              {cities.map((city) => (
+              <option value="">{messages.explore.allOptions}</option>
+              {localizedCities.map((city) => (
                 <option key={city.id} value={city.slug}>
                   {city.name}
                 </option>
@@ -289,13 +321,13 @@ export function ExploreBrowser({
             </select>
           </label>
           <label className="space-y-2 text-sm">
-            <span className="text-[var(--color-secondary)]">Quartier</span>
+            <span className="text-[var(--color-secondary)]">{messages.explore.area}</span>
             <select
               className="input-field"
               value={areaFilter}
               onChange={(event) => setAreaFilter(event.target.value)}
             >
-              <option value="">Tous</option>
+              <option value="">{messages.explore.allAreas}</option>
               {areas.map((area) => (
                 <option key={area} value={area}>
                   {area}
@@ -306,43 +338,48 @@ export function ExploreBrowser({
         </div>
         <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-[repeat(3,minmax(0,1fr))_1.1fr]">
           <label className="space-y-2 text-sm">
-            <span className="text-[var(--color-secondary)]">Audience</span>
+            <span className="text-[var(--color-secondary)]">{messages.explore.audience}</span>
             <select
               className="input-field"
               value={audienceFilter}
               onChange={(event) => setAudienceFilter(event.target.value)}
             >
-              <option value="">Men / Women / Unisex</option>
-              <option value="men">Men</option>
-              <option value="women">Women</option>
-              <option value="unisex">Unisex</option>
+              <option value="">{messages.explore.audienceAll}</option>
+              <option value="men">{getAudienceLabel("men", locale)}</option>
+              <option value="women">{getAudienceLabel("women", locale)}</option>
+              <option value="unisex">{getAudienceLabel("unisex", locale)}</option>
             </select>
           </label>
           <label className="space-y-2 text-sm">
-            <span className="text-[var(--color-secondary)]">Prix</span>
+            <span className="text-[var(--color-secondary)]">{messages.explore.price}</span>
             <select
               className="input-field"
               value={priceFilter}
               onChange={(event) => setPriceFilter(event.target.value)}
             >
-              <option value="">Tous les prix</option>
-              <option value="budget">Jusqu&apos;a {formatCurrency(50)}</option>
-              <option value="mid">{formatCurrency(50)} a {formatCurrency(90)}</option>
-              <option value="premium">Premium +90 DT</option>
+              <option value="">{messages.explore.allPrices}</option>
+              <option value="budget">
+                {messages.explore.budgetUpTo} {formatCurrency(50, locale)}
+              </option>
+              <option value="mid">
+                {formatCurrency(50, locale)} {messages.explore.between}{" "}
+                {formatCurrency(90, locale)}
+              </option>
+              <option value="premium">{messages.explore.premium}</option>
             </select>
           </label>
           <label className="space-y-2 text-sm">
-            <span className="text-[var(--color-secondary)]">Trier par</span>
+            <span className="text-[var(--color-secondary)]">{messages.explore.sortBy}</span>
             <select
               className="input-field"
               value={sortBy}
               onChange={(event) => setSortBy(event.target.value as SortOption)}
             >
-              <option value="recommended">Recommended</option>
-              <option value="available_today">Available today</option>
-              <option value="lowest_price">Lowest starting price</option>
-              <option value="newest">Newest</option>
-              <option value="featured">Featured only</option>
+              <option value="recommended">{messages.explore.recommended}</option>
+              <option value="available_today">{messages.explore.availableToday}</option>
+              <option value="lowest_price">{messages.explore.lowestPrice}</option>
+              <option value="newest">{messages.explore.newest}</option>
+              <option value="featured">{messages.explore.featuredOnly}</option>
             </select>
           </label>
           <div className="flex flex-wrap items-end gap-3">
@@ -357,7 +394,7 @@ export function ExploreBrowser({
               )}
             >
               <Clock3 className="h-4 w-4" />
-              Open now
+              {messages.explore.openNow}
             </button>
             <button
               type="button"
@@ -370,7 +407,7 @@ export function ExploreBrowser({
               )}
             >
               <CalendarClock className="h-4 w-4" />
-              Available today
+              {messages.explore.availableToday}
             </button>
           </div>
         </div>
@@ -380,10 +417,10 @@ export function ExploreBrowser({
         <div className="flex items-center gap-3">
           <Badge tone="default">
             <SlidersHorizontal className="mr-2 h-3.5 w-3.5" />
-            {filteredBusinesses.length} resultats
+            {getResultsLabel(filteredBusinesses.length, locale)}
           </Badge>
-          {availableTodayOnly ? <Badge tone="success">Today only</Badge> : null}
-          {openNowOnly ? <Badge tone="accent">Open now</Badge> : null}
+          {availableTodayOnly ? <Badge tone="success">{messages.explore.todayOnly}</Badge> : null}
+          {openNowOnly ? <Badge tone="accent">{messages.explore.openNow}</Badge> : null}
         </div>
       </section>
 
@@ -392,13 +429,17 @@ export function ExploreBrowser({
           {filteredBusinesses.map((business) => {
             const category = categories.find((item) => item.id === business.categoryId);
             const city = cities.find((item) => item.id === business.cityId);
+            const localizedCategory = category
+              ? getCategoryTranslation(category.slug, locale)
+              : null;
+            const localizedCity = city ? getCityTranslation(city.slug, locale) : null;
 
             return (
               <BusinessCard
                 key={business.id}
                 business={business}
-                categoryName={category?.name ?? ""}
-                cityName={city?.name ?? ""}
+                categoryName={localizedCategory?.name ?? ""}
+                cityName={localizedCity?.name ?? city?.name ?? ""}
                 compact
               />
             );
@@ -407,9 +448,9 @@ export function ExploreBrowser({
       ) : (
         <EmptyState
           icon={Search}
-          title="No matches yet"
-          description="Try widening the city, price or audience filters. Version 1 stays focused on beauty businesses only, so discovery stays clean and dependable."
-          ctaLabel="Become a partner"
+          title={messages.explore.noMatchesTitle}
+          description={messages.explore.noMatchesDescription}
+          ctaLabel={messages.explore.noMatchesCta}
           ctaHref="/register?role=shop"
         />
       )}

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { CalendarClock, Compass, RefreshCcw, Ticket, UserRound } from "lucide-react";
 
 import { useAuth } from "@/components/providers/auth-provider";
+import { useLocale } from "@/components/providers/locale-provider";
 import { usePlatform } from "@/components/providers/platform-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,7 +32,9 @@ function MetricCard({
       <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/6 text-[var(--color-accent)]">
         <Icon className="h-5 w-5" />
       </div>
-      <p className="mt-4 text-xs uppercase tracking-[0.14em] text-[var(--color-muted)]">{label}</p>
+      <p className="mt-4 text-xs uppercase tracking-[0.14em] text-[var(--color-muted)]">
+        {label}
+      </p>
       <p className="mt-2 text-3xl font-semibold text-white">{value}</p>
     </div>
   );
@@ -43,6 +46,7 @@ function normalizePhone(value: string) {
 
 export function CustomerAccountPage() {
   const { user } = useAuth();
+  const { locale, messages } = useLocale();
   const {
     bookings,
     businesses,
@@ -70,15 +74,19 @@ export function CustomerAccountPage() {
   return (
     <div className="space-y-6">
       <SectionHeading
-        eyebrow="Customer account"
-        title="Track your appointments without seeing business tools"
-        description="Customers land in a dedicated area for upcoming bookings, quick actions, and booking-management links. Shop tools stay in the partner dashboard."
+        eyebrow={messages.account.eyebrow}
+        title={messages.account.title}
+        description={messages.account.description}
       />
 
       <div className="grid gap-4 md:grid-cols-3">
-        <MetricCard label="Upcoming" value={upcoming.length} icon={CalendarClock} />
-        <MetricCard label="All bookings" value={customerBookings.length} icon={Ticket} />
-        <MetricCard label="Saved phone" value={user?.phone ?? "-"} icon={UserRound} />
+        <MetricCard label={messages.account.upcoming} value={upcoming.length} icon={CalendarClock} />
+        <MetricCard
+          label={messages.account.allBookings}
+          value={customerBookings.length}
+          icon={Ticket}
+        />
+        <MetricCard label={messages.account.savedPhone} value={user?.phone ?? "-"} icon={UserRound} />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -87,16 +95,15 @@ export function CustomerAccountPage() {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h2 className="font-heading text-2xl font-semibold text-white">
-                  Upcoming appointments
+                  {messages.account.upcomingAppointments}
                 </h2>
                 <p className="mt-2 text-sm text-[var(--color-secondary)]">
-                  Your phone number links this account to bookings created without a full
-                  customer profile.
+                  {messages.account.upcomingDescription}
                 </p>
               </div>
               <Link href="/explore">
                 <Button variant="secondary" size="sm">
-                  Book another
+                  {messages.account.bookAnother}
                 </Button>
               </Link>
             </div>
@@ -118,17 +125,18 @@ export function CustomerAccountPage() {
                         <div className="space-y-2">
                           <div className="flex flex-wrap items-center gap-2">
                             <h3 className="font-heading text-2xl font-semibold text-white">
-                              {business?.name ?? "Business"}
+                              {business?.name ?? messages.account.businessFallback}
                             </h3>
                             <Badge tone={bookingStatusTone(booking.status)}>
-                              {statusLabel(booking.status)}
+                              {statusLabel(booking.status, locale)}
                             </Badge>
                           </div>
                           <p className="text-sm text-[var(--color-secondary)]">
-                            {service?.title ?? "Service"} / {formatDateTime(booking.startAt)}
+                            {service?.title ?? messages.account.serviceFallback} /{" "}
+                            {formatDateTime(booking.startAt, locale)}
                           </p>
                           <p className="text-xs uppercase tracking-[0.14em] text-[var(--color-muted)]">
-                            Reference {booking.referenceCode}
+                            {messages.account.referencePrefix} {booking.referenceCode}
                           </p>
                         </div>
 
@@ -137,11 +145,9 @@ export function CustomerAccountPage() {
                             <Button
                               variant="secondary"
                               size="sm"
-                              onClick={() =>
-                                cancelBookingByCustomer(booking.referenceCode)
-                              }
+                              onClick={() => cancelBookingByCustomer(booking.referenceCode)}
                             >
-                              Cancel
+                              {messages.account.cancel}
                             </Button>
                           ) : null}
                           {canRequestReschedule(booking) ? (
@@ -152,12 +158,12 @@ export function CustomerAccountPage() {
                                 requestBookingReschedule(booking.referenceCode)
                               }
                             >
-                              Request reschedule
+                              {messages.account.requestReschedule}
                             </Button>
                           ) : null}
                           <Link href={`/manage-booking/${booking.referenceCode}`}>
                             <Button variant="ghost" size="sm">
-                              Open details
+                              {messages.account.openDetails}
                             </Button>
                           </Link>
                         </div>
@@ -168,9 +174,9 @@ export function CustomerAccountPage() {
               ) : (
                 <EmptyState
                   icon={CalendarClock}
-                  title="No upcoming bookings yet"
-                  description="Explore trusted salons, barbers, spas and beauty centers, then book in under a minute."
-                  ctaLabel="Explore businesses"
+                  title={messages.account.noUpcomingTitle}
+                  description={messages.account.noUpcomingDescription}
+                  ctaLabel={messages.account.noUpcomingCta}
                   ctaHref="/explore"
                 />
               )}
@@ -179,7 +185,7 @@ export function CustomerAccountPage() {
 
           <div className="panel p-5">
             <h2 className="font-heading text-2xl font-semibold text-white">
-              Booking history
+              {messages.account.bookingHistory}
             </h2>
             <div className="mt-4 space-y-3">
               {history.length > 0 ? (
@@ -196,21 +202,22 @@ export function CustomerAccountPage() {
                     >
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="font-medium text-white">
-                          {business?.name ?? "Business"}
+                          {business?.name ?? messages.account.businessFallback}
                         </p>
                         <Badge tone={bookingStatusTone(booking.status)}>
-                          {statusLabel(booking.status)}
+                          {statusLabel(booking.status, locale)}
                         </Badge>
                       </div>
                       <p className="mt-2 text-sm text-[var(--color-secondary)]">
-                        {service?.title ?? "Service"} / {formatDateTime(booking.startAt)}
+                        {service?.title ?? messages.account.serviceFallback} /{" "}
+                        {formatDateTime(booking.startAt, locale)}
                       </p>
                     </div>
                   );
                 })
               ) : (
                 <div className="rounded-3xl border border-white/8 bg-white/4 p-4 text-sm text-[var(--color-secondary)]">
-                  Completed, cancelled or expired bookings will appear here.
+                  {messages.account.historyEmpty}
                 </div>
               )}
             </div>
@@ -219,27 +226,29 @@ export function CustomerAccountPage() {
 
         <div className="space-y-4">
           <div className="panel p-5">
-            <h2 className="font-heading text-2xl font-semibold text-white">Quick actions</h2>
+            <h2 className="font-heading text-2xl font-semibold text-white">
+              {messages.account.quickActions}
+            </h2>
             <div className="mt-4 space-y-2">
               <Link
                 href="/explore"
                 className="flex items-center gap-3 rounded-2xl border border-white/8 bg-white/4 px-4 py-3 text-sm text-[var(--color-secondary)] transition hover:text-white"
               >
                 <Compass className="h-4 w-4 text-[var(--color-accent)]" />
-                Explore businesses
+                {messages.account.exploreBusinesses}
               </Link>
               <Link
                 href="/manage-booking"
                 className="flex items-center gap-3 rounded-2xl border border-white/8 bg-white/4 px-4 py-3 text-sm text-[var(--color-secondary)] transition hover:text-white"
               >
                 <CalendarClock className="h-4 w-4 text-[var(--color-accent)]" />
-                Find booking by reference
+                {messages.account.findByReference}
               </Link>
             </div>
           </div>
 
           <div className="panel p-5 text-sm text-[var(--color-secondary)]">
-            <p className="font-medium text-white">Logged in as</p>
+            <p className="font-medium text-white">{messages.account.loggedInAs}</p>
             <p className="mt-2">{user?.name ?? "-"}</p>
             <p className="mt-2">{user?.email ?? "-"}</p>
             <p className="mt-2">{user?.phone ?? "-"}</p>

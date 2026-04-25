@@ -1,13 +1,21 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, Clock3, MapPin, MessageCircle, Zap } from "lucide-react";
+import { ArrowLeft, ArrowRight, Clock3, MapPin, MessageCircle, Zap } from "lucide-react";
 
+import { useLocale } from "@/components/providers/locale-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LogoMark } from "@/components/ui/logo-mark";
 import { isBusinessFeatured } from "@/lib/platform-rules";
 import type { Business } from "@/lib/types";
-import { bookingModeLabel, formatCurrency, formatRelativeDay, formatTime } from "@/lib/utils";
+import {
+  bookingModeLabel,
+  formatCurrency,
+  formatRelativeDay,
+  formatTime,
+} from "@/lib/utils";
 
 interface BusinessCardProps {
   business: Business;
@@ -22,11 +30,13 @@ export function BusinessCard({
   cityName,
   compact,
 }: BusinessCardProps) {
+  const { direction, locale, messages } = useLocale();
   const nextAvailable = business.nextAvailableAt ? new Date(business.nextAvailableAt) : null;
   const activePrices = business.services
     .filter((service) => service.active)
     .map((service) => service.price);
   const startingPrice = activePrices.length > 0 ? Math.min(...activePrices) : 0;
+  const ArrowIcon = direction === "rtl" ? ArrowLeft : ArrowRight;
 
   return (
     <article className="panel group overflow-hidden transition duration-200 hover:-translate-y-1">
@@ -43,17 +53,17 @@ export function BusinessCard({
           <div className="flex flex-wrap gap-2">
             <Badge tone={isBusinessFeatured(business) ? "accent" : "default"}>
               {isBusinessFeatured(business)
-                ? "Featured"
+                ? messages.businessCard.featured
                 : business.trust?.adminApproved
-                  ? "Admin approved"
-                  : "Live"}
+                  ? messages.businessCard.adminApproved
+                  : messages.businessCard.live}
             </Badge>
             {business.trust?.phoneVerified || business.trust?.addressVerified ? (
-              <Badge tone="success">Verified</Badge>
+              <Badge tone="success">{messages.businessCard.verified}</Badge>
             ) : null}
           </div>
           {business.bookingMode === "instant" ? (
-            <Badge tone="success">Instant booking</Badge>
+            <Badge tone="success">{messages.businessCard.instantBooking}</Badge>
           ) : null}
         </div>
         <div className="absolute inset-x-0 bottom-0 p-4">
@@ -65,7 +75,7 @@ export function BusinessCard({
               </p>
               <div className="flex flex-wrap items-center gap-2 text-sm text-white/80">
                 <span>{categoryName}</span>
-                <span className="text-white/40">•</span>
+                <span className="text-white/40">&bull;</span>
                 <span>
                   {cityName}, {business.area}
                 </span>
@@ -77,17 +87,17 @@ export function BusinessCard({
       <div className="space-y-4 p-5">
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="rounded-2xl border border-white/6 bg-white/4 p-3">
-            <p className="text-[var(--color-muted)]">Starting price</p>
+            <p className="text-[var(--color-muted)]">{messages.businessCard.startingPrice}</p>
             <p className="mt-1 text-lg font-semibold text-white">
-              {formatCurrency(startingPrice)}
+              {formatCurrency(startingPrice, locale)}
             </p>
           </div>
           <div className="rounded-2xl border border-white/6 bg-white/4 p-3">
-            <p className="text-[var(--color-muted)]">Next available</p>
+            <p className="text-[var(--color-muted)]">{messages.businessCard.nextAvailable}</p>
             <p className="mt-1 text-sm font-semibold text-white">
               {nextAvailable
-                ? `${formatRelativeDay(nextAvailable)} • ${formatTime(nextAvailable)}`
-                : "No slots right now"}
+                ? `${formatRelativeDay(nextAvailable, locale)} • ${formatTime(nextAvailable, locale)}`
+                : messages.businessCard.noSlots}
             </p>
           </div>
         </div>
@@ -102,13 +112,13 @@ export function BusinessCard({
           </div>
           <div className="inline-flex items-center gap-2">
             <Zap className="h-4 w-4 text-[var(--color-accent)]" />
-            {bookingModeLabel(business.bookingMode)}
+            {bookingModeLabel(business.bookingMode, locale)}
           </div>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row">
           <Link href={`/business/${business.slug}`} className="flex-1">
-            <Button fullWidth icon={<ArrowRight className="h-4 w-4" />}>
-              View profile
+            <Button fullWidth icon={<ArrowIcon className="h-4 w-4" />}>
+              {messages.businessCard.viewProfile}
             </Button>
           </Link>
           <a

@@ -13,12 +13,8 @@ export default async function CityPage(props: PageProps<"/city/[slug]">) {
   }
 
   return (
-    <Suspense fallback={<div className="panel p-6 text-sm text-[var(--color-secondary)]">Loading city listings...</div>}>
-      <ExploreBrowser
-        title={`Beauty bookings in ${city.name}`}
-        description={city.heroCopy}
-        presetCitySlug={city.slug}
-      />
+    <Suspense fallback={<div className="panel p-6 text-sm text-[var(--color-secondary)]">Loading...</div>}>
+      <ExploreBrowser presetCitySlug={city.slug} />
     </Suspense>
   );
 }

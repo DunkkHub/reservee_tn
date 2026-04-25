@@ -1,8 +1,14 @@
 import type { Metadata } from "next";
-import { Inter, Manrope } from "next/font/google";
+import { cookies } from "next/headers";
+import { Cairo, Inter, Manrope } from "next/font/google";
 
 import { AppProviders } from "@/components/providers/app-providers";
 import { getCurrentSession } from "@/lib/auth-session";
+import {
+  LOCALE_COOKIE_NAME,
+  getLocaleDirection,
+  resolveAppLocale,
+} from "@/lib/i18n";
 import { siteUrl } from "@/lib/site";
 import "./globals.css";
 
@@ -14,6 +20,11 @@ const inter = Inter({
 const manrope = Manrope({
   variable: "--font-manrope",
   subsets: ["latin"],
+});
+
+const cairo = Cairo({
+  variable: "--font-cairo",
+  subsets: ["arabic"],
 });
 
 export const metadata: Metadata = {
@@ -53,16 +64,26 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const cookieStore = await cookies();
+  const initialLocale = resolveAppLocale(
+    cookieStore.get(LOCALE_COOKIE_NAME)?.value,
+  );
   const initialSession = await getCurrentSession();
 
   return (
     <html
-      lang="fr"
+      lang={initialLocale}
+      dir={getLocaleDirection(initialLocale)}
       data-scroll-behavior="smooth"
-      className={`${inter.variable} ${manrope.variable} h-full antialiased`}
+      className={`${inter.variable} ${manrope.variable} ${cairo.variable} h-full antialiased`}
     >
-      <body className="min-h-full bg-background text-foreground">
-        <AppProviders initialSession={initialSession}>{children}</AppProviders>
+      <body className="min-h-full bg-background text-foreground" suppressHydrationWarning>
+        <AppProviders
+          initialLocale={initialLocale}
+          initialSession={initialSession}
+        >
+          {children}
+        </AppProviders>
       </body>
     </html>
   );

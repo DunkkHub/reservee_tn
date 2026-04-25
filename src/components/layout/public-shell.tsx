@@ -13,24 +13,29 @@ import {
   ShieldCheck,
   UserRound,
 } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 
 import { useAuth } from "@/components/providers/auth-provider";
+import { useLocale } from "@/components/providers/locale-provider";
 import { Button } from "@/components/ui/button";
+import { LanguageSwitcher } from "@/components/ui/language-switcher";
 import { LogoMark } from "@/components/ui/logo-mark";
 import { cn } from "@/lib/utils";
-
-const navItems = [
-  { href: "/", label: "Accueil" },
-  { href: "/explore", label: "Explorer" },
-  { href: "/manage-booking", label: "Gerer mes reservations" },
-  { href: "/partner", label: "Partenaires" },
-];
 
 export function PublicShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, isAuthenticated, logout } = useAuth();
+  const { messages } = useLocale();
+  const navItems = useMemo(
+    () => [
+      { href: "/", label: messages.shell.home },
+      { href: "/explore", label: messages.shell.explore },
+      { href: "/manage-booking", label: messages.shell.manageBooking },
+      { href: "/partner", label: messages.shell.partners },
+    ],
+    [messages],
+  );
 
   useEffect(() => {
     for (const item of navItems) {
@@ -38,7 +43,7 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
         router.prefetch(item.href);
       }
     }
-  }, [pathname, router]);
+  }, [navItems, pathname, router]);
 
   const accountHref =
     user?.role === "shop"
@@ -48,17 +53,17 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
         : "/account";
   const accountLabel =
     user?.role === "shop"
-      ? "Dashboard"
+      ? messages.shell.dashboard
       : user?.role === "admin"
-        ? "Admin"
-        : "Mon compte";
+        ? messages.shell.admin
+        : messages.shell.account;
   const mobileItems = isAuthenticated
     ? [
-        { href: "/", label: "Home", icon: Home },
-        { href: "/explore", label: "Explore", icon: Compass },
+        { href: "/", label: messages.shell.home, icon: Home },
+        { href: "/explore", label: messages.shell.explore, icon: Compass },
         {
           href: accountHref,
-          label: user?.role === "customer" ? "Account" : accountLabel,
+          label: user?.role === "customer" ? messages.shell.account : accountLabel,
           icon:
             user?.role === "customer"
               ? UserRound
@@ -68,15 +73,22 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
         },
         {
           href: user?.role === "customer" ? "/manage-booking" : "/partner",
-          label: user?.role === "customer" ? "Manage" : "Partner",
+          label:
+            user?.role === "customer"
+              ? messages.shell.manageBooking
+              : messages.shell.partners,
           icon: user?.role === "customer" ? CalendarClock : PlusCircle,
         },
       ]
     : [
-        { href: "/", label: "Home", icon: Home },
-        { href: "/explore", label: "Explore", icon: Compass },
-        { href: "/manage-booking", label: "Manage", icon: CalendarClock },
-        { href: "/partner", label: "Partner", icon: PlusCircle },
+        { href: "/", label: messages.shell.home, icon: Home },
+        { href: "/explore", label: messages.shell.explore, icon: Compass },
+        {
+          href: "/manage-booking",
+          label: messages.shell.manageBooking,
+          icon: CalendarClock,
+        },
+        { href: "/partner", label: messages.shell.partners, icon: PlusCircle },
       ];
 
   return (
@@ -91,7 +103,7 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
                 Reservee TN
               </p>
               <p className="text-xs text-[var(--color-muted)]">
-                Booking premium beaute
+                {messages.shell.tagline}
               </p>
             </div>
           </Link>
@@ -112,6 +124,9 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
               </Link>
             ))}
           </nav>
+          <div className="flex items-center gap-3">
+            <LanguageSwitcher className="shrink-0" />
+          </div>
           <div className="hidden items-center gap-3 md:flex">
             {isAuthenticated ? (
               <>
@@ -134,7 +149,7 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
                   icon={<LogOut className="h-4 w-4" />}
                   onClick={logout}
                 >
-                  Logout
+                  {messages.shell.logout}
                 </Button>
               </>
             ) : (
@@ -144,10 +159,10 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
                   className="inline-flex items-center gap-2 text-sm text-[var(--color-secondary)] transition hover:text-white"
                 >
                   <LogIn className="h-4 w-4" />
-                  Login
+                  {messages.shell.login}
                 </Link>
                 <Link href="/register?role=shop">
-                  <Button size="sm">Ajouter mon business</Button>
+                  <Button size="sm">{messages.shell.addBusiness}</Button>
                 </Link>
               </>
             )}

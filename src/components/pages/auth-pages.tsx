@@ -6,8 +6,10 @@ import { useMemo, useState } from "react";
 import { Building2, LogIn, ShieldCheck, UserRound } from "lucide-react";
 
 import { useAuth } from "@/components/providers/auth-provider";
+import { useLocale } from "@/components/providers/locale-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { getCategoryTranslation, getCityTranslation } from "@/lib/i18n";
 import { categories, cities } from "@/lib/seed-data";
 import type { AuthSession } from "@/lib/auth-types";
 import type { CategorySlug } from "@/lib/types";
@@ -36,6 +38,8 @@ function AuthShell({
   children: React.ReactNode;
   footer: React.ReactNode;
 }) {
+  const { messages } = useLocale();
+
   return (
     <div className="mx-auto grid w-full max-w-6xl gap-6 lg:grid-cols-[minmax(0,1fr)_460px]">
       <section className="panel space-y-6 p-6 md:p-8">
@@ -50,21 +54,9 @@ function AuthShell({
         </div>
         <div className="grid gap-4 md:grid-cols-3">
           {[
-            {
-              icon: UserRound,
-              title: "Customer space",
-              text: "Track upcoming appointments and manage bookings without entering the business dashboard.",
-            },
-            {
-              icon: Building2,
-              title: "Shop space",
-              text: "Salon and barber owners get a private dashboard for services, hours, bookings and onboarding.",
-            },
-            {
-              icon: ShieldCheck,
-              title: "Admin space",
-              text: "Moderation stays separate so platform operations are never mixed with customer or shop views.",
-            },
+            { icon: UserRound, ...messages.auth.featureCards[0] },
+            { icon: Building2, ...messages.auth.featureCards[1] },
+            { icon: ShieldCheck, ...messages.auth.featureCards[2] },
           ].map((item) => {
             const Icon = item.icon;
             return (
@@ -97,6 +89,7 @@ function AuthShell({
 export function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { messages } = useLocale();
   const next = searchParams.get("next");
   const roleHint = searchParams.get("role");
   const { setSession } = useAuth();
@@ -139,7 +132,7 @@ export function LoginPage() {
       const data = (await response.json()) as AuthApiResponse;
 
       if (!response.ok || !data.ok || !data.session) {
-        setError(data.message || "Login failed.");
+        setError(data.message || messages.auth.loginFailed);
         return;
       }
 
@@ -153,7 +146,7 @@ export function LoginPage() {
       router.push(destination);
       router.refresh();
     } catch {
-      setError("Login failed. Please try again.");
+      setError(messages.auth.loginFailed);
     } finally {
       setSubmitting(false);
     }
@@ -161,14 +154,14 @@ export function LoginPage() {
 
   return (
     <AuthShell
-      eyebrow="Login"
-      title="Sign in to the right space"
-      description="Customers, shop owners, and admins can use the same sign-in screen, but each role is redirected to its own protected area after login."
+      eyebrow={messages.auth.loginEyebrow}
+      title={messages.auth.loginTitle}
+      description={messages.auth.loginDescription}
       footer={
         <p>
-          No account yet?{" "}
+          {messages.auth.noAccountPrefix}{" "}
           <Link href={registerHref} className="text-white underline underline-offset-4">
-            Create one here
+            {messages.auth.createOne}
           </Link>
           .
         </p>
@@ -176,17 +169,19 @@ export function LoginPage() {
     >
       <div className="space-y-5">
         <div>
-          <h2 className="font-heading text-3xl font-semibold text-white">Welcome back</h2>
+          <h2 className="font-heading text-3xl font-semibold text-white">
+            {messages.auth.welcomeBack}
+          </h2>
           <p className="mt-2 text-sm text-[var(--color-secondary)]">
             {roleHint === "shop"
-              ? "Sign in to your partner dashboard."
-              : "Sign in to continue."}
+              ? messages.auth.shopSignInHint
+              : messages.auth.signInHint}
           </p>
         </div>
 
         <form className="space-y-4" onSubmit={handleSubmit}>
           <label className="block space-y-2 text-sm">
-            <span className="text-[var(--color-secondary)]">Email</span>
+            <span className="text-[var(--color-secondary)]">{messages.auth.email}</span>
             <input
               className="input-field"
               type="email"
@@ -200,7 +195,7 @@ export function LoginPage() {
           </label>
 
           <label className="block space-y-2 text-sm">
-            <span className="text-[var(--color-secondary)]">Password</span>
+            <span className="text-[var(--color-secondary)]">{messages.auth.password}</span>
             <input
               className="input-field"
               type="password"
@@ -208,7 +203,7 @@ export function LoginPage() {
               onChange={(event) =>
                 setForm((current) => ({ ...current, password: event.target.value }))
               }
-              placeholder="Minimum 8 characters"
+              placeholder={messages.auth.minPassword}
               autoComplete="current-password"
             />
           </label>
@@ -225,13 +220,12 @@ export function LoginPage() {
             icon={<LogIn className="h-4 w-4" />}
             disabled={submitting}
           >
-            {submitting ? "Signing in..." : "Sign in"}
+            {submitting ? messages.auth.signingIn : messages.auth.signIn}
           </Button>
         </form>
 
         <p className="text-xs leading-6 text-[var(--color-muted)]">
-          Admin accounts are created directly in MySQL, so admins sign in here but are not
-          self-registered from the public form.
+          {messages.auth.adminNote}
         </p>
       </div>
     </AuthShell>
@@ -241,6 +235,7 @@ export function LoginPage() {
 export function RegisterPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { locale, messages } = useLocale();
   const next = searchParams.get("next");
   const requestedRole = searchParams.get("role");
   const defaultRole = requestedRole === "shop" ? "shop" : "customer";
@@ -259,6 +254,14 @@ export function RegisterPage() {
   });
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const localizedCategories = categories.map((category) => ({
+    ...category,
+    ...getCategoryTranslation(category.slug, locale),
+  }));
+  const localizedCities = cities.map((city) => ({
+    ...city,
+    ...(getCityTranslation(city.slug, locale) ?? { name: city.name }),
+  }));
 
   const loginHref = useMemo(() => {
     const params = new URLSearchParams();
@@ -277,7 +280,7 @@ export function RegisterPage() {
     setError("");
 
     if (form.password !== form.confirmPassword) {
-      setError("Passwords do not match.");
+      setError(messages.auth.passwordMismatch);
       setSubmitting(false);
       return;
     }
@@ -315,7 +318,7 @@ export function RegisterPage() {
       const data = (await response.json()) as AuthApiResponse;
 
       if (!response.ok || !data.ok || !data.session) {
-        setError(data.message || "Registration failed.");
+        setError(data.message || messages.auth.registerFailed);
         return;
       }
 
@@ -329,7 +332,7 @@ export function RegisterPage() {
       router.push(destination);
       router.refresh();
     } catch {
-      setError("Registration failed. Please try again.");
+      setError(messages.auth.registerFailed);
     } finally {
       setSubmitting(false);
     }
@@ -337,14 +340,14 @@ export function RegisterPage() {
 
   return (
     <AuthShell
-      eyebrow="Register"
-      title="Create a customer or shop account"
-      description="Customers and business owners do not share the same workspace. Choose the role you need now, and the platform sends you to the right area after signup."
+      eyebrow={messages.auth.registerEyebrow}
+      title={messages.auth.registerTitle}
+      description={messages.auth.registerDescription}
       footer={
         <p>
-          Already have an account?{" "}
+          {messages.auth.alreadyAccountPrefix}{" "}
           <Link href={loginHref} className="text-white underline underline-offset-4">
-            Sign in here
+            {messages.auth.signInHere}
           </Link>
           .
         </p>
@@ -353,8 +356,8 @@ export function RegisterPage() {
       <div className="space-y-5">
         <div className="grid grid-cols-2 gap-2 rounded-full border border-white/8 bg-white/4 p-1">
           {[
-            { id: "customer", label: "Customer" },
-            { id: "shop", label: "Shop" },
+            { id: "customer", label: messages.auth.customer },
+            { id: "shop", label: messages.auth.shop },
           ].map((option) => (
             <button
               key={option.id}
@@ -373,7 +376,7 @@ export function RegisterPage() {
 
         <form className="space-y-4" onSubmit={handleSubmit}>
           <label className="block space-y-2 text-sm">
-            <span className="text-[var(--color-secondary)]">Full name</span>
+            <span className="text-[var(--color-secondary)]">{messages.auth.fullName}</span>
             <input
               className="input-field"
               value={form.name}
@@ -385,7 +388,7 @@ export function RegisterPage() {
           </label>
 
           <label className="block space-y-2 text-sm">
-            <span className="text-[var(--color-secondary)]">Email</span>
+            <span className="text-[var(--color-secondary)]">{messages.auth.email}</span>
             <input
               className="input-field"
               type="email"
@@ -398,7 +401,7 @@ export function RegisterPage() {
           </label>
 
           <label className="block space-y-2 text-sm">
-            <span className="text-[var(--color-secondary)]">Phone</span>
+            <span className="text-[var(--color-secondary)]">{messages.auth.phone}</span>
             <input
               className="input-field"
               value={form.phone}
@@ -413,7 +416,9 @@ export function RegisterPage() {
           {role === "shop" ? (
             <>
               <label className="block space-y-2 text-sm">
-                <span className="text-[var(--color-secondary)]">Business name</span>
+                <span className="text-[var(--color-secondary)]">
+                  {messages.auth.businessName}
+                </span>
                 <input
                   className="input-field"
                   value={form.businessName}
@@ -428,7 +433,9 @@ export function RegisterPage() {
 
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="block space-y-2 text-sm">
-                  <span className="text-[var(--color-secondary)]">Category</span>
+                  <span className="text-[var(--color-secondary)]">
+                    {messages.auth.category}
+                  </span>
                   <select
                     className="input-field"
                     value={form.categorySlug}
@@ -439,7 +446,7 @@ export function RegisterPage() {
                       }))
                     }
                   >
-                    {categories.map((category) => (
+                    {localizedCategories.map((category) => (
                       <option key={category.id} value={category.slug}>
                         {category.name}
                       </option>
@@ -448,7 +455,7 @@ export function RegisterPage() {
                 </label>
 
                 <label className="block space-y-2 text-sm">
-                  <span className="text-[var(--color-secondary)]">City</span>
+                  <span className="text-[var(--color-secondary)]">{messages.auth.city}</span>
                   <select
                     className="input-field"
                     value={form.citySlug}
@@ -459,7 +466,7 @@ export function RegisterPage() {
                       }))
                     }
                   >
-                    {cities.map((city) => (
+                    {localizedCities.map((city) => (
                       <option key={city.id} value={city.slug}>
                         {city.name}
                       </option>
@@ -469,7 +476,7 @@ export function RegisterPage() {
               </div>
 
               <label className="block space-y-2 text-sm">
-                <span className="text-[var(--color-secondary)]">Area</span>
+                <span className="text-[var(--color-secondary)]">{messages.auth.area}</span>
                 <input
                   className="input-field"
                   value={form.area}
@@ -483,7 +490,7 @@ export function RegisterPage() {
 
           <div className="grid gap-4 md:grid-cols-2">
             <label className="block space-y-2 text-sm">
-              <span className="text-[var(--color-secondary)]">Password</span>
+              <span className="text-[var(--color-secondary)]">{messages.auth.password}</span>
               <input
                 className="input-field"
                 type="password"
@@ -498,7 +505,9 @@ export function RegisterPage() {
               />
             </label>
             <label className="block space-y-2 text-sm">
-              <span className="text-[var(--color-secondary)]">Confirm password</span>
+              <span className="text-[var(--color-secondary)]">
+                {messages.auth.confirmPassword}
+              </span>
               <input
                 className="input-field"
                 type="password"
@@ -522,10 +531,10 @@ export function RegisterPage() {
 
           <Button type="submit" fullWidth disabled={submitting}>
             {submitting
-              ? "Creating account..."
+              ? messages.auth.createAccount
               : role === "shop"
-                ? "Create shop account"
-                : "Create customer account"}
+                ? messages.auth.createShopAccount
+                : messages.auth.createCustomerAccount}
           </Button>
         </form>
       </div>

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { CalendarClock, Clock3, MessageCircle, Search, ShieldCheck } from "lucide-react";
 
+import { useLocale } from "@/components/providers/locale-provider";
 import { usePlatform } from "@/components/providers/platform-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ type VerifyResponse = {
 
 export function ManageBookingLookupPage() {
   const router = useRouter();
+  const { messages } = useLocale();
   const [referenceCode, setReferenceCode] = useState("");
 
   function handleSearch() {
@@ -38,22 +40,24 @@ export function ManageBookingLookupPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div className="panel space-y-5 p-8">
-        <Badge tone="accent">Manage booking</Badge>
+        <Badge tone="accent">{messages.manageBooking.lookupBadge}</Badge>
         <div>
-          <h1 className="font-heading text-4xl font-semibold text-white">Find your booking</h1>
+          <h1 className="font-heading text-4xl font-semibold text-white">
+            {messages.manageBooking.lookupTitle}
+          </h1>
           <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--color-secondary)]">
-            Enter the booking reference code from the confirmation screen. You will verify your phone before you can cancel or request a reschedule.
+            {messages.manageBooking.lookupDescription}
           </p>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row">
           <input
             className="input-field"
-            placeholder="Example: RB-AB12-3456"
+            placeholder={messages.manageBooking.exampleReference}
             value={referenceCode}
             onChange={(event) => setReferenceCode(event.target.value)}
           />
           <Button icon={<Search className="h-4 w-4" />} onClick={handleSearch}>
-            Open booking
+            {messages.manageBooking.openBooking}
           </Button>
         </div>
       </div>
@@ -63,6 +67,7 @@ export function ManageBookingLookupPage() {
 
 export function ManageBookingPage({ referenceCode }: { referenceCode: string }) {
   const { businesses } = usePlatform();
+  const { locale, messages } = useLocale();
   const [phone, setPhone] = useState("");
   const [challenge, setChallenge] = useState<ChallengeResponse | null>(null);
   const [verificationCode, setVerificationCode] = useState("");
@@ -174,8 +179,8 @@ export function ManageBookingPage({ referenceCode }: { referenceCode: string }) 
       setChallenge(nextChallenge);
       setMessage(
         nextChallenge.developmentCodePreview
-          ? `Verification code generated. Dev preview: ${nextChallenge.developmentCodePreview}`
-          : "Verification code sent to your phone.",
+          ? `${messages.manageBooking.verificationGenerated} ${nextChallenge.developmentCodePreview}`
+          : messages.manageBooking.verificationSent,
       );
     } catch (challengeError) {
       setError(
@@ -210,12 +215,10 @@ export function ManageBookingPage({ referenceCode }: { referenceCode: string }) 
       );
 
       setToken(verified.token);
-      setMessage("Booking verified.");
+      setMessage(messages.manageBooking.bookingVerified);
     } catch (verifyError) {
       setError(
-        verifyError instanceof Error
-          ? verifyError.message
-          : "Verification failed.",
+        verifyError instanceof Error ? verifyError.message : "Verification failed.",
       );
     } finally {
       setIsSubmitting(false);
@@ -239,8 +242,8 @@ export function ManageBookingPage({ referenceCode }: { referenceCode: string }) 
       setBooking(updatedBooking);
       setMessage(
         action === "cancel"
-          ? "Booking cancelled."
-          : "Reschedule request sent.",
+          ? messages.manageBooking.bookingCancelled
+          : messages.manageBooking.rescheduleSent,
       );
     } catch (manageError) {
       setError(
@@ -257,19 +260,25 @@ export function ManageBookingPage({ referenceCode }: { referenceCode: string }) 
     return (
       <div className="mx-auto max-w-3xl space-y-6">
         <div className="panel space-y-5 p-8">
-          <Badge tone="accent">Secure lookup</Badge>
+          <Badge tone="accent">{messages.manageBooking.secureLookup}</Badge>
           <div>
-            <h1 className="font-heading text-4xl font-semibold text-white">Verify your booking</h1>
+            <h1 className="font-heading text-4xl font-semibold text-white">
+              {messages.manageBooking.verifyTitle}
+            </h1>
             <p className="mt-3 text-sm leading-7 text-[var(--color-secondary)]">
-              We only show booking details after a phone verification step tied to your reference code.
+              {messages.manageBooking.verifyDescription}
             </p>
           </div>
           <div className="rounded-2xl border border-white/8 bg-white/4 px-4 py-3 text-sm">
-            <p className="text-[var(--color-secondary)]">Reference code</p>
+            <p className="text-[var(--color-secondary)]">
+              {messages.manageBooking.referenceCode}
+            </p>
             <p className="mt-2 font-semibold text-white">{referenceCode}</p>
           </div>
           <label className="space-y-2 text-sm">
-            <span className="text-[var(--color-secondary)]">Phone number used at booking</span>
+            <span className="text-[var(--color-secondary)]">
+              {messages.manageBooking.phoneNumberUsed}
+            </span>
             <input
               className="input-field"
               value={phone}
@@ -279,12 +288,14 @@ export function ManageBookingPage({ referenceCode }: { referenceCode: string }) 
           </label>
           {challenge ? (
             <label className="space-y-2 text-sm">
-              <span className="text-[var(--color-secondary)]">Verification code</span>
+              <span className="text-[var(--color-secondary)]">
+                {messages.manageBooking.verificationCode}
+              </span>
               <input
                 className="input-field"
                 value={verificationCode}
                 onChange={(event) => setVerificationCode(event.target.value)}
-                placeholder="6-digit code"
+                placeholder={messages.manageBooking.verificationCodePlaceholder}
               />
             </label>
           ) : null}
@@ -301,18 +312,18 @@ export function ManageBookingPage({ referenceCode }: { referenceCode: string }) 
           <div className="flex flex-wrap gap-3">
             {!challenge ? (
               <Button disabled={!phone.trim() || isSubmitting} onClick={() => void requestChallenge()}>
-                Send verification code
+                {messages.manageBooking.sendVerificationCode}
               </Button>
             ) : (
               <Button
                 disabled={!verificationCode.trim() || isSubmitting}
                 onClick={() => void verifyChallenge()}
               >
-                Verify booking
+                {messages.manageBooking.verifyBooking}
               </Button>
             )}
             <Link href="/manage-booking">
-              <Button variant="ghost">Try another reference</Button>
+              <Button variant="ghost">{messages.manageBooking.tryAnotherReference}</Button>
             </Link>
           </div>
         </div>
@@ -324,8 +335,8 @@ export function ManageBookingPage({ referenceCode }: { referenceCode: string }) 
     return (
       <EmptyState
         icon={ShieldCheck}
-        title="Booking loaded"
-        description="The booking was verified, but the business profile could not be loaded right now."
+        title={messages.manageBooking.bookingLoadedTitle}
+        description={messages.manageBooking.bookingLoadedDescription}
       />
     );
   }
@@ -335,14 +346,20 @@ export function ManageBookingPage({ referenceCode }: { referenceCode: string }) 
       <div className="panel p-8">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-3">
-            <Badge tone={bookingStatusTone(booking.status)}>{statusLabel(booking.status)}</Badge>
-            <h1 className="font-heading text-4xl font-semibold text-white">Manage booking</h1>
+            <Badge tone={bookingStatusTone(booking.status)}>
+              {statusLabel(booking.status, locale)}
+            </Badge>
+            <h1 className="font-heading text-4xl font-semibold text-white">
+              {messages.manageBooking.pageTitle}
+            </h1>
             <p className="max-w-2xl text-sm leading-7 text-[var(--color-secondary)]">
-              Customer-side booking management is available even without full customer accounts in version 1.
+              {messages.manageBooking.pageDescription}
             </p>
           </div>
           <div className="rounded-2xl border border-white/8 bg-white/4 px-4 py-3 text-sm">
-            <p className="text-[var(--color-secondary)]">Reference code</p>
+            <p className="text-[var(--color-secondary)]">
+              {messages.manageBooking.referenceCode}
+            </p>
             <p className="mt-2 font-semibold text-white">{booking.referenceCode}</p>
           </div>
         </div>
@@ -363,33 +380,37 @@ export function ManageBookingPage({ referenceCode }: { referenceCode: string }) 
         <div className="space-y-6">
           <div className="panel grid gap-4 p-6 md:grid-cols-2">
             {[
-              { label: "Business", value: business.name },
-              { label: "Service", value: service?.title ?? "Service" },
-              { label: "Date and time", value: formatDateTime(booking.startAt) },
-              { label: "Phone", value: booking.customerPhone },
+              { label: messages.bookingFlow.business, value: business.name },
+              { label: messages.bookingFlow.service, value: service?.title ?? messages.bookingFlow.service },
+              { label: messages.manageBooking.dateAndTime, value: formatDateTime(booking.startAt, locale) },
+              { label: messages.bookingFlow.phone, value: booking.customerPhone },
             ].map((item) => (
               <div key={item.label}>
-                <p className="text-xs uppercase tracking-[0.14em] text-[var(--color-muted)]">{item.label}</p>
+                <p className="text-xs uppercase tracking-[0.14em] text-[var(--color-muted)]">
+                  {item.label}
+                </p>
                 <p className="mt-2 text-sm font-semibold text-white">{item.value}</p>
               </div>
             ))}
           </div>
 
           <div className="panel space-y-4 p-6">
-            <h2 className="font-heading text-2xl font-semibold text-white">Self-service actions</h2>
+            <h2 className="font-heading text-2xl font-semibold text-white">
+              {messages.manageBooking.selfServiceActions}
+            </h2>
             <div className="flex flex-wrap gap-3">
               <Button
                 disabled={!customerCanCancel || isSubmitting}
                 onClick={() => void manageBooking("cancel")}
               >
-                Cancel booking
+                {messages.manageBooking.cancelBooking}
               </Button>
               <Button
                 variant="secondary"
                 disabled={!canReschedule || isSubmitting}
                 onClick={() => void manageBooking("requestReschedule")}
               >
-                Request reschedule
+                {messages.manageBooking.requestReschedule}
               </Button>
               <a
                 href={`https://wa.me/${business.whatsapp.replace(/\D/g, "")}`}
@@ -397,19 +418,20 @@ export function ManageBookingPage({ referenceCode }: { referenceCode: string }) 
                 rel="noreferrer"
               >
                 <Button variant="ghost" icon={<MessageCircle className="h-4 w-4" />}>
-                  WhatsApp business
+                  {messages.manageBooking.whatsappBusiness}
                 </Button>
               </a>
             </div>
             <div className="space-y-3 text-sm text-[var(--color-secondary)]">
               {!customerCanCancel ? (
                 <div className="rounded-2xl border border-white/8 bg-white/4 p-4">
-                  Cancellation is available only while the appointment is still upcoming and not already closed.
+                  {messages.manageBooking.cancellationUnavailable}
                 </div>
               ) : null}
               {booking.rescheduleRequestedAt ? (
                 <div className="rounded-2xl border border-[rgba(240,162,2,0.22)] bg-[rgba(240,162,2,0.1)] p-4 text-[var(--color-warning)]">
-                  Reschedule requested on {formatDateTime(booking.rescheduleRequestedAt)}.
+                  {messages.manageBooking.rescheduleRequestedOn}{" "}
+                  {formatDateTime(booking.rescheduleRequestedAt, locale)}.
                 </div>
               ) : null}
             </div>
@@ -421,23 +443,25 @@ export function ManageBookingPage({ referenceCode }: { referenceCode: string }) 
             <div className="flex items-center gap-3">
               <CalendarClock className="h-5 w-5 text-[var(--color-accent)]" />
               <div>
-                <h2 className="font-heading text-2xl font-semibold text-white">Booking rules</h2>
+                <h2 className="font-heading text-2xl font-semibold text-white">
+                  {messages.manageBooking.bookingRules}
+                </h2>
                 <p className="text-sm text-[var(--color-secondary)]">
-                  Clear lifecycle rules make the platform feel more professional.
+                  {messages.manageBooking.bookingRulesDescription}
                 </p>
               </div>
             </div>
             <div className="mt-4 space-y-3 text-sm text-[var(--color-secondary)]">
               <div className="rounded-2xl border border-white/8 bg-white/4 p-4">
-                Pending requests do not stay open forever. They expire automatically if the business does not answer in time.
+                {messages.manageBooking.pendingRule}
               </div>
               {booking.expiresAt ? (
                 <div className="rounded-2xl border border-white/8 bg-white/4 p-4">
-                  Pending expiry time: {formatTime(booking.expiresAt)}
+                  {messages.manageBooking.pendingExpiry} {formatTime(booking.expiresAt, locale)}
                 </div>
               ) : null}
               <div className="rounded-2xl border border-white/8 bg-white/4 p-4">
-                Business address: {business.address}
+                {messages.manageBooking.businessAddress} {business.address}
               </div>
             </div>
           </div>
@@ -446,15 +470,17 @@ export function ManageBookingPage({ referenceCode }: { referenceCode: string }) 
             <div className="flex items-center gap-3">
               <Clock3 className="h-5 w-5 text-[var(--color-accent)]" />
               <div>
-                <h2 className="font-heading text-2xl font-semibold text-white">Need help?</h2>
+                <h2 className="font-heading text-2xl font-semibold text-white">
+                  {messages.manageBooking.needHelp}
+                </h2>
               </div>
             </div>
             <p className="mt-4 text-sm leading-7 text-[var(--color-secondary)]">
-              If the booking is already confirmed and close to the appointment time, WhatsApp is still the fastest fallback.
+              {messages.manageBooking.helpDescription}
             </p>
             <div className="mt-4">
               <Link href={`/business/${business.slug}`}>
-                <Button variant="secondary">Open business page</Button>
+                <Button variant="secondary">{messages.manageBooking.openBusinessPage}</Button>
               </Link>
             </div>
           </div>

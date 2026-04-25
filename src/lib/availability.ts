@@ -13,6 +13,10 @@ import type { Booking, Business, Service } from "@/lib/types";
 
 const SLOT_STEP_MINUTES = 15;
 
+function padDateNumber(value: number) {
+  return String(value).padStart(2, "0");
+}
+
 function getHoursForDate(business: Business, date: Date) {
   return business.hours.find((hour) => hour.dayOfWeek === date.getDay());
 }
@@ -51,6 +55,37 @@ function overlapsBreaks(
 export function generateDateOptions(days = 7) {
   const today = startOfDay(new Date());
   return Array.from({ length: days }, (_, index) => addDays(today, index));
+}
+
+export function formatDateKey(date: Date) {
+  return `${date.getFullYear()}-${padDateNumber(date.getMonth() + 1)}-${padDateNumber(date.getDate())}`;
+}
+
+export function parseDateKey(dateKey: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
+
+  if (!match) {
+    return null;
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const parsed = new Date(year, month - 1, day);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  if (
+    parsed.getFullYear() !== year ||
+    parsed.getMonth() !== month - 1 ||
+    parsed.getDate() !== day
+  ) {
+    return null;
+  }
+
+  return parsed;
 }
 
 export function generateAvailableSlots(

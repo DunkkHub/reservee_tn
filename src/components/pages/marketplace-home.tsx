@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  ArrowLeft,
   ArrowRight,
   CalendarCheck2,
   Download,
@@ -13,6 +14,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
+import { useLocale } from "@/components/providers/locale-provider";
 import { usePlatform } from "@/components/providers/platform-provider";
 import { usePwa } from "@/components/providers/pwa-provider";
 import { BusinessCard } from "@/components/pages/business-card";
@@ -20,11 +22,17 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CategoryIcon } from "@/components/ui/category-icon";
 import { SectionHeading } from "@/components/ui/section-heading";
+import {
+  getBusinessCountLabel,
+  getCategoryTranslation,
+  getCityTranslation,
+} from "@/lib/i18n";
 import { categories, cities } from "@/lib/seed-data";
 import { cn } from "@/lib/utils";
 
 export function MarketplaceHomePage() {
   const router = useRouter();
+  const { locale, direction, messages } = useLocale();
   const { liveBusinesses } = usePlatform();
   const { canInstall, installPwa } = usePwa();
   const [search, setSearch] = useState({
@@ -33,6 +41,15 @@ export function MarketplaceHomePage() {
     query: "",
   });
 
+  const ArrowIcon = direction === "rtl" ? ArrowLeft : ArrowRight;
+  const localizedCategories = categories.map((category) => ({
+    ...category,
+    ...getCategoryTranslation(category.slug, locale),
+  }));
+  const localizedCities = cities.map((city) => ({
+    ...city,
+    ...(getCityTranslation(city.slug, locale) ?? { name: city.name, heroCopy: city.heroCopy }),
+  }));
   const featuredBusinesses = liveBusinesses.filter(
     (business) => business.status === "featured",
   );
@@ -50,7 +67,7 @@ export function MarketplaceHomePage() {
       <section className="relative overflow-hidden rounded-[32px] border border-white/8 bg-[var(--color-surface)]">
         <Image
           src="https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=1600&q=80"
-          alt="Luxury beauty booking"
+          alt={messages.home.heroTitle}
           fill
           priority
           className="object-cover"
@@ -59,26 +76,24 @@ export function MarketplaceHomePage() {
         <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(15,17,21,0.92),rgba(15,17,21,0.72),rgba(15,17,21,0.48))]" />
         <div className="relative grid gap-10 px-6 py-10 md:px-10 md:py-14 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-end">
           <div className="max-w-3xl space-y-6">
-            <Badge tone="accent">La plateforme booking moderne pour la beaute en Tunisie</Badge>
+            <Badge tone="accent">{messages.home.heroBadge}</Badge>
             <div className="space-y-5">
               <h1 className="font-heading text-4xl font-semibold tracking-tight text-white sm:text-5xl md:text-6xl">
-                Book your next beauty appointment in minutes
+                {messages.home.heroTitle}
               </h1>
               <p className="max-w-2xl text-base leading-8 text-[var(--color-secondary)] md:text-lg">
-                Discover trusted salons, barbers, spas, and beauty centers across Tunisia.
-                Built mobile-first, installable like an app, and sharp enough to feel premium
-                from the first tap.
+                {messages.home.heroDescription}
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
               <Link href="/explore">
-                <Button size="lg" icon={<ArrowRight className="h-4 w-4" />}>
-                  Book now
+                <Button size="lg" icon={<ArrowIcon className="h-4 w-4" />}>
+                  {messages.home.bookNow}
                 </Button>
               </Link>
               <Link href="/register?role=shop">
                 <Button variant="secondary" size="lg">
-                  Add your business
+                  {messages.home.addBusiness}
                 </Button>
               </Link>
               {canInstall ? (
@@ -88,15 +103,15 @@ export function MarketplaceHomePage() {
                   icon={<Download className="h-4 w-4" />}
                   onClick={() => void installPwa()}
                 >
-                  Installer la PWA
+                  {messages.home.installPwa}
                 </Button>
               ) : null}
             </div>
             <div className="grid gap-3 sm:grid-cols-3">
               {[
-                { label: "Reservation rapide", value: "< 60 sec" },
-                { label: "Trusted businesses", value: `${liveBusinesses.length}` },
-                { label: "Categories focus", value: "5 niches" },
+                { label: messages.home.quickBooking, value: "< 60 sec" },
+                { label: messages.home.trustedBusinesses, value: `${liveBusinesses.length}` },
+                { label: messages.home.categoriesFocus, value: `${localizedCategories.length}` },
               ].map((item) => (
                 <div
                   key={item.label}
@@ -112,11 +127,11 @@ export function MarketplaceHomePage() {
           </div>
           <div className="panel relative p-5 backdrop-blur-md">
             <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[var(--color-accent)]">
-              Search fast
+              {messages.home.searchTitle}
             </p>
             <div className="mt-5 space-y-4">
               <label className="space-y-2 text-sm">
-                <span className="text-[var(--color-secondary)]">Ville</span>
+                <span className="text-[var(--color-secondary)]">{messages.home.city}</span>
                 <select
                   value={search.city}
                   onChange={(event) =>
@@ -124,8 +139,8 @@ export function MarketplaceHomePage() {
                   }
                   className="input-field"
                 >
-                  <option value="">Toutes les villes</option>
-                  {cities.map((city) => (
+                  <option value="">{messages.home.allCities}</option>
+                  {localizedCities.map((city) => (
                     <option key={city.id} value={city.slug}>
                       {city.name}
                     </option>
@@ -133,7 +148,9 @@ export function MarketplaceHomePage() {
                 </select>
               </label>
               <label className="space-y-2 text-sm">
-                <span className="text-[var(--color-secondary)]">Categorie</span>
+                <span className="text-[var(--color-secondary)]">
+                  {messages.home.category}
+                </span>
                 <select
                   value={search.category}
                   onChange={(event) =>
@@ -141,8 +158,8 @@ export function MarketplaceHomePage() {
                   }
                   className="input-field"
                 >
-                  <option value="">Toutes les categories</option>
-                  {categories.map((category) => (
+                  <option value="">{messages.home.allCategories}</option>
+                  {localizedCategories.map((category) => (
                     <option key={category.id} value={category.slug}>
                       {category.name}
                     </option>
@@ -150,23 +167,25 @@ export function MarketplaceHomePage() {
                 </select>
               </label>
               <label className="space-y-2 text-sm">
-                <span className="text-[var(--color-secondary)]">Service ou business</span>
+                <span className="text-[var(--color-secondary)]">
+                  {messages.home.serviceOrBusiness}
+                </span>
                 <input
                   value={search.query}
                   onChange={(event) =>
                     setSearch((current) => ({ ...current, query: event.target.value }))
                   }
                   className="input-field"
-                  placeholder="Ex: fade, brushing, hammam"
+                  placeholder={messages.home.searchPlaceholder}
                 />
               </label>
               <Button
                 fullWidth
                 size="lg"
-                icon={<ArrowRight className="h-4 w-4" />}
+                icon={<ArrowIcon className="h-4 w-4" />}
                 onClick={handleSearchSubmit}
               >
-                Chercher maintenant
+                {messages.home.searchNow}
               </Button>
             </div>
           </div>
@@ -175,12 +194,12 @@ export function MarketplaceHomePage() {
 
       <section className="space-y-6">
         <SectionHeading
-          eyebrow="Categories"
-          title="Une niche claire, pas un catalogue brouillon"
-          description="Le produit reste volontairement concentre sur cinq categories ou la logique de reservation reste simple, premium et dependable."
+          eyebrow={messages.home.categoriesEyebrow}
+          title={messages.home.categoriesTitle}
+          description={messages.home.categoriesDescription}
         />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-          {categories.map((category) => (
+          {localizedCategories.map((category) => (
             <Link
               key={category.id}
               href={`/category/${category.slug}`}
@@ -196,7 +215,8 @@ export function MarketplaceHomePage() {
                 {category.description}
               </p>
               <div className="mt-5 inline-flex items-center gap-2 text-sm text-[var(--color-accent)]">
-                Explorer <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
+                {messages.home.exploreCategory}
+                <ArrowIcon className="h-4 w-4 transition group-hover:translate-x-1" />
               </div>
             </Link>
           ))}
@@ -205,12 +225,12 @@ export function MarketplaceHomePage() {
 
       <section className="space-y-6">
         <SectionHeading
-          eyebrow="Featured"
-          title="Business pages that actually feel premium"
-          description="The first impression matters. Big imagery, clear services, trust signals, next available slots, and a fast WhatsApp fallback when needed."
+          eyebrow={messages.home.featuredEyebrow}
+          title={messages.home.featuredTitle}
+          description={messages.home.featuredDescription}
           action={
             <Link href="/explore">
-              <Button variant="secondary">Voir toutes les adresses</Button>
+              <Button variant="secondary">{messages.home.featuredAction}</Button>
             </Link>
           }
         />
@@ -218,13 +238,17 @@ export function MarketplaceHomePage() {
           {featuredBusinesses.slice(0, 3).map((business) => {
             const category = categories.find((item) => item.id === business.categoryId);
             const city = cities.find((item) => item.id === business.cityId);
+            const localizedCategory = category
+              ? getCategoryTranslation(category.slug, locale)
+              : null;
+            const localizedCity = city ? getCityTranslation(city.slug, locale) : null;
 
             return (
               <BusinessCard
                 key={business.id}
                 business={business}
-                categoryName={category?.name ?? ""}
-                cityName={city?.name ?? ""}
+                categoryName={localizedCategory?.name ?? ""}
+                cityName={localizedCity?.name ?? city?.name ?? ""}
               />
             );
           })}
@@ -234,30 +258,20 @@ export function MarketplaceHomePage() {
       <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-6">
           <SectionHeading
-            eyebrow="How it works"
-            title="Simple for clients, cleaner for business owners"
-            description="The platform solves discovery and operations at the same time, which is why the experience has to stay friction-light on both sides."
+            eyebrow={messages.home.howItWorksEyebrow}
+            title={messages.home.howItWorksTitle}
+            description={messages.home.howItWorksDescription}
           />
           <div className="grid gap-4 md:grid-cols-2">
             {[
               {
-                title: "For customers",
-                steps: [
-                  "Choose a business near you",
-                  "Select a service and free slot",
-                  "Confirm with name and phone",
-                  "Use WhatsApp only when you want to",
-                ],
+                title: messages.home.forCustomers,
+                steps: messages.home.customerSteps,
                 icon: CalendarCheck2,
               },
               {
-                title: "For businesses",
-                steps: [
-                  "Create a polished profile",
-                  "Add services, prices and durations",
-                  "Set hours and block dates",
-                  "Confirm or manage bookings in one place",
-                ],
+                title: messages.home.forBusinesses,
+                steps: messages.home.businessSteps,
                 icon: Store,
               },
             ].map((group) => {
@@ -291,20 +305,18 @@ export function MarketplaceHomePage() {
           </div>
         </div>
         <div className="panel space-y-5 p-5">
-          <Badge tone="success">Pourquoi la PWA marche ici</Badge>
+          <Badge tone="success">{messages.home.pwaBadge}</Badge>
           <h3 className="font-heading text-3xl font-semibold text-white">
-            Installable, shareable, app-like
+            {messages.home.pwaTitle}
           </h3>
           <p className="text-sm leading-7 text-[var(--color-secondary)]">
-            Tunisia is already mobile-heavy and beauty discovery often starts on Instagram,
-            WhatsApp, or Google. A PWA keeps the product linkable and searchable while still
-            feeling close to a native app.
+            {messages.home.pwaDescription}
           </p>
           <div className="space-y-3">
             {[
-              { icon: MapPinned, text: "Search from city, category, service or business name" },
-              { icon: ShieldCheck, text: "Trusted profiles with verification and policy signals" },
-              { icon: Download, text: "Home Screen install path for app-like return visits" },
+              { icon: MapPinned, text: messages.home.pwaPoints[0] },
+              { icon: ShieldCheck, text: messages.home.pwaPoints[1] },
+              { icon: Download, text: messages.home.pwaPoints[2] },
             ].map((item) => {
               const Icon = item.icon;
               return (
@@ -322,7 +334,7 @@ export function MarketplaceHomePage() {
           </div>
           <Link href="/register?role=shop">
             <Button fullWidth variant="secondary">
-              Become a partner
+              {messages.home.becomePartner}
             </Button>
           </Link>
         </div>
@@ -330,12 +342,12 @@ export function MarketplaceHomePage() {
 
       <section className="space-y-6">
         <SectionHeading
-          eyebrow="Popular Cities"
-          title="Start city-first, then scale with proof"
-          description="The launch strategy stays realistic: go deep in the first cities, manually onboard the strongest shops, and keep the homepage visually sharp from day one."
+          eyebrow={messages.home.citiesEyebrow}
+          title={messages.home.citiesTitle}
+          description={messages.home.citiesDescription}
         />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {cities.map((city) => {
+          {localizedCities.map((city) => {
             const cityBusinesses = liveBusinesses.filter((business) => business.cityId === city.id);
 
             return (
@@ -357,12 +369,12 @@ export function MarketplaceHomePage() {
                     </p>
                   </div>
                   <Badge tone={cityBusinesses.length > 0 ? "accent" : "muted"}>
-                    {cityBusinesses.length} business
+                    {getBusinessCountLabel(cityBusinesses.length, locale)}
                   </Badge>
                 </div>
                 <div className="mt-6 inline-flex items-center gap-2 text-sm text-[var(--color-accent)]">
-                  Voir les adresses
-                  <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
+                  {messages.home.cityAction}
+                  <ArrowIcon className="h-4 w-4 transition group-hover:translate-x-1" />
                 </div>
               </Link>
             );
@@ -372,43 +384,29 @@ export function MarketplaceHomePage() {
 
       <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_400px]">
         <div className="panel p-6 md:p-8">
-          <Badge tone="accent">Own a salon or barber shop? Join the platform.</Badge>
+          <Badge tone="accent">{messages.home.joinBadge}</Badge>
           <h2 className="mt-5 font-heading text-3xl font-semibold text-white md:text-4xl">
-            Get booked, stay organized, and look premium online.
+            {messages.home.joinTitle}
           </h2>
           <p className="mt-4 max-w-2xl text-base leading-8 text-[var(--color-secondary)]">
-            Replace WhatsApp chaos with a clean booking flow, visible availability, premium
-            photos, and one dashboard for bookings, services, schedules and client follow-up.
+            {messages.home.joinDescription}
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link href="/register?role=shop">
-              <Button icon={<ArrowRight className="h-4 w-4" />}>Add your business</Button>
+              <Button icon={<ArrowIcon className="h-4 w-4" />}>
+                {messages.home.addBusiness}
+              </Button>
             </Link>
             <Link href="/login?role=shop&next=/dashboard">
-              <Button variant="secondary">View the dashboard</Button>
+              <Button variant="secondary">{messages.home.viewDashboard}</Button>
             </Link>
           </div>
         </div>
         <div className="panel space-y-4 p-6">
-          <h3 className="font-heading text-2xl font-semibold text-white">FAQ</h3>
-          {[
-            {
-              q: "Is it free for clients?",
-              a: "Yes. Clients browse, compare and book without creating an account in version 1.",
-            },
-            {
-              q: "How do bookings work?",
-              a: "The platform shows only valid free slots based on service duration, business hours and blocked times.",
-            },
-            {
-              q: "Can businesses approve appointments?",
-              a: "Yes. Owners can confirm, reject, complete, cancel or mark no-show from the dashboard.",
-            },
-            {
-              q: "Can I still contact the business by WhatsApp?",
-              a: "Yes. Every listing includes a direct WhatsApp fallback for reassurance and last-mile communication.",
-            },
-          ].map((item) => (
+          <h3 className="font-heading text-2xl font-semibold text-white">
+            {messages.home.faqTitle}
+          </h3>
+          {messages.home.faqItems.map((item) => (
             <div key={item.q} className="rounded-2xl border border-white/8 bg-white/4 p-4">
               <p className="font-medium text-white">{item.q}</p>
               <p className="mt-2 text-sm leading-7 text-[var(--color-secondary)]">
