@@ -1,6 +1,7 @@
 import type { BusinessStatus, CategorySlug } from "@/lib/types";
 
 export type UserRole = "customer" | "shop" | "admin";
+export type AuthDeliveryChannel = "email" | "sms";
 
 export interface AuthSessionUser {
   id: string;
@@ -23,7 +24,7 @@ export interface AuthSession {
 }
 
 export interface LoginInput {
-  email: string;
+  identifier: string;
   password: string;
 }
 

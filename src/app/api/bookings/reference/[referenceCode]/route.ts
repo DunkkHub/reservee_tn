@@ -12,7 +12,11 @@ import {
 import { recordActivity } from "@/lib/activity-log-repository";
 import { getDatabaseErrorMessage } from "@/lib/db";
 import { consumeRateLimit } from "@/lib/rate-limit";
-import type { BookingStatus } from "@/lib/types";
+import {
+  assertAllowedOrigin,
+  getClientIp,
+  HttpRequestError,
+} from "@/lib/security";
 
 export const runtime = "nodejs";
 
@@ -22,19 +26,11 @@ type RouteContext = {
   }>;
 };
 
-function getClientIp(request: Request) {
-  return (
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    request.headers.get("x-real-ip") ||
-    "unknown"
-  );
-}
-
 export async function GET(request: Request, context: RouteContext) {
   try {
     const { referenceCode } = await context.params;
     const token = new URL(request.url).searchParams.get("token");
-    const rateLimit = consumeRateLimit({
+    const rateLimit = await consumeRateLimit({
       key: `public-booking-reference-read:${getClientIp(request)}`,
       windowMs: 5 * 60 * 1000,
       maxRequests: 20,
@@ -55,7 +51,7 @@ export async function GET(request: Request, context: RouteContext) {
       );
     }
 
-    const parsedToken = parseBookingReferenceAccessToken(token);
+    const parsedToken = await parseBookingReferenceAccessToken(token);
 
     if (!parsedToken || parsedToken.referenceCode !== referenceCode.toUpperCase()) {
       return NextResponse.json(
@@ -91,6 +87,16 @@ export async function GET(request: Request, context: RouteContext) {
       },
     );
   } catch (error) {
+    if (error instanceof HttpRequestError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: error.message,
+        },
+        { status: error.status },
+      );
+    }
+
     return NextResponse.json(
       {
         ok: false,
@@ -103,10 +109,12 @@ export async function GET(request: Request, context: RouteContext) {
 
 export async function PATCH(request: Request, context: RouteContext) {
   try {
+    assertAllowedOrigin(request);
+
     const { referenceCode } = await context.params;
     const { searchParams } = new URL(request.url);
     const token = searchParams.get("token");
-    const parsedToken = parseBookingReferenceAccessToken(token);
+    const parsedToken = await parseBookingReferenceAccessToken(token);
 
     if (!parsedToken || parsedToken.referenceCode !== referenceCode.toUpperCase()) {
       return NextResponse.json(
@@ -135,7 +143,9 @@ export async function PATCH(request: Request, context: RouteContext) {
     };
 
     if (body.action === "requestReschedule") {
-      const updated = await requestBookingReschedule(booking.id);
+      const updated = await requestBookingReschedule(booking.id, {
+        role: "customer",
+      });
 
       await recordActivity({
         type: "booking_reschedule_requested",
@@ -158,10 +168,10 @@ export async function PATCH(request: Request, context: RouteContext) {
       );
     }
 
-    const updated = await updateBookingStatus(
-      booking.id,
-      "cancelled_by_customer" as BookingStatus,
-    );
+    const updated = await updateBookingStatus(booking.id, "cancelled", {
+      role: "customer",
+      reason: "cancelled_by_customer",
+    });
 
     await recordActivity({
       type: "booking_status_changed",
@@ -176,6 +186,16 @@ export async function PATCH(request: Request, context: RouteContext) {
       data: updated,
     });
   } catch (error) {
+    if (error instanceof HttpRequestError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: error.message,
+        },
+        { status: error.status },
+      );
+    }
+
     return NextResponse.json(
       {
         ok: false,

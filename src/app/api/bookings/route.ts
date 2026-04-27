@@ -2,7 +2,6 @@ import { addMinutes } from "date-fns";
 import { NextResponse } from "next/server";
 
 import {
-  checkSlotAvailability,
   createBooking,
   expireOldBookings,
   findAllBookings,
@@ -11,9 +10,16 @@ import {
 } from "@/lib/booking-repository";
 import { recordActivity } from "@/lib/activity-log-repository";
 import { getApiSession } from "@/lib/auth-session";
+import { generateAvailableSlots } from "@/lib/availability";
 import { findBusinessById, findBusinessByOwner } from "@/lib/business-repository";
 import { getDatabaseErrorMessage } from "@/lib/db";
 import { getBookingExpiryAt } from "@/lib/platform-rules";
+import { consumeRateLimit } from "@/lib/rate-limit";
+import {
+  assertAllowedOrigin,
+  getClientIp,
+  HttpRequestError,
+} from "@/lib/security";
 import { findServiceById } from "@/lib/service-repository";
 import type { BookingStatus } from "@/lib/types";
 
@@ -110,6 +116,8 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    assertAllowedOrigin(request);
+
     const body = (await request.json()) as {
       businessId?: string;
       serviceId?: string;
@@ -121,7 +129,27 @@ export async function POST(request: Request) {
       source?: "web" | "dashboard";
     };
 
-    const session = body.source === "dashboard" ? await getApiSession() : null;
+    const session = await getApiSession();
+    const rateLimit = await consumeRateLimit({
+      key: `booking-create:${session?.user.id ?? getClientIp(request)}`,
+      windowMs: 10 * 60 * 1000,
+      maxRequests: body.source === "dashboard" ? 20 : 8,
+    });
+
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: "Too many booking attempts. Please try again shortly.",
+        },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(Math.ceil((rateLimit.resetAt - Date.now()) / 1000)),
+          },
+        },
+      );
+    }
 
     if (body.source === "dashboard") {
       if (!session) {
@@ -190,7 +218,10 @@ export async function POST(request: Request) {
       );
     }
 
-    const service = await findServiceById(body.serviceId);
+    const [service, existingBookings] = await Promise.all([
+      findServiceById(body.serviceId),
+      findBookingsByBusiness(body.businessId),
+    ]);
 
     if (!service) {
       return NextResponse.json(
@@ -232,16 +263,16 @@ export async function POST(request: Request) {
     }
 
     const endAt = addMinutes(startAtDate, service.durationMinutes).toISOString();
+    const isRequestedSlotAvailable = generateAvailableSlots(
+      business,
+      service,
+      existingBookings,
+      startAtDate,
+    ).some((slot) => slot.getTime() === startAtDate.getTime());
 
-    const isAvailable = await checkSlotAvailability({
-      businessId: body.businessId,
-      startAt: startAtDate.toISOString(),
-      endAt,
-    });
-
-    if (!isAvailable) {
+    if (!isRequestedSlotAvailable) {
       return NextResponse.json(
-        { ok: false, message: "This time slot is not available" },
+        { ok: false, message: "This time slot is no longer available." },
         { status: 409 },
       );
     }
@@ -253,6 +284,7 @@ export async function POST(request: Request) {
     const booking = await createBooking({
       businessId: body.businessId,
       serviceId: body.serviceId,
+      customerUserId: session?.user.role === "customer" ? session.user.id : null,
       customerName: body.customerName,
       customerPhone: body.customerPhone,
       customerNote: body.customerNote,
@@ -264,24 +296,55 @@ export async function POST(request: Request) {
         initialStatus === "pending"
           ? getBookingExpiryAt(createdAt, startAtDate.toISOString())
           : null,
+      actorUserId: session?.user.id ?? null,
+      actorRole:
+        session?.user.role === "customer"
+          ? "customer"
+          : session?.user.role === "shop"
+            ? "shop"
+            : session?.user.role === "admin"
+              ? "admin"
+              : "public",
     });
+
+    if (!booking.ok || !booking.booking) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: booking.error,
+          error: booking.error,
+        },
+        { status: booking.status },
+      );
+    }
 
     await recordActivity({
       type: "booking_created",
       businessId: body.businessId,
-      bookingId: booking?.id,
-      summary: `Booking ${booking?.referenceCode ?? ""} created with ${initialStatus} status.`,
+      bookingId: booking.booking.id,
+      actorUserId: session?.user.id ?? null,
+      summary: `Booking ${booking.booking.referenceCode} created with ${initialStatus} status.`,
     });
 
     return NextResponse.json(
       {
         ok: true,
         message: "Booking created successfully",
-        data: booking,
+        data: booking.booking,
       },
-      { status: 201 },
+      { status: booking.status },
     );
   } catch (error) {
+    if (error instanceof HttpRequestError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: error.message,
+        },
+        { status: error.status },
+      );
+    }
+
     return NextResponse.json(
       {
         ok: false,
@@ -294,6 +357,8 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+    assertAllowedOrigin(request);
+
     const session = await getApiSession();
 
     if (!session || session.user.role !== "admin") {
@@ -321,6 +386,16 @@ export async function PATCH(request: Request) {
       message: "Expired old bookings",
     });
   } catch (error) {
+    if (error instanceof HttpRequestError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: error.message,
+        },
+        { status: error.status },
+      );
+    }
+
     return NextResponse.json(
       {
         ok: false,

@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { notFound } from "next/navigation";
 
 import { ExploreBrowser } from "@/components/pages/explore-browser";
-import { categories } from "@/lib/seed-data";
+import { categories } from "@/lib/taxonomy";
 
 export default async function CategoryPage(props: PageProps<"/category/[slug]">) {
   const { slug } = await props.params;

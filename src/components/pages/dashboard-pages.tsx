@@ -54,10 +54,8 @@ const bookingTabs: BookingStatus[] = [
   "pending",
   "confirmed",
   "completed",
-  "cancelled_by_customer",
-  "cancelled_by_business",
+  "cancelled",
   "rejected",
-  "expired",
   "no_show",
 ];
 
@@ -295,7 +293,7 @@ export function DashboardBookingsPage() {
       <SectionHeading
         eyebrow="Bookings"
         title="Status-based booking operations"
-        description="Every booking lifecycle is now explicit, including rejected, expired and customer-side cancellations."
+        description="Every booking lifecycle is now explicit, with a single cancelled state backed by booking audit events."
       />
 
       <div className="flex flex-wrap gap-2">
@@ -366,7 +364,7 @@ export function DashboardBookingsPage() {
                       <Button
                         variant="secondary"
                         size="sm"
-                        onClick={() => updateBookingStatus(booking.id, "cancelled_by_business")}
+                        onClick={() => updateBookingStatus(booking.id, "cancelled")}
                       >
                         Cancel
                       </Button>
@@ -403,7 +401,7 @@ export function DashboardBookingsPage() {
           <EmptyState
             icon={CalendarClock}
             title="No bookings in this status"
-            description="Separate lifecycle tabs make it easier to distinguish real demand from expired requests or cancellations."
+            description="Separate lifecycle tabs make it easier to distinguish demand from cancellations, no-shows, and completed work."
           />
         )}
       </div>

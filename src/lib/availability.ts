@@ -1,39 +1,47 @@
 import {
-  addDays,
   addMinutes,
   areIntervalsOverlapping,
-  formatISO,
   isBefore,
-  set,
-  startOfDay,
 } from "date-fns";
 
+import {
+  combineDateKeyAndTime,
+  createEndAt as createEndAtValue,
+  formatDateKey as formatDateKeyInTimeZone,
+  getDayOfWeekForDateKey,
+  getFutureDateKeys,
+  isSameDateKey,
+  parseDateKeyInTimeZone,
+} from "@/lib/datetime";
 import { isBookingBlocking } from "@/lib/platform-rules";
+import { DEFAULT_TIMEZONE } from "@/lib/site";
 import type { Booking, Business, Service } from "@/lib/types";
 
 const SLOT_STEP_MINUTES = 15;
 
-function padDateNumber(value: number) {
-  return String(value).padStart(2, "0");
+function getBusinessTimeZone(business?: Pick<Business, "timezone"> | null) {
+  return business?.timezone ?? DEFAULT_TIMEZONE;
 }
 
-function getHoursForDate(business: Business, date: Date) {
-  return business.hours.find((hour) => hour.dayOfWeek === date.getDay());
+function getHoursForDateKey(business: Business, dateKey: string) {
+  const dayOfWeek = getDayOfWeekForDateKey(dateKey, getBusinessTimeZone(business));
+
+  if (dayOfWeek === null) {
+    return null;
+  }
+
+  return business.hours.find((hour) => hour.dayOfWeek === dayOfWeek) ?? null;
 }
 
-function timeToDate(date: Date, value: string) {
-  const [hours, minutes] = value.split(":").map(Number);
-  return set(date, {
-    hours,
-    minutes,
-    seconds: 0,
-    milliseconds: 0,
-  });
+function timeToDate(dateKey: string, value: string, timeZone: string) {
+  return combineDateKeyAndTime(dateKey, value, timeZone);
 }
 
 function overlapsBreaks(
   startAt: Date,
   endAt: Date,
+  dateKey: string,
+  timeZone: string,
   breaks?: { start: string; end: string }[],
 ) {
   if (!breaks?.length) {
@@ -44,48 +52,35 @@ function overlapsBreaks(
     areIntervalsOverlapping(
       { start: startAt, end: endAt },
       {
-        start: timeToDate(startAt, breakWindow.start),
-        end: timeToDate(startAt, breakWindow.end),
+        start: timeToDate(dateKey, breakWindow.start, timeZone),
+        end: timeToDate(dateKey, breakWindow.end, timeZone),
       },
       { inclusive: true },
     ),
   );
 }
 
-export function generateDateOptions(days = 7) {
-  const today = startOfDay(new Date());
-  return Array.from({ length: days }, (_, index) => addDays(today, index));
+export function generateDateOptions(
+  days = 7,
+  timeZone: string = DEFAULT_TIMEZONE,
+) {
+  return getFutureDateKeys(days, timeZone)
+    .map((dateKey) => parseDateKeyInTimeZone(dateKey, timeZone))
+    .filter((value): value is Date => Boolean(value));
 }
 
-export function formatDateKey(date: Date) {
-  return `${date.getFullYear()}-${padDateNumber(date.getMonth() + 1)}-${padDateNumber(date.getDate())}`;
+export function formatDateKey(
+  date: Date,
+  timeZone: string = DEFAULT_TIMEZONE,
+) {
+  return formatDateKeyInTimeZone(date, timeZone);
 }
 
-export function parseDateKey(dateKey: string) {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
-
-  if (!match) {
-    return null;
-  }
-
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const parsed = new Date(year, month - 1, day);
-
-  if (Number.isNaN(parsed.getTime())) {
-    return null;
-  }
-
-  if (
-    parsed.getFullYear() !== year ||
-    parsed.getMonth() !== month - 1 ||
-    parsed.getDate() !== day
-  ) {
-    return null;
-  }
-
-  return parsed;
+export function parseDateKey(
+  dateKey: string,
+  timeZone: string = DEFAULT_TIMEZONE,
+) {
+  return parseDateKeyInTimeZone(dateKey, timeZone);
 }
 
 export function generateAvailableSlots(
@@ -94,31 +89,27 @@ export function generateAvailableSlots(
   bookings: Booking[],
   selectedDate: Date,
 ) {
-  const hours = getHoursForDate(business, selectedDate);
+  const timeZone = getBusinessTimeZone(business);
+  const selectedDateKey = formatDateKey(selectedDate, timeZone);
+  const hours = getHoursForDateKey(business, selectedDateKey);
 
   if (!hours || hours.isClosed) {
     return [];
   }
 
-  const openingTime = timeToDate(selectedDate, hours.openTime);
-  const closingTime = timeToDate(selectedDate, hours.closeTime);
-  const dayBlockedSlots = business.blockedSlots.filter((slot) => {
-    const blockedStart = new Date(slot.startAt);
-    return (
-      blockedStart.getFullYear() === selectedDate.getFullYear() &&
-      blockedStart.getMonth() === selectedDate.getMonth() &&
-      blockedStart.getDate() === selectedDate.getDate()
-    );
-  });
-
+  const openingTime = timeToDate(selectedDateKey, hours.openTime, timeZone);
+  const closingTime = timeToDate(selectedDateKey, hours.closeTime, timeZone);
+  const dayBlockedSlots = business.blockedSlots.filter((slot) =>
+    isSameDateKey(slot.startAt, selectedDateKey, timeZone),
+  );
   const businessBookings = bookings.filter(
     (booking) =>
       booking.businessId === business.id &&
       isBookingBlocking(booking.status) &&
-      new Date(booking.startAt).toDateString() === selectedDate.toDateString(),
+      isSameDateKey(booking.startAt, selectedDateKey, timeZone),
   );
-
   const now = new Date();
+  const todayKey = formatDateKey(now, timeZone);
   const slots: Date[] = [];
 
   for (
@@ -129,11 +120,11 @@ export function generateAvailableSlots(
     const startAt = cursor;
     const endAt = addMinutes(startAt, service.durationMinutes);
 
-    if (selectedDate.toDateString() === now.toDateString() && isBefore(startAt, now)) {
+    if (selectedDateKey === todayKey && isBefore(startAt, now)) {
       continue;
     }
 
-    if (overlapsBreaks(startAt, endAt, hours.breaks)) {
+    if (overlapsBreaks(startAt, endAt, selectedDateKey, timeZone, hours.breaks)) {
       continue;
     }
 
@@ -173,7 +164,7 @@ export function findNextAvailableSlot(
   bookings: Booking[],
   lookAheadDays = 14,
 ) {
-  const days = generateDateOptions(lookAheadDays);
+  const days = generateDateOptions(lookAheadDays, getBusinessTimeZone(business));
 
   for (const day of days) {
     const slots = generateAvailableSlots(business, service, bookings, day);
@@ -186,5 +177,5 @@ export function findNextAvailableSlot(
 }
 
 export function createEndAt(startAt: string, durationMinutes: number) {
-  return formatISO(addMinutes(new Date(startAt), durationMinutes));
+  return createEndAtValue(startAt, durationMinutes);
 }

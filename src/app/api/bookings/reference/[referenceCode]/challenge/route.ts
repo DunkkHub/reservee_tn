@@ -5,8 +5,17 @@ import {
   normalizePhone,
 } from "@/lib/booking-reference-access";
 import { findBookingByReference } from "@/lib/booking-repository";
-import { getDatabaseErrorMessage } from "@/lib/db";
+import { getRouteErrorMessage } from "@/lib/error-utils";
 import { consumeRateLimit } from "@/lib/rate-limit";
+import {
+  deliverVerificationCode,
+  formatVerificationDeliveryMessage,
+} from "@/lib/verification-delivery";
+import {
+  assertAllowedOrigin,
+  getClientIp,
+  HttpRequestError,
+} from "@/lib/security";
 
 export const runtime = "nodejs";
 
@@ -16,18 +25,12 @@ type RouteContext = {
   }>;
 };
 
-function getClientIp(request: Request) {
-  return (
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    request.headers.get("x-real-ip") ||
-    "unknown"
-  );
-}
-
 export async function POST(request: Request, context: RouteContext) {
   try {
+    assertAllowedOrigin(request);
+
     const { referenceCode } = await context.params;
-    const rateLimit = consumeRateLimit({
+    const rateLimit = await consumeRateLimit({
       key: `public-booking-reference-challenge:${getClientIp(request)}:${referenceCode.toUpperCase()}`,
       windowMs: 10 * 60 * 1000,
       maxRequests: 5,
@@ -74,29 +77,46 @@ export async function POST(request: Request, context: RouteContext) {
       );
     }
 
-    const challenge = createBookingReferenceChallenge({
+    const challenge = await createBookingReferenceChallenge({
       referenceCode,
       customerPhone: booking.customerPhone,
+    });
+    const delivery = await deliverVerificationCode({
+      deliveryChannel: "sms",
+      destination: booking.customerPhone,
+      code: challenge.code,
+      purpose: "booking_access",
     });
 
     return NextResponse.json({
       ok: true,
-      message:
-        challenge.code
-          ? "Verification code generated. Development preview is included because this environment is not sending SMS."
-          : "Verification code sent to the booking phone number.",
+      message: formatVerificationDeliveryMessage({
+        purpose: "booking_access",
+        result: delivery,
+      }),
       data: {
         challengeId: challenge.challengeId,
         expiresAt: challenge.expiresAt,
         deliveryChannel: "sms",
-        developmentCodePreview: challenge.code ?? null,
+        destinationHint: delivery.destinationHint,
+        developmentCodePreview: delivery.developmentCodePreview,
       },
     });
   } catch (error) {
+    if (error instanceof HttpRequestError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: error.message,
+        },
+        { status: error.status },
+      );
+    }
+
     return NextResponse.json(
       {
         ok: false,
-        message: getDatabaseErrorMessage(error),
+        message: getRouteErrorMessage(error),
       },
       { status: 500 },
     );

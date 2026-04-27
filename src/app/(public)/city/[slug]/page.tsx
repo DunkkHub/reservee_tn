@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { notFound } from "next/navigation";
 
 import { ExploreBrowser } from "@/components/pages/explore-browser";
-import { cities } from "@/lib/seed-data";
+import { cities } from "@/lib/taxonomy";
 
 export default async function CityPage(props: PageProps<"/city/[slug]">) {
   const { slug } = await props.params;

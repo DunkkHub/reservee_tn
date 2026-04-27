@@ -138,8 +138,11 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadPlatformData = useCallback(async () => {
-    setIsLoading(true);
+  const loadPlatformData = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (!silent) {
+      setIsLoading(true);
+    }
+
     setError(null);
 
     try {
@@ -211,6 +214,13 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
       const message =
         loadError instanceof Error ? loadError.message : "Unable to load platform data.";
 
+      if (silent) {
+        startTransition(() => {
+          setError(message);
+        });
+        return;
+      }
+
       startTransition(() => {
         setError(message);
         setBusinesses([]);
@@ -231,6 +241,18 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
       window.clearTimeout(timeoutId);
     };
   }, [loadPlatformData]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void loadPlatformData({ silent: true });
+      }
+    }, user ? 15_000 : 30_000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [loadPlatformData, user]);
 
   const ownerBusiness =
     user?.role === "shop"
@@ -299,7 +321,7 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    await updateBookingStatus(bookingId, "cancelled_by_customer");
+    await updateBookingStatus(bookingId, "cancelled");
   }
 
   async function requestBookingReschedule(referenceCode: string) {

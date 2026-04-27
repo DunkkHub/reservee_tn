@@ -13,6 +13,7 @@ import { recordActivity } from "@/lib/activity-log-repository";
 import { findBusinessById } from "@/lib/business-repository";
 import { getDatabaseErrorMessage } from "@/lib/db";
 import { getApiSession } from "@/lib/auth-session";
+import { assertAllowedOrigin, HttpRequestError } from "@/lib/security";
 import type { Audience } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -48,6 +49,8 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    assertAllowedOrigin(request);
+
     const body = (await request.json()) as {
       businessId?: string;
       title?: string;
@@ -135,6 +138,16 @@ export async function POST(request: Request) {
       { status: 201 },
     );
   } catch (error) {
+    if (error instanceof HttpRequestError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: error.message,
+        },
+        { status: error.status },
+      );
+    }
+
     return NextResponse.json(
       {
         ok: false,
@@ -147,6 +160,8 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+    assertAllowedOrigin(request);
+
     const body = (await request.json()) as {
       serviceId?: string;
       businessId?: string;
@@ -250,6 +265,16 @@ export async function PATCH(request: Request) {
       data: service,
     });
   } catch (error) {
+    if (error instanceof HttpRequestError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: error.message,
+        },
+        { status: error.status },
+      );
+    }
+
     return NextResponse.json(
       {
         ok: false,
@@ -262,6 +287,8 @@ export async function PATCH(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    assertAllowedOrigin(request);
+
     const { searchParams } = new URL(request.url);
     const serviceId = searchParams.get("serviceId");
 
@@ -315,6 +342,16 @@ export async function DELETE(request: Request) {
       message: "Service deleted",
     });
   } catch (error) {
+    if (error instanceof HttpRequestError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: error.message,
+        },
+        { status: error.status },
+      );
+    }
+
     return NextResponse.json(
       {
         ok: false,

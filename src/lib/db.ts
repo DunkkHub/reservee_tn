@@ -2,17 +2,35 @@ import "server-only";
 
 import mysql, { type Pool } from "mysql2/promise";
 
+import { env } from "@/lib/env";
+
 declare global {
   var reserveeDbPool: Pool | undefined;
 }
 
-export const databaseConfig = {
-  host: process.env.DB_HOST ?? "127.0.0.1",
-  port: Number(process.env.DB_PORT ?? "3306"),
-  user: process.env.DB_USER ?? "root",
-  password: process.env.DB_PASSWORD ?? "",
-  database: process.env.DB_NAME ?? "reservee_tn",
-};
+function getDatabaseConfig() {
+  if (env.DATABASE_URL) {
+    const databaseUrl = new URL(env.DATABASE_URL);
+
+    return {
+      host: databaseUrl.hostname,
+      port: Number(databaseUrl.port || "3306"),
+      user: decodeURIComponent(databaseUrl.username),
+      password: decodeURIComponent(databaseUrl.password),
+      database: databaseUrl.pathname.replace(/^\/+/, ""),
+    };
+  }
+
+  return {
+    host: env.DB_HOST,
+    port: env.DB_PORT,
+    user: env.DB_USER,
+    password: env.DB_PASSWORD,
+    database: env.DB_NAME,
+  };
+}
+
+export const databaseConfig = getDatabaseConfig();
 
 export function getDbPool() {
   if (!globalThis.reserveeDbPool) {
@@ -21,6 +39,9 @@ export function getDbPool() {
       waitForConnections: true,
       connectionLimit: 10,
       namedPlaceholders: true,
+      decimalNumbers: true,
+      dateStrings: true,
+      timezone: "Z",
     });
   }
 
@@ -43,12 +64,14 @@ export function getDatabaseErrorMessage(error: unknown) {
 
   switch (code) {
     case "ECONNREFUSED":
-      return "MySQL is not reachable. Start Apache and MySQL in XAMPP first.";
+      return "MySQL is not reachable. Start your database server and check DATABASE_URL or the DB_* variables.";
     case "ER_BAD_DB_ERROR":
-      return "Database `reservee_tn` does not exist yet. Import `database/reservee_tn.sql` in phpMyAdmin first.";
+      return "The configured database does not exist yet. Run `npm run db:migrate` first.";
     case "ER_ACCESS_DENIED_ERROR":
-      return "MySQL credentials were rejected. Check `.env.local` against your XAMPP phpMyAdmin settings.";
+      return "MySQL credentials were rejected. Check DATABASE_URL or the DB_* variables.";
+    case "ER_DUP_ENTRY":
+      return "This record already exists.";
     default:
-      return "The MySQL backend is not ready yet. Verify XAMPP is running and import the provided SQL schema.";
+      return "The MySQL backend is not ready yet. Verify the database is running and the migrations have been applied.";
   }
 }

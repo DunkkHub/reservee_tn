@@ -19,6 +19,7 @@ import { findBookingsByBusiness } from "@/lib/booking-repository";
 import { findBusinessById } from "@/lib/business-repository";
 import { getDatabaseErrorMessage } from "@/lib/db";
 import { getApiSession } from "@/lib/auth-session";
+import { assertAllowedOrigin, HttpRequestError } from "@/lib/security";
 import { findServiceById } from "@/lib/service-repository";
 import type { BreakWindow } from "@/lib/types";
 
@@ -82,7 +83,7 @@ export async function GET(request: Request) {
         );
       }
 
-      const selectedDate = parseDateKey(date);
+      const selectedDate = parseDateKey(date, business.timezone);
 
       if (!selectedDate) {
         return NextResponse.json(
@@ -131,6 +132,16 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
+    if (error instanceof HttpRequestError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: error.message,
+        },
+        { status: error.status },
+      );
+    }
+
     return NextResponse.json(
       {
         ok: false,
@@ -143,6 +154,8 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    assertAllowedOrigin(request);
+
     const body = (await request.json()) as {
       businessId?: string;
       type?: "hours" | "blocked";
@@ -254,6 +267,16 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   } catch (error) {
+    if (error instanceof HttpRequestError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: error.message,
+        },
+        { status: error.status },
+      );
+    }
+
     return NextResponse.json(
       {
         ok: false,
@@ -266,6 +289,8 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    assertAllowedOrigin(request);
+
     const { searchParams } = new URL(request.url);
     const businessId = searchParams.get("businessId");
     const slotId = searchParams.get("slotId");
@@ -311,6 +336,16 @@ export async function DELETE(request: Request) {
       message: "Blocked slot deleted",
     });
   } catch (error) {
+    if (error instanceof HttpRequestError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: error.message,
+        },
+        { status: error.status },
+      );
+    }
+
     return NextResponse.json(
       {
         ok: false,

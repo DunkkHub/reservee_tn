@@ -5,6 +5,8 @@ import { getApiSession } from "@/lib/auth-session";
 import { findBusinesses, findBusinessById, moderateBusiness } from "@/lib/business-repository";
 import { getDatabaseErrorMessage } from "@/lib/db";
 import { getDbPool } from "@/lib/db";
+import { consumeRateLimit } from "@/lib/rate-limit";
+import { assertAllowedOrigin, HttpRequestError } from "@/lib/security";
 import type { CategorySlug, BusinessStatus } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -50,12 +52,35 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+    assertAllowedOrigin(request);
+
     const session = await getApiSession();
 
     if (!session || session.user.role !== "admin") {
       return NextResponse.json(
         { ok: false, message: "Only admins can moderate businesses" },
         { status: session ? 403 : 401 },
+      );
+    }
+
+    const rateLimit = await consumeRateLimit({
+      key: `admin-business-moderation:${session.user.id}`,
+      windowMs: 10 * 60 * 1000,
+      maxRequests: 30,
+    });
+
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: "Too many moderation updates. Please slow down and try again shortly.",
+        },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(Math.ceil((rateLimit.resetAt - Date.now()) / 1000)),
+          },
+        },
       );
     }
 
@@ -134,6 +159,16 @@ export async function PATCH(request: Request) {
       data: updated,
     });
   } catch (error) {
+    if (error instanceof HttpRequestError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: error.message,
+        },
+        { status: error.status },
+      );
+    }
+
     return NextResponse.json(
       {
         ok: false,

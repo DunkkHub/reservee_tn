@@ -5,16 +5,24 @@ import { randomUUID } from "node:crypto";
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 
 import type {
+  AuthDeliveryChannel,
   AuthSessionUser,
   LoginInput,
   RegistrationInput,
   UserRole,
 } from "@/lib/auth-types";
-import { categories, cities } from "@/lib/seed-data";
+import {
+  looksLikeEmailIdentifier,
+  normalizeEmail,
+  normalizePhone,
+} from "@/lib/contact-utils";
+import { fromDatabaseDateTime } from "@/lib/datetime";
 import type { BusinessStatus } from "@/lib/types";
 import { getDbPool } from "@/lib/db";
 import { hashPassword, verifyPassword } from "@/lib/password";
+import { categories, cities } from "@/lib/taxonomy";
 import { toSlug } from "@/lib/utils";
+import { validateEmail, validatePhone } from "@/lib/validation";
 
 type UserRow = RowDataPacket & {
   id: string;
@@ -51,14 +59,6 @@ const baseUserQuery = `
   LEFT JOIN business_profiles bp ON bp.owner_user_id = u.id
 `;
 
-function normalizeEmail(value: string) {
-  return value.trim().toLowerCase();
-}
-
-function normalizePhone(value: string) {
-  return value.trim();
-}
-
 function mapRowToSessionUser(row: UserRow): AuthSessionUser {
   return {
     id: row.id,
@@ -72,7 +72,7 @@ function mapRowToSessionUser(row: UserRow): AuthSessionUser {
     categorySlug: row.categorySlug as AuthSessionUser["categorySlug"],
     citySlug: row.citySlug,
     area: row.area,
-    createdAt: row.createdAt,
+    createdAt: fromDatabaseDateTime(row.createdAt) ?? new Date(0).toISOString(),
   };
 }
 
@@ -85,6 +85,42 @@ export async function findUserByEmail(email: string) {
   return rows[0] ?? null;
 }
 
+export async function findUserByPhone(phone: string) {
+  const pool = getDbPool();
+  const [rows] = await pool.query<UserRow[]>(
+    `${baseUserQuery} WHERE u.phone_normalized = ? LIMIT 1`,
+    [normalizePhone(phone)],
+  );
+  return rows[0] ?? null;
+}
+
+export async function findUserByIdentifier(identifier: string) {
+  return looksLikeEmailIdentifier(identifier)
+    ? findUserByEmail(identifier)
+    : findUserByPhone(identifier);
+}
+
+export async function findSessionUserById(userId: string) {
+  const pool = getDbPool();
+  const [rows] = await pool.query<UserRow[]>(
+    `${baseUserQuery} WHERE u.id = ? LIMIT 1`,
+    [userId],
+  );
+  const user = rows[0] ?? null;
+  return user ? mapRowToSessionUser(user) : null;
+}
+
+export function resolveUserDeliveryDestination(
+  user: Pick<AuthSessionUser, "email" | "phone">,
+  deliveryChannel: AuthDeliveryChannel,
+) {
+  if (deliveryChannel === "email") {
+    return user.email?.trim() || "";
+  }
+
+  return user.phone?.trim() || "";
+}
+
 function validateCommonRegistration(input: RegistrationInput) {
   if (!input.name.trim()) {
     return "Name is required.";
@@ -94,8 +130,16 @@ function validateCommonRegistration(input: RegistrationInput) {
     return "Email is required.";
   }
 
+  if (!validateEmail(input.email)) {
+    return "Enter a valid email address.";
+  }
+
   if (!input.phone.trim()) {
     return "Phone is required.";
+  }
+
+  if (!validatePhone(input.phone)) {
+    return "Enter a valid phone number.";
   }
 
   if (input.password.trim().length < 8) {
@@ -158,6 +202,16 @@ export async function registerUser(input: RegistrationInput) {
     };
   }
 
+  const existingPhoneUser = await findUserByPhone(input.phone);
+
+  if (existingPhoneUser) {
+    return {
+      ok: false as const,
+      status: 409,
+      message: "An account with this phone number already exists.",
+    };
+  }
+
   const pool = getDbPool();
   const connection = await pool.getConnection();
 
@@ -169,14 +223,15 @@ export async function registerUser(input: RegistrationInput) {
 
     await connection.execute<ResultSetHeader>(
       `
-        INSERT INTO app_users (id, role, name, email, phone, password_hash)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO app_users (id, role, name, email, phone, phone_normalized, password_hash)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
       `,
       [
         userId,
         input.role,
         input.name.trim(),
         normalizeEmail(input.email),
+        input.phone.trim(),
         normalizePhone(input.phone),
         passwordHash,
       ],
@@ -198,9 +253,10 @@ export async function registerUser(input: RegistrationInput) {
             phone,
             whatsapp,
             slug,
+            no_show_rule,
             status
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
           randomUUID(),
@@ -212,9 +268,10 @@ export async function registerUser(input: RegistrationInput) {
           `${input.area.trim()}, ${
             cities.find((city) => city.slug === input.citySlug)?.name ?? "Tunisia"
           }`,
-          normalizePhone(input.phone),
-          normalizePhone(input.phone),
+          input.phone.trim(),
+          input.phone.trim(),
           `${slugBase}-${userId.slice(-6).toLowerCase()}`,
+          "Les absences non annoncees peuvent limiter les prochaines demandes.",
           "draft",
         ],
       );
@@ -247,21 +304,21 @@ export async function registerUser(input: RegistrationInput) {
 }
 
 export async function loginUser(input: LoginInput) {
-  if (!input.email.trim() || !input.password.trim()) {
+  if (!input.identifier.trim() || !input.password.trim()) {
     return {
       ok: false as const,
       status: 400,
-      message: "Email and password are required.",
+      message: "Email or phone number and password are required.",
     };
   }
 
-  const user = await findUserByEmail(input.email);
+  const user = await findUserByIdentifier(input.identifier);
 
   if (!user || !verifyPassword(input.password, user.passwordHash)) {
     return {
       ok: false as const,
       status: 401,
-      message: "Invalid email or password.",
+      message: "Invalid email or phone number, or password.",
     };
   }
 
@@ -271,4 +328,18 @@ export async function loginUser(input: LoginInput) {
     user: mapRowToSessionUser(user),
     message: "Login successful.",
   };
+}
+
+export async function updateUserPassword(userId: string, password: string) {
+  const pool = getDbPool();
+
+  await pool.execute<ResultSetHeader>(
+    `
+      UPDATE app_users
+      SET password_hash = ?, password_updated_at = UTC_TIMESTAMP()
+      WHERE id = ?
+      LIMIT 1
+    `,
+    [hashPassword(password), userId],
+  );
 }

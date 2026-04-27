@@ -3,7 +3,8 @@ import type { ValidationError } from "@/lib/validation";
 
 export interface ApiResponse<T = unknown> {
   ok: boolean;
-  message: string;
+  message?: string;
+  error?: string;
   data?: T;
   errors?: ValidationError[];
 }
@@ -46,6 +47,7 @@ export function errorResponse(
     {
       ok: false,
       message,
+      error: message,
       ...(errors && errors.length > 0 ? { errors } : {}),
     },
     { status },

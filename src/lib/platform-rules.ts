@@ -1,4 +1,4 @@
-import { addHours, formatISO, isAfter } from "date-fns";
+import { addHours, formatISO } from "date-fns";
 
 import type {
   Booking,
@@ -52,21 +52,9 @@ export function normalizeBooking(booking: Booking) {
     return booking;
   }
 
-  const expiresAt = booking.expiresAt ?? getBookingExpiryAt(booking.createdAt, booking.startAt);
-  const now = new Date();
-
-  if (isAfter(now, new Date(expiresAt)) || now.getTime() >= new Date(booking.startAt).getTime()) {
-    return {
-      ...booking,
-      status: "expired" as BookingStatus,
-      expiresAt,
-      statusUpdatedAt: formatISO(now),
-    };
-  }
-
   return {
     ...booking,
-    expiresAt,
+    expiresAt: booking.expiresAt ?? getBookingExpiryAt(booking.createdAt, booking.startAt),
   };
 }
 
@@ -102,6 +90,7 @@ export function normalizeBusiness(business?: Partial<Business> | null): Business
     featuredRank: safeBusiness.featuredRank ?? null,
     featuredCitySlug: safeBusiness.featuredCitySlug ?? null,
     featuredCategorySlug: safeBusiness.featuredCategorySlug ?? null,
+    timezone: safeBusiness.timezone ?? "Africa/Tunis",
     profileCompletion: safeBusiness.profileCompletion ?? 0,
     audience: safeBusiness.audience ?? "unisex",
     yearsInBusiness: safeBusiness.yearsInBusiness ?? 0,
@@ -239,11 +228,9 @@ export function bookingStatusTone(status: BookingStatus) {
       return "success";
     case "pending":
       return "accent";
-    case "cancelled_by_customer":
-    case "cancelled_by_business":
+    case "cancelled":
     case "rejected":
       return "danger";
-    case "expired":
     case "no_show":
       return "warning";
     default:

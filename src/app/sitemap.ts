@@ -1,13 +1,14 @@
 import type { MetadataRoute } from "next";
 
+import { findPublicBusinesses } from "@/lib/business-repository";
 import { isBusinessLive } from "@/lib/platform-rules";
-import { categories, cities, businesses } from "@/lib/seed-data";
 import { siteUrl } from "@/lib/site";
+import { categories, cities } from "@/lib/taxonomy";
 
-export default function sitemap(): MetadataRoute.Sitemap {
-  const liveBusinesses = businesses.filter(
-    (business) => isBusinessLive(business.status),
-  );
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const liveBusinesses = await findPublicBusinesses()
+    .then((businesses) => businesses.filter((business) => isBusinessLive(business.status)))
+    .catch(() => []);
 
   return [
     {

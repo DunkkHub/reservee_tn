@@ -6,6 +6,7 @@ import { endOfWeek, startOfWeek } from "date-fns";
 import { findNextAvailableSlot, generateAvailableSlots } from "@/lib/availability";
 import { ensureBusinessHoursExist } from "@/lib/business-hours-repository";
 import { getDbPool } from "@/lib/db";
+import { fromDatabaseDateTime } from "@/lib/datetime";
 import { normalizeBusiness } from "@/lib/platform-rules";
 import type {
   ActivityType,
@@ -40,6 +41,7 @@ type BusinessRow = RowDataPacket & {
   logo_text: string;
   cover_url: string;
   slug: string;
+  timezone: string;
   audience: Audience;
   years_in_business: number;
   booking_mode: BookingMode;
@@ -214,8 +216,8 @@ function mapBlockedSlotRow(row: BlockedSlotRow): Business["blockedSlots"][number
   return {
     id: row.id,
     businessId: row.business_id,
-    startAt: row.start_at,
-    endAt: row.end_at,
+    startAt: fromDatabaseDateTime(row.start_at) ?? new Date(0).toISOString(),
+    endAt: fromDatabaseDateTime(row.end_at) ?? new Date(0).toISOString(),
     reason: row.reason,
   };
 }
@@ -237,7 +239,7 @@ function mapModerationRow(row: ModerationRow): Business["moderationHistory"][num
     status: row.status,
     internalNote: row.internal_note,
     businessMessage: row.business_message,
-    changedAt: row.changed_at,
+    changedAt: fromDatabaseDateTime(row.changed_at) ?? new Date(0).toISOString(),
   };
 }
 
@@ -251,13 +253,13 @@ function mapBookingAggregateRow(row: BookingAggregateRow): Booking {
     customerPhone: "",
     customerNote: undefined,
     status: row.status,
-    startAt: row.start_at,
-    endAt: row.end_at,
+    startAt: fromDatabaseDateTime(row.start_at) ?? new Date(0).toISOString(),
+    endAt: fromDatabaseDateTime(row.end_at) ?? new Date(0).toISOString(),
     source: "web",
     expiresAt: null,
     rescheduleRequestedAt: null,
     statusUpdatedAt: null,
-    createdAt: row.created_at,
+    createdAt: fromDatabaseDateTime(row.created_at) ?? new Date(0).toISOString(),
   };
 }
 
@@ -349,13 +351,14 @@ function buildBusinessFromRow(
     logoText: row.logo_text,
     coverUrl: row.cover_url,
     status: row.status,
-    featuredUntil: row.featured_until,
+    featuredUntil: fromDatabaseDateTime(row.featured_until),
     featuredRank: row.featured_rank,
     featuredCitySlug:
       row.featured_city_slug ?? (row.status === "featured" ? row.city_slug : null),
     featuredCategorySlug:
       row.featured_category_slug ??
       (row.status === "featured" ? row.category_slug : null),
+    timezone: row.timezone,
     audience: row.audience,
     yearsInBusiness: row.years_in_business,
     bookingMode: row.booking_mode,
@@ -370,7 +373,7 @@ function buildBusinessFromRow(
     media: related.media,
     moderationHistory: related.moderationHistory,
     metrics: buildMetrics(row, related.bookingRows),
-    createdAt: row.created_at,
+    createdAt: fromDatabaseDateTime(row.created_at) ?? new Date(0).toISOString(),
   });
 
   const firstActiveService = draftBusiness.services.find((service) => service.active);
@@ -484,8 +487,10 @@ async function hydrateBusinesses(rows: BusinessRow[], ensureHours = false) {
       ),
       pool.query<BlockedSlotRow[]>(
         `
-          SELECT * FROM blocked_slots
+          SELECT id, business_id, start_at, end_at, reason
+          FROM availability_exceptions
           WHERE business_id IN (${businessIdClause})
+            AND exception_type = 'blocked'
           ORDER BY business_id ASC, start_at DESC
         `,
         businessIds,

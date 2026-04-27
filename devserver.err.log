@@ -31,3 +31,5 @@
   23 |   }
   24 |
   25 |   return payload.data as T;
+⚠ Fast Refresh had to perform a full reload when ./src/components/pages/auth-pages.tsx changed. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+^C^C

@@ -11,6 +11,7 @@ import {
   updateBusinessProfile,
 } from "@/lib/business-repository";
 import { getDatabaseErrorMessage } from "@/lib/db";
+import { assertAllowedOrigin, HttpRequestError } from "@/lib/security";
 import type {
   BookingMode,
   BusinessPolicy,
@@ -154,6 +155,8 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+    assertAllowedOrigin(request);
+
     const session = await getApiSession();
 
     if (!session) {
@@ -271,6 +274,16 @@ export async function PATCH(request: Request) {
       data: updated,
     });
   } catch (error) {
+    if (error instanceof HttpRequestError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: error.message,
+        },
+        { status: error.status },
+      );
+    }
+
     return NextResponse.json(
       {
         ok: false,

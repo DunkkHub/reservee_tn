@@ -4,6 +4,7 @@ import { recordActivity } from "@/lib/activity-log-repository";
 import { getApiSession } from "@/lib/auth-session";
 import { findBusinessById } from "@/lib/business-repository";
 import { getDatabaseErrorMessage } from "@/lib/db";
+import { assertAllowedOrigin, HttpRequestError } from "@/lib/security";
 import {
   createMediaItem,
   deleteMediaItem,
@@ -58,6 +59,8 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    assertAllowedOrigin(request);
+
     const session = await getApiSession();
 
     if (!session) {
@@ -117,6 +120,16 @@ export async function POST(request: Request) {
       { status: 201 },
     );
   } catch (error) {
+    if (error instanceof HttpRequestError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: error.message,
+        },
+        { status: error.status },
+      );
+    }
+
     return NextResponse.json(
       {
         ok: false,
@@ -129,6 +142,8 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+    assertAllowedOrigin(request);
+
     const session = await getApiSession();
 
     if (!session) {
@@ -179,6 +194,16 @@ export async function PATCH(request: Request) {
       data: media,
     });
   } catch (error) {
+    if (error instanceof HttpRequestError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: error.message,
+        },
+        { status: error.status },
+      );
+    }
+
     return NextResponse.json(
       {
         ok: false,
@@ -191,6 +216,8 @@ export async function PATCH(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    assertAllowedOrigin(request);
+
     const session = await getApiSession();
 
     if (!session) {
@@ -231,6 +258,16 @@ export async function DELETE(request: Request) {
       message: "Media deleted",
     });
   } catch (error) {
+    if (error instanceof HttpRequestError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: error.message,
+        },
+        { status: error.status },
+      );
+    }
+
     return NextResponse.json(
       {
         ok: false,

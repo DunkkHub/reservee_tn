@@ -3,26 +3,46 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
-import { Building2, LogIn, ShieldCheck, UserRound } from "lucide-react";
+import {
+  Building2,
+  KeyRound,
+  LogIn,
+  MessageSquareText,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react";
 
 import { useAuth } from "@/components/providers/auth-provider";
 import { useLocale } from "@/components/providers/locale-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getCategoryTranslation, getCityTranslation } from "@/lib/i18n";
-import { categories, cities } from "@/lib/seed-data";
-import type { AuthSession } from "@/lib/auth-types";
+import { categories, cities } from "@/lib/taxonomy";
+import type { AuthDeliveryChannel, AuthSession } from "@/lib/auth-types";
 import type { CategorySlug } from "@/lib/types";
+
+type VerificationChallengePayload = {
+  challengeId: string;
+  expiresAt: string;
+  deliveryChannel: AuthDeliveryChannel;
+  destinationHint: string;
+  developmentCodePreview: string | null;
+};
 
 type AuthApiResponse = {
   ok: boolean;
   message: string;
   redirectTo?: string;
   session?: AuthSession | null;
+  challenge?: VerificationChallengePayload | null;
 };
 
 function isSafeInternalPath(value: string | null) {
   return Boolean(value && value.startsWith("/") && !value.startsWith("//"));
+}
+
+function looksLikeEmailIdentifier(value: string) {
+  return value.includes("@");
 }
 
 function AuthShell({
@@ -86,6 +106,57 @@ function AuthShell({
   );
 }
 
+function DeliveryChannelPicker({
+  value,
+  onChange,
+  emailLabel,
+  smsLabel,
+}: {
+  value: AuthDeliveryChannel;
+  onChange: (value: AuthDeliveryChannel) => void;
+  emailLabel: string;
+  smsLabel: string;
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-2 rounded-3xl border border-white/8 bg-white/4 p-1">
+      {[
+        { id: "sms", label: smsLabel },
+        { id: "email", label: emailLabel },
+      ].map((option) => (
+        <button
+          key={option.id}
+          type="button"
+          onClick={() => onChange(option.id as AuthDeliveryChannel)}
+          className={`rounded-[1.2rem] px-4 py-3 text-sm font-medium transition ${
+            value === option.id
+              ? "bg-[var(--color-accent)] text-[var(--color-ink)]"
+              : "text-[var(--color-secondary)]"
+          }`}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function Notice({
+  children,
+  tone,
+}: {
+  children: React.ReactNode;
+  tone: "success" | "error" | "neutral";
+}) {
+  const className =
+    tone === "success"
+      ? "border-[rgba(59,178,115,0.22)] bg-[rgba(59,178,115,0.12)] text-[var(--color-success)]"
+      : tone === "error"
+        ? "border-[rgba(225,85,84,0.22)] bg-[rgba(225,85,84,0.12)] text-[var(--color-error)]"
+        : "border-white/8 bg-white/4 text-[var(--color-secondary)]";
+
+  return <div className={`rounded-2xl border px-4 py-3 text-sm ${className}`}>{children}</div>;
+}
+
 export function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -94,10 +165,14 @@ export function LoginPage() {
   const roleHint = searchParams.get("role");
   const { setSession } = useAuth();
   const [form, setForm] = useState({
-    email: "",
+    identifier: "",
     password: "",
+    code: "",
+    deliveryChannel: "sms" as AuthDeliveryChannel,
   });
+  const [challenge, setChallenge] = useState<VerificationChallengePayload | null>(null);
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const registerHref = useMemo(() => {
@@ -115,10 +190,21 @@ export function LoginPage() {
     return query ? `/register?${query}` : "/register";
   }, [next, roleHint]);
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  const resetPasswordHref = useMemo(() => {
+    const params = new URLSearchParams();
+
+    if (form.identifier.trim()) {
+      params.set("identifier", form.identifier.trim());
+    }
+
+    const query = params.toString();
+    return query ? `/reset-password?${query}` : "/reset-password";
+  }, [form.identifier]);
+
+  async function requestLoginCode() {
     setSubmitting(true);
     setError("");
+    setMessage("");
 
     try {
       const response = await fetch("/api/auth/login", {
@@ -126,7 +212,49 @@ export function LoginPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          identifier: form.identifier,
+          password: form.password,
+          deliveryChannel: form.deliveryChannel,
+        }),
+      });
+
+      const data = (await response.json()) as AuthApiResponse;
+
+      if (!response.ok || !data.ok || !data.challenge) {
+        setError(data.message || messages.auth.loginFailed);
+        return;
+      }
+
+      setChallenge(data.challenge);
+      setForm((current) => ({ ...current, code: "" }));
+      setMessage(data.message);
+    } catch {
+      setError(messages.auth.loginFailed);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function verifyLoginCode() {
+    if (!challenge) {
+      return;
+    }
+
+    setSubmitting(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/auth/login/verify", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          challengeId: challenge.challengeId,
+          code: form.code,
+        }),
       });
 
       const data = (await response.json()) as AuthApiResponse;
@@ -152,19 +280,33 @@ export function LoginPage() {
     }
   }
 
+  function resetChallenge() {
+    setChallenge(null);
+    setForm((current) => ({ ...current, code: "" }));
+    setMessage("");
+    setError("");
+  }
+
   return (
     <AuthShell
       eyebrow={messages.auth.loginEyebrow}
       title={messages.auth.loginTitle}
       description={messages.auth.loginDescription}
       footer={
-        <p>
-          {messages.auth.noAccountPrefix}{" "}
-          <Link href={registerHref} className="text-white underline underline-offset-4">
-            {messages.auth.createOne}
-          </Link>
-          .
-        </p>
+        <div className="space-y-2">
+          <p>
+            {messages.auth.noAccountPrefix}{" "}
+            <Link href={registerHref} className="text-white underline underline-offset-4">
+              {messages.auth.createOne}
+            </Link>
+            .
+          </p>
+          <p>
+            <Link href={resetPasswordHref} className="text-white underline underline-offset-4">
+              {messages.auth.forgotPassword}
+            </Link>
+          </p>
+        </div>
       }
     >
       <div className="space-y-5">
@@ -179,50 +321,119 @@ export function LoginPage() {
           </p>
         </div>
 
-        <form className="space-y-4" onSubmit={handleSubmit}>
-          <label className="block space-y-2 text-sm">
-            <span className="text-[var(--color-secondary)]">{messages.auth.email}</span>
-            <input
-              className="input-field"
-              type="email"
-              value={form.email}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, email: event.target.value }))
-              }
-              placeholder="you@example.com"
-              autoComplete="email"
-            />
-          </label>
-
-          <label className="block space-y-2 text-sm">
-            <span className="text-[var(--color-secondary)]">{messages.auth.password}</span>
-            <input
-              className="input-field"
-              type="password"
-              value={form.password}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, password: event.target.value }))
-              }
-              placeholder={messages.auth.minPassword}
-              autoComplete="current-password"
-            />
-          </label>
-
-          {error ? (
-            <div className="rounded-2xl border border-[rgba(225,85,84,0.22)] bg-[rgba(225,85,84,0.12)] px-4 py-3 text-sm text-[var(--color-error)]">
-              {error}
-            </div>
-          ) : null}
-
-          <Button
-            type="submit"
-            fullWidth
-            icon={<LogIn className="h-4 w-4" />}
-            disabled={submitting}
+        {!challenge ? (
+          <form
+            className="space-y-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void requestLoginCode();
+            }}
           >
-            {submitting ? messages.auth.signingIn : messages.auth.signIn}
-          </Button>
-        </form>
+            <label className="block space-y-2 text-sm">
+              <span className="text-[var(--color-secondary)]">
+                {messages.auth.phoneOrEmail}
+              </span>
+              <input
+                className="input-field"
+                type="text"
+                value={form.identifier}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    identifier: event.target.value,
+                  }))
+                }
+                placeholder={messages.auth.phoneOrEmailPlaceholder}
+                autoComplete="username"
+              />
+            </label>
+
+            <label className="block space-y-2 text-sm">
+              <span className="text-[var(--color-secondary)]">{messages.auth.password}</span>
+              <input
+                className="input-field"
+                type="password"
+                value={form.password}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, password: event.target.value }))
+                }
+                placeholder={messages.auth.minPassword}
+                autoComplete="current-password"
+              />
+            </label>
+
+            <div className="space-y-2 text-sm">
+              <span className="text-[var(--color-secondary)]">
+                {messages.auth.deliveryChannel}
+              </span>
+              <DeliveryChannelPicker
+                value={form.deliveryChannel}
+                onChange={(value) =>
+                  setForm((current) => ({ ...current, deliveryChannel: value }))
+                }
+                emailLabel={messages.auth.emailCode}
+                smsLabel={messages.auth.smsCode}
+              />
+            </div>
+
+            {message ? <Notice tone="success">{message}</Notice> : null}
+            {error ? <Notice tone="error">{error}</Notice> : null}
+
+            <Button
+              type="submit"
+              fullWidth
+              icon={<MessageSquareText className="h-4 w-4" />}
+              disabled={submitting}
+            >
+              {submitting ? messages.auth.sendingCode : messages.auth.sendLoginCode}
+            </Button>
+          </form>
+        ) : (
+          <div className="space-y-4">
+            <Notice tone="neutral">
+              {messages.auth.verificationStep.replace("{destination}", challenge.destinationHint)}
+            </Notice>
+
+            <label className="block space-y-2 text-sm">
+              <span className="text-[var(--color-secondary)]">
+                {messages.manageBooking.verificationCode}
+              </span>
+              <input
+                className="input-field"
+                value={form.code}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, code: event.target.value }))
+                }
+                placeholder={messages.manageBooking.verificationCodePlaceholder}
+                inputMode="numeric"
+                autoComplete="one-time-code"
+              />
+            </label>
+
+            {message ? <Notice tone="success">{message}</Notice> : null}
+            {error ? <Notice tone="error">{error}</Notice> : null}
+
+            <div className="flex flex-wrap gap-3">
+              <Button
+                icon={<LogIn className="h-4 w-4" />}
+                disabled={!form.code.trim() || submitting}
+                onClick={() => void verifyLoginCode()}
+              >
+                {submitting ? messages.auth.verifyingCode : messages.auth.verifyAndSignIn}
+              </Button>
+              <Button
+                variant="secondary"
+                disabled={submitting}
+                onClick={() => void requestLoginCode()}
+              >
+                {messages.auth.resendCode}
+              </Button>
+              <Button variant="ghost" disabled={submitting} onClick={resetChallenge}>
+                {messages.auth.useDifferentCredentials}
+              </Button>
+            </div>
+          </div>
+        )}
 
         <p className="text-xs leading-6 text-[var(--color-muted)]">
           {messages.auth.adminNote}
@@ -537,6 +748,274 @@ export function RegisterPage() {
                 : messages.auth.createCustomerAccount}
           </Button>
         </form>
+      </div>
+    </AuthShell>
+  );
+}
+
+export function ResetPasswordPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { messages } = useLocale();
+  const { setSession } = useAuth();
+  const [form, setForm] = useState({
+    identifier: searchParams.get("identifier") ?? "",
+    code: "",
+    password: "",
+    confirmPassword: "",
+    deliveryChannel: (looksLikeEmailIdentifier(searchParams.get("identifier") ?? "")
+      ? "email"
+      : "sms") as AuthDeliveryChannel,
+  });
+  const [challenge, setChallenge] = useState<VerificationChallengePayload | null>(null);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function requestResetCode() {
+    setSubmitting(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/auth/password-reset/request", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          identifier: form.identifier,
+          deliveryChannel: form.deliveryChannel,
+        }),
+      });
+
+      const data = (await response.json()) as AuthApiResponse;
+
+      if (!response.ok || !data.ok || !data.challenge) {
+        setError(data.message || messages.auth.resetFailed);
+        return;
+      }
+
+      setChallenge(data.challenge);
+      setForm((current) => ({ ...current, code: "" }));
+      setMessage(data.message);
+    } catch {
+      setError(messages.auth.resetFailed);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function confirmPasswordReset() {
+    if (!challenge) {
+      return;
+    }
+
+    if (form.password !== form.confirmPassword) {
+      setError(messages.auth.passwordMismatch);
+      return;
+    }
+
+    setSubmitting(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/auth/password-reset/confirm", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          challengeId: challenge.challengeId,
+          code: form.code,
+          password: form.password,
+        }),
+      });
+
+      const data = (await response.json()) as AuthApiResponse;
+
+      if (!response.ok || !data.ok || !data.session) {
+        setError(data.message || messages.auth.resetFailed);
+        return;
+      }
+
+      setSession(data.session);
+      router.push(data.redirectTo ?? "/account");
+      router.refresh();
+    } catch {
+      setError(messages.auth.resetFailed);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function resetFlow() {
+    setChallenge(null);
+    setForm((current) => ({
+      ...current,
+      code: "",
+      password: "",
+      confirmPassword: "",
+    }));
+    setMessage("");
+    setError("");
+  }
+
+  return (
+    <AuthShell
+      eyebrow={messages.auth.resetPasswordEyebrow}
+      title={messages.auth.resetPasswordTitle}
+      description={messages.auth.resetPasswordDescription}
+      footer={
+        <p>
+          <Link href="/login" className="text-white underline underline-offset-4">
+            {messages.auth.backToLogin}
+          </Link>
+        </p>
+      }
+    >
+      <div className="space-y-5">
+        <div>
+          <h2 className="font-heading text-3xl font-semibold text-white">
+            {messages.auth.resetPasswordHeading}
+          </h2>
+          <p className="mt-2 text-sm text-[var(--color-secondary)]">
+            {messages.auth.resetPasswordHint}
+          </p>
+        </div>
+
+        {!challenge ? (
+          <form
+            className="space-y-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void requestResetCode();
+            }}
+          >
+            <label className="block space-y-2 text-sm">
+              <span className="text-[var(--color-secondary)]">
+                {messages.auth.phoneOrEmail}
+              </span>
+              <input
+                className="input-field"
+                type="text"
+                value={form.identifier}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    identifier: event.target.value,
+                  }))
+                }
+                placeholder={messages.auth.phoneOrEmailPlaceholder}
+                autoComplete="username"
+              />
+            </label>
+
+            <div className="space-y-2 text-sm">
+              <span className="text-[var(--color-secondary)]">
+                {messages.auth.deliveryChannel}
+              </span>
+              <DeliveryChannelPicker
+                value={form.deliveryChannel}
+                onChange={(value) =>
+                  setForm((current) => ({ ...current, deliveryChannel: value }))
+                }
+                emailLabel={messages.auth.emailCode}
+                smsLabel={messages.auth.smsCode}
+              />
+            </div>
+
+            {message ? <Notice tone="success">{message}</Notice> : null}
+            {error ? <Notice tone="error">{error}</Notice> : null}
+
+            <Button
+              type="submit"
+              fullWidth
+              icon={<KeyRound className="h-4 w-4" />}
+              disabled={submitting}
+            >
+              {submitting ? messages.auth.sendingCode : messages.auth.sendResetCode}
+            </Button>
+          </form>
+        ) : (
+          <div className="space-y-4">
+            <Notice tone="neutral">
+              {messages.auth.resetStep.replace("{destination}", challenge.destinationHint)}
+            </Notice>
+
+            <label className="block space-y-2 text-sm">
+              <span className="text-[var(--color-secondary)]">
+                {messages.manageBooking.verificationCode}
+              </span>
+              <input
+                className="input-field"
+                value={form.code}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, code: event.target.value }))
+                }
+                placeholder={messages.manageBooking.verificationCodePlaceholder}
+                inputMode="numeric"
+                autoComplete="one-time-code"
+              />
+            </label>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="block space-y-2 text-sm">
+                <span className="text-[var(--color-secondary)]">{messages.auth.newPassword}</span>
+                <input
+                  className="input-field"
+                  type="password"
+                  value={form.password}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, password: event.target.value }))
+                  }
+                  autoComplete="new-password"
+                />
+              </label>
+              <label className="block space-y-2 text-sm">
+                <span className="text-[var(--color-secondary)]">
+                  {messages.auth.confirmPassword}
+                </span>
+                <input
+                  className="input-field"
+                  type="password"
+                  value={form.confirmPassword}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      confirmPassword: event.target.value,
+                    }))
+                  }
+                  autoComplete="new-password"
+                />
+              </label>
+            </div>
+
+            {message ? <Notice tone="success">{message}</Notice> : null}
+            {error ? <Notice tone="error">{error}</Notice> : null}
+
+            <div className="flex flex-wrap gap-3">
+              <Button
+                icon={<KeyRound className="h-4 w-4" />}
+                disabled={!form.code.trim() || !form.password.trim() || submitting}
+                onClick={() => void confirmPasswordReset()}
+              >
+                {submitting ? messages.auth.resettingPassword : messages.auth.resetPasswordAction}
+              </Button>
+              <Button
+                variant="secondary"
+                disabled={submitting}
+                onClick={() => void requestResetCode()}
+              >
+                {messages.auth.resendCode}
+              </Button>
+              <Button variant="ghost" disabled={submitting} onClick={resetFlow}>
+                {messages.auth.useDifferentContact}
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </AuthShell>
   );

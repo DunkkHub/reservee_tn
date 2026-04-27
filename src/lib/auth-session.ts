@@ -1,47 +1,36 @@
 import "server-only";
 
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 
+import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { NextResponse } from "next/server";
 
+import { findSessionUserById } from "@/lib/auth-repository";
+import { getDbPool } from "@/lib/db";
+import { fromDatabaseDateTime, toDatabaseDateTime } from "@/lib/datetime";
+import { env } from "@/lib/env";
+import { hashValue } from "@/lib/security";
 import type { AuthSession, AuthSessionUser, UserRole } from "@/lib/auth-types";
 
-export const AUTH_COOKIE_NAME = "reservee_auth";
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 
-function getAuthSecret() {
-  const secret = process.env.AUTH_SECRET;
+type SessionRow = RowDataPacket & {
+  id: string;
+  user_id: string;
+  expires_at: string;
+};
 
-  if (!secret) {
-    throw new Error("AUTH_SECRET is required to sign user sessions.");
-  }
+type CreatedSession = {
+  session: AuthSession;
+  token: string;
+};
 
-  return secret;
-}
+export const AUTH_COOKIE_NAME = env.SESSION_COOKIE_NAME;
 
-function sign(payload: string) {
-  return createHmac("sha256", getAuthSecret()).update(payload).digest("base64url");
-}
-
-function constantTimeEqual(left: string, right: string) {
-  const leftBuffer = Buffer.from(left);
-  const rightBuffer = Buffer.from(right);
-
-  if (leftBuffer.length !== rightBuffer.length) {
-    return false;
-  }
-
-  return timingSafeEqual(leftBuffer, rightBuffer);
-}
-
-function encodeBase64Url(value: string) {
-  return Buffer.from(value).toString("base64url");
-}
-
-function decodeBase64Url(value: string) {
-  return Buffer.from(value, "base64url").toString("utf8");
+function generateSessionToken() {
+  return randomBytes(32).toString("base64url");
 }
 
 export function buildRedirectPath(role: UserRole) {
@@ -56,50 +45,121 @@ export function buildRedirectPath(role: UserRole) {
   }
 }
 
-export function createSession(user: AuthSessionUser): AuthSession {
+export async function createSession(
+  user: AuthSessionUser,
+  request?: Request,
+): Promise<CreatedSession> {
+  const pool = getDbPool();
+  const token = generateSessionToken();
+  const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+
+  await pool.execute<ResultSetHeader>(
+    `
+      INSERT INTO sessions (
+        id,
+        user_id,
+        token_hash,
+        expires_at,
+        last_seen_at,
+        ip_address,
+        user_agent
+      )
+      VALUES (?, ?, ?, ?, UTC_TIMESTAMP(), ?, ?)
+    `,
+    [
+      randomUUID(),
+      user.id,
+      hashValue(token),
+      toDatabaseDateTime(expiresAt),
+      request?.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+        request?.headers.get("x-real-ip") ??
+        null,
+      request?.headers.get("user-agent") ?? null,
+    ],
+  );
+
   return {
-    user,
-    expiresAt: new Date(Date.now() + SESSION_TTL_MS).toISOString(),
+    token,
+    session: {
+      user,
+      expiresAt: expiresAt.toISOString(),
+    },
   };
 }
 
-export function serializeSession(session: AuthSession) {
-  const payload = encodeBase64Url(JSON.stringify(session));
-  const signature = sign(payload);
-  return `${payload}.${signature}`;
+async function findSessionByToken(token: string) {
+  const pool = getDbPool();
+  const [rows] = await pool.query<SessionRow[]>(
+    `
+      SELECT id, user_id, expires_at
+      FROM sessions
+      WHERE token_hash = ?
+        AND revoked_at IS NULL
+        AND expires_at > UTC_TIMESTAMP()
+      LIMIT 1
+    `,
+    [hashValue(token)],
+  );
+
+  return rows[0] ?? null;
 }
 
-export function parseSessionCookie(value?: string | null): AuthSession | null {
-  if (!value) {
-    return null;
-  }
+export async function revokeSessionByToken(token: string) {
+  const pool = getDbPool();
+  await pool.execute<ResultSetHeader>(
+    `
+      UPDATE sessions
+      SET revoked_at = UTC_TIMESTAMP()
+      WHERE token_hash = ?
+        AND revoked_at IS NULL
+    `,
+    [hashValue(token)],
+  );
+}
 
-  const [payload, signature] = value.split(".");
-
-  if (!payload || !signature || !constantTimeEqual(sign(payload), signature)) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(decodeBase64Url(payload)) as AuthSession;
-
-    if (!parsed?.user?.id || !parsed?.user?.role || !parsed?.expiresAt) {
-      return null;
-    }
-
-    if (new Date(parsed.expiresAt).getTime() <= Date.now()) {
-      return null;
-    }
-
-    return parsed;
-  } catch {
-    return null;
-  }
+export async function revokeSessionsForUser(userId: string) {
+  const pool = getDbPool();
+  await pool.execute<ResultSetHeader>(
+    `
+      UPDATE sessions
+      SET revoked_at = UTC_TIMESTAMP()
+      WHERE user_id = ?
+        AND revoked_at IS NULL
+    `,
+    [userId],
+  );
 }
 
 export async function getCurrentSession() {
   const cookieStore = await cookies();
-  return parseSessionCookie(cookieStore.get(AUTH_COOKIE_NAME)?.value);
+  const token = cookieStore.get(AUTH_COOKIE_NAME)?.value;
+
+  if (!token) {
+    return null;
+  }
+
+  const sessionRow = await findSessionByToken(token);
+
+  if (!sessionRow) {
+    return null;
+  }
+
+  const user = await findSessionUserById(sessionRow.user_id);
+
+  if (!user) {
+    return null;
+  }
+
+  const expiresAt = fromDatabaseDateTime(sessionRow.expires_at);
+
+  if (!expiresAt) {
+    return null;
+  }
+
+  return {
+    user,
+    expiresAt,
+  } satisfies AuthSession;
 }
 
 export async function getCurrentUser() {
@@ -107,13 +167,17 @@ export async function getCurrentUser() {
   return session?.user ?? null;
 }
 
-export function applySessionCookie(response: NextResponse, session: AuthSession) {
-  response.cookies.set(AUTH_COOKIE_NAME, serializeSession(session), {
+export function applySessionCookie(
+  response: NextResponse,
+  token: string,
+  expiresAt: string,
+) {
+  response.cookies.set(AUTH_COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: env.NODE_ENV === "production",
     path: "/",
-    expires: new Date(session.expiresAt),
+    expires: new Date(expiresAt),
   });
 }
 
@@ -121,7 +185,7 @@ export function clearSessionCookie(response: NextResponse) {
   response.cookies.set(AUTH_COOKIE_NAME, "", {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: env.NODE_ENV === "production",
     path: "/",
     maxAge: 0,
   });
@@ -158,32 +222,24 @@ export async function redirectIfAuthenticated() {
   }
 }
 
-/**
- * API/Server helpers - return NextResponse instead of redirecting
- * Use these for API endpoints that need authentication checks
- */
-
 export async function getApiSession() {
   return getCurrentSession();
 }
 
 export function unauthorizedResponse(message: string = "Unauthorized") {
   return NextResponse.json(
-    { ok: false, message },
+    { ok: false, error: message, message },
     { status: 401 },
   );
 }
 
 export function forbiddenResponse(message: string = "Forbidden") {
   return NextResponse.json(
-    { ok: false, message },
+    { ok: false, error: message, message },
     { status: 403 },
   );
 }
 
-/**
- * Validate that the user has one of the required roles
- */
 export async function requireApiRole(roles: UserRole[]) {
   const session = await getApiSession();
 
@@ -194,16 +250,15 @@ export async function requireApiRole(roles: UserRole[]) {
   if (!roles.includes(session.user.role)) {
     return {
       authorized: false,
-      response: forbiddenResponse(`This action requires one of these roles: ${roles.join(", ")}`),
+      response: forbiddenResponse(
+        `This action requires one of these roles: ${roles.join(", ")}`,
+      ),
     };
   }
 
   return { authorized: true, session };
 }
 
-/**
- * Validate that the user owns the specified business
- */
 export async function requireBusinessOwnership() {
   const session = await getApiSession();
 
@@ -211,20 +266,14 @@ export async function requireBusinessOwnership() {
     return { authorized: false, response: unauthorizedResponse() };
   }
 
-  // Admin can manage any business
-  if (session.user.role === "admin") {
-    return { authorized: true, session };
-  }
-
-  // Shop owners can only manage their own business
-  if (session.user.role === "shop") {
-    // In a real app, you'd query the business to verify ownership
-    // For now, we'll rely on the caller to verify using findBusinessByOwner()
+  if (session.user.role === "admin" || session.user.role === "shop") {
     return { authorized: true, session };
   }
 
   return {
     authorized: false,
-    response: forbiddenResponse("Only shop owners and admins can perform this action"),
+    response: forbiddenResponse(
+      "Only shop owners and admins can perform this action",
+    ),
   };
 }

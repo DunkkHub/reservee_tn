@@ -1,11 +1,9 @@
 export type BookingStatus =
   | "pending"
   | "confirmed"
-  | "completed"
-  | "cancelled_by_customer"
-  | "cancelled_by_business"
+  | "cancelled"
   | "rejected"
-  | "expired"
+  | "completed"
   | "no_show";
 
 export type BusinessStatus =
@@ -143,6 +141,7 @@ export interface Business {
   ownerId: string;
   name: string;
   slug: string;
+  timezone?: string;
   categoryId: string;
   cityId: string;
   area: string;
@@ -184,6 +183,7 @@ export interface Booking {
   referenceCode: string;
   businessId: string;
   serviceId: string;
+  customerUserId?: string | null;
   customerName: string;
   customerPhone: string;
   customerNote?: string;

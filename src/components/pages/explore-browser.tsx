@@ -19,7 +19,7 @@ import {
   getResultsLabel,
 } from "@/lib/i18n";
 import { isBusinessFeatured } from "@/lib/platform-rules";
-import { categories, cities } from "@/lib/seed-data";
+import { categories, cities } from "@/lib/taxonomy";
 import type { Audience, Business } from "@/lib/types";
 import { cn, formatCurrency } from "@/lib/utils";
 

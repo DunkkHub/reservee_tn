@@ -9,6 +9,7 @@ import {
 } from "@/lib/booking-repository";
 import { findBusinessById } from "@/lib/business-repository";
 import { getDatabaseErrorMessage } from "@/lib/db";
+import { assertAllowedOrigin, HttpRequestError } from "@/lib/security";
 import type { Booking, BookingStatus } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -85,6 +86,8 @@ export async function GET(_: Request, context: RouteContext) {
 
 export async function PATCH(request: Request, context: RouteContext) {
   try {
+    assertAllowedOrigin(request);
+
     const session = await getApiSession();
 
     if (!session) {
@@ -117,7 +120,10 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     if (body.action === "requestReschedule") {
-      const updatedBooking = await requestBookingReschedule(id);
+      const updatedBooking = await requestBookingReschedule(id, {
+        userId: session.user.id,
+        role: session.user.role,
+      });
 
       await recordActivity({
         type: "booking_reschedule_requested",
@@ -140,14 +146,27 @@ export async function PATCH(request: Request, context: RouteContext) {
       );
     }
 
-    if (session.user.role === "customer" && body.status !== "cancelled_by_customer") {
+    if (session.user.role === "customer" && body.status !== "cancelled") {
       return NextResponse.json(
         { ok: false, message: "Customers can only cancel their own bookings" },
         { status: 403 },
       );
     }
 
-    const updatedBooking = await updateBookingStatus(id, body.status);
+    const reason =
+      body.status === "cancelled"
+        ? session.user.role === "customer"
+          ? "cancelled_by_customer"
+          : session.user.role === "shop"
+            ? "cancelled_by_business"
+            : "cancelled_by_admin"
+        : null;
+
+    const updatedBooking = await updateBookingStatus(id, body.status, {
+      userId: session.user.id,
+      role: session.user.role,
+      reason,
+    });
 
     if (!updatedBooking) {
       return NextResponse.json(
@@ -169,6 +188,16 @@ export async function PATCH(request: Request, context: RouteContext) {
       data: updatedBooking,
     });
   } catch (error) {
+    if (error instanceof HttpRequestError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: error.message,
+        },
+        { status: error.status },
+      );
+    }
+
     return NextResponse.json(
       {
         ok: false,

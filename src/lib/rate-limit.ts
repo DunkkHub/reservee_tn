@@ -1,58 +1,62 @@
 import "server-only";
 
-type RateLimitBucket = {
-  count: number;
-  expiresAt: number;
+import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
+
+import { getDbPool } from "@/lib/db";
+import { toDatabaseDateTime } from "@/lib/datetime";
+import { hashValue } from "@/lib/security";
+
+type RateLimitRow = RowDataPacket & {
+  request_count: number;
+  expires_at: string;
 };
 
-declare global {
-  var reserveeRateLimitStore: Map<string, RateLimitBucket> | undefined;
-}
-
-function getRateLimitStore() {
-  if (!globalThis.reserveeRateLimitStore) {
-    globalThis.reserveeRateLimitStore = new Map<string, RateLimitBucket>();
-  }
-
-  return globalThis.reserveeRateLimitStore;
-}
-
-export function consumeRateLimit(input: {
+export async function consumeRateLimit(input: {
   key: string;
   windowMs: number;
   maxRequests: number;
 }) {
-  const store = getRateLimitStore();
-  const now = Date.now();
-  const existing = store.get(input.key);
+  const pool = getDbPool();
+  const bucketKey = hashValue(`${input.key}:${input.windowMs}`);
+  const expiresAt = new Date(Date.now() + input.windowMs);
 
-  if (!existing || existing.expiresAt <= now) {
-    store.set(input.key, {
-      count: 1,
-      expiresAt: now + input.windowMs,
-    });
+  await pool.execute<ResultSetHeader>(
+    `
+      DELETE FROM rate_limit_buckets
+      WHERE expires_at <= UTC_TIMESTAMP()
+        AND bucket_key = ?
+    `,
+    [bucketKey],
+  );
 
-    return {
-      allowed: true,
-      remaining: input.maxRequests - 1,
-      resetAt: now + input.windowMs,
-    };
-  }
+  await pool.execute<ResultSetHeader>(
+    `
+      INSERT INTO rate_limit_buckets (bucket_key, request_count, expires_at)
+      VALUES (?, 1, ?)
+      ON DUPLICATE KEY UPDATE
+        request_count = request_count + 1
+    `,
+    [bucketKey, toDatabaseDateTime(expiresAt)],
+  );
 
-  if (existing.count >= input.maxRequests) {
-    return {
-      allowed: false,
-      remaining: 0,
-      resetAt: existing.expiresAt,
-    };
-  }
+  const [rows] = await pool.query<RateLimitRow[]>(
+    `
+      SELECT request_count, expires_at
+      FROM rate_limit_buckets
+      WHERE bucket_key = ?
+      LIMIT 1
+    `,
+    [bucketKey],
+  );
 
-  existing.count += 1;
-  store.set(input.key, existing);
+  const row = rows[0];
+  const count = Number(row?.request_count ?? 0);
+  const resetAt = new Date(`${row?.expires_at ?? toDatabaseDateTime(expiresAt)}Z`).getTime();
+  const allowed = count <= input.maxRequests;
 
   return {
-    allowed: true,
-    remaining: Math.max(input.maxRequests - existing.count, 0),
-    resetAt: existing.expiresAt,
+    allowed,
+    remaining: allowed ? Math.max(input.maxRequests - count, 0) : 0,
+    resetAt,
   };
 }

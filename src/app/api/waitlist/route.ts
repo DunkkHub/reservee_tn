@@ -4,6 +4,12 @@ import { recordActivity } from "@/lib/activity-log-repository";
 import { getApiSession } from "@/lib/auth-session";
 import { findBusinessById, findBusinessByOwner } from "@/lib/business-repository";
 import { getDatabaseErrorMessage } from "@/lib/db";
+import { consumeRateLimit } from "@/lib/rate-limit";
+import {
+  assertAllowedOrigin,
+  getClientIp,
+  HttpRequestError,
+} from "@/lib/security";
 import { findServiceById } from "@/lib/service-repository";
 import {
   createWaitlistRequest,
@@ -85,6 +91,29 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    assertAllowedOrigin(request);
+
+    const rateLimit = await consumeRateLimit({
+      key: `waitlist-create:${getClientIp(request)}`,
+      windowMs: 10 * 60 * 1000,
+      maxRequests: 12,
+    });
+
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: "Too many waitlist requests. Please try again in a few minutes.",
+        },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(Math.ceil((rateLimit.resetAt - Date.now()) / 1000)),
+          },
+        },
+      );
+    }
+
     const body = (await request.json()) as {
       businessId?: string;
       serviceId?: string;
@@ -151,6 +180,16 @@ export async function POST(request: Request) {
       { status: 201 },
     );
   } catch (error) {
+    if (error instanceof HttpRequestError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: error.message,
+        },
+        { status: error.status },
+      );
+    }
+
     return NextResponse.json(
       {
         ok: false,

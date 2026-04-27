@@ -64,11 +64,9 @@ const labelDictionary = {
     bookingStatuses: {
       pending: "En attente",
       confirmed: "Confirmee",
-      completed: "Terminee",
-      cancelled_by_customer: "Annulee client",
-      cancelled_by_business: "Annulee business",
+      cancelled: "Annulee",
       rejected: "Rejetee",
-      expired: "Expiree",
+      completed: "Terminee",
       no_show: "No-show",
     },
     bookingModes: {
@@ -99,11 +97,9 @@ const labelDictionary = {
     bookingStatuses: {
       pending: "Pending",
       confirmed: "Confirmed",
-      completed: "Completed",
-      cancelled_by_customer: "Cancelled by customer",
-      cancelled_by_business: "Cancelled by business",
+      cancelled: "Cancelled",
       rejected: "Rejected",
-      expired: "Expired",
+      completed: "Completed",
       no_show: "No-show",
     },
     bookingModes: {
@@ -403,7 +399,25 @@ export function getAudienceLabel(audience: Audience, locale: AppLocale) {
 }
 
 export function getBookingStatusLabel(status: BookingStatus, locale: AppLocale) {
-  return labelDictionary[locale].bookingStatuses[status];
+  const bookingStatuses = labelDictionary[locale].bookingStatuses as Record<string, string>;
+
+  if (bookingStatuses[status]) {
+    return bookingStatuses[status];
+  }
+
+  if (status === "cancelled") {
+    switch (locale) {
+      case "en":
+        return "Cancelled";
+      case "ar":
+        return "ملغى";
+      case "fr":
+      default:
+        return "Annulee";
+    }
+  }
+
+  return status;
 }
 
 export function getBookingModeLabel(mode: BookingMode, locale: AppLocale) {

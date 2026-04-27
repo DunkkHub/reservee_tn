@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { businessStatusLabel, businessStatusTone, getGalleryItems } from "@/lib/platform-rules";
-import { categories, cities } from "@/lib/seed-data";
+import { categories, cities } from "@/lib/taxonomy";
 import type { BusinessStatus } from "@/lib/types";
 import { formatDateTime, formatMonthYear } from "@/lib/utils";
 

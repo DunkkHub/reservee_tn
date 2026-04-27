@@ -27,7 +27,7 @@ import {
   getCategoryTranslation,
   getCityTranslation,
 } from "@/lib/i18n";
-import { categories, cities } from "@/lib/seed-data";
+import { categories, cities } from "@/lib/taxonomy";
 import { cn } from "@/lib/utils";
 
 export function MarketplaceHomePage() {

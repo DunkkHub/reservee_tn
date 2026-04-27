@@ -10,11 +10,27 @@ CREATE TABLE IF NOT EXISTS app_users (
   name VARCHAR(120) NOT NULL,
   email VARCHAR(190) NOT NULL,
   phone VARCHAR(32) NOT NULL,
+  phone_normalized VARCHAR(32) NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
+  password_updated_at DATETIME NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_app_users_email (email)
+  UNIQUE KEY uq_app_users_email (email),
+  UNIQUE KEY uq_app_users_phone_normalized (phone_normalized),
+  KEY idx_app_users_role (role)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE OR REPLACE VIEW users AS
+SELECT
+  id,
+  role,
+  name,
+  email,
+  phone,
+  phone_normalized,
+  created_at,
+  updated_at
+FROM app_users;
 
 CREATE TABLE IF NOT EXISTS business_profiles (
   id VARCHAR(36) NOT NULL PRIMARY KEY,
@@ -32,6 +48,7 @@ CREATE TABLE IF NOT EXISTS business_profiles (
   logo_text VARCHAR(50) NOT NULL DEFAULT '',
   cover_url VARCHAR(500) NOT NULL DEFAULT '',
   slug VARCHAR(190) NOT NULL,
+  timezone VARCHAR(64) NOT NULL DEFAULT 'Africa/Tunis',
   audience ENUM('women', 'men', 'unisex') NOT NULL DEFAULT 'unisex',
   years_in_business INT NOT NULL DEFAULT 1,
   booking_mode ENUM('instant', 'approval_required') NOT NULL DEFAULT 'approval_required',
@@ -66,13 +83,46 @@ CREATE TABLE IF NOT EXISTS business_profiles (
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_business_profiles_owner (owner_user_id),
   UNIQUE KEY uq_business_profiles_slug (slug),
+  KEY idx_business_profiles_status (status),
+  KEY idx_business_profiles_city_slug (city_slug),
+  KEY idx_business_profiles_category_slug (category_slug),
+  KEY idx_business_profiles_featured_rank (featured_rank),
   CONSTRAINT fk_business_profiles_owner
     FOREIGN KEY (owner_user_id)
     REFERENCES app_users (id)
-    ON DELETE CASCADE,
-  KEY idx_business_profiles_status (status),
-  KEY idx_business_profiles_city_slug (city_slug),
-  KEY idx_business_profiles_category_slug (category_slug)
+    ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE OR REPLACE VIEW businesses AS
+SELECT
+  id,
+  owner_user_id,
+  slug,
+  status,
+  timezone,
+  booking_mode,
+  operating_mode,
+  created_at,
+  updated_at
+FROM business_profiles;
+
+CREATE TABLE IF NOT EXISTS staff_members (
+  id VARCHAR(36) NOT NULL PRIMARY KEY,
+  business_id VARCHAR(36) NOT NULL,
+  full_name VARCHAR(120) NOT NULL,
+  title VARCHAR(120) NOT NULL DEFAULT '',
+  bio TEXT NULL,
+  phone VARCHAR(32) NOT NULL DEFAULT '',
+  color_hex VARCHAR(7) NOT NULL DEFAULT '#C8A96B',
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_staff_members_business_id (business_id),
+  KEY idx_staff_members_active (is_active),
+  CONSTRAINT fk_staff_members_business
+    FOREIGN KEY (business_id)
+    REFERENCES business_profiles (id)
+    ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS services (
@@ -93,7 +143,8 @@ CREATE TABLE IF NOT EXISTS services (
     REFERENCES business_profiles (id)
     ON DELETE CASCADE,
   KEY idx_services_business_id (business_id),
-  KEY idx_services_active (active)
+  KEY idx_services_active (active),
+  KEY idx_services_sort_order (business_id, sort_order)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS business_hours (
@@ -114,24 +165,47 @@ CREATE TABLE IF NOT EXISTS business_hours (
   UNIQUE KEY uq_business_hours_business_day (business_id, day_of_week)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS availability_exceptions (
+  id VARCHAR(36) NOT NULL PRIMARY KEY,
+  business_id VARCHAR(36) NOT NULL,
+  staff_member_id VARCHAR(36) NULL,
+  exception_type ENUM('blocked', 'closed') NOT NULL DEFAULT 'blocked',
+  start_at DATETIME NOT NULL,
+  end_at DATETIME NOT NULL,
+  reason VARCHAR(160) NOT NULL DEFAULT '',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_availability_exceptions_business
+    FOREIGN KEY (business_id)
+    REFERENCES business_profiles (id)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_availability_exceptions_staff
+    FOREIGN KEY (staff_member_id)
+    REFERENCES staff_members (id)
+    ON DELETE SET NULL,
+  KEY idx_availability_exceptions_business_id (business_id),
+  KEY idx_availability_exceptions_staff_id (staff_member_id),
+  KEY idx_availability_exceptions_range (business_id, start_at, end_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS bookings (
   id VARCHAR(36) NOT NULL PRIMARY KEY,
   reference_code VARCHAR(12) NOT NULL UNIQUE,
   business_id VARCHAR(36) NOT NULL,
   service_id VARCHAR(36) NOT NULL,
+  customer_user_id VARCHAR(36) NULL,
   customer_name VARCHAR(120) NOT NULL,
   customer_phone VARCHAR(32) NOT NULL,
+  customer_phone_normalized VARCHAR(32) NOT NULL,
   customer_note TEXT NULL,
   start_at DATETIME NOT NULL,
   end_at DATETIME NOT NULL,
   status ENUM(
     'pending',
     'confirmed',
-    'completed',
-    'cancelled_by_customer',
-    'cancelled_by_business',
+    'cancelled',
     'rejected',
-    'expired',
+    'completed',
     'no_show'
   ) NOT NULL DEFAULT 'pending',
   source ENUM('web', 'dashboard') NOT NULL DEFAULT 'web',
@@ -148,26 +222,78 @@ CREATE TABLE IF NOT EXISTS bookings (
     FOREIGN KEY (service_id)
     REFERENCES services (id)
     ON DELETE RESTRICT,
+  CONSTRAINT fk_bookings_customer_user
+    FOREIGN KEY (customer_user_id)
+    REFERENCES app_users (id)
+    ON DELETE SET NULL,
   KEY idx_bookings_business_id (business_id),
+  KEY idx_bookings_customer_user_id (customer_user_id),
+  KEY idx_bookings_customer_phone (customer_phone_normalized),
   KEY idx_bookings_status (status),
   KEY idx_bookings_start_at (start_at),
-  KEY idx_bookings_customer_phone (customer_phone)
+  KEY idx_bookings_end_at (end_at),
+  KEY idx_bookings_business_window (business_id, start_at, end_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS blocked_slots (
+CREATE TABLE IF NOT EXISTS booking_slot_locks (
   id VARCHAR(36) NOT NULL PRIMARY KEY,
+  booking_id VARCHAR(36) NOT NULL,
   business_id VARCHAR(36) NOT NULL,
-  start_at DATETIME NOT NULL,
-  end_at DATETIME NOT NULL,
-  reason VARCHAR(160) NOT NULL DEFAULT '',
+  slot_start_at DATETIME NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  CONSTRAINT fk_blocked_slots_business
+  CONSTRAINT fk_booking_slot_locks_booking
+    FOREIGN KEY (booking_id)
+    REFERENCES bookings (id)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_booking_slot_locks_business
     FOREIGN KEY (business_id)
     REFERENCES business_profiles (id)
     ON DELETE CASCADE,
-  KEY idx_blocked_slots_business_id (business_id),
-  KEY idx_blocked_slots_start_at (start_at)
+  UNIQUE KEY uq_booking_slot_locks_business_slot (business_id, slot_start_at),
+  KEY idx_booking_slot_locks_booking_id (booking_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS booking_events (
+  id VARCHAR(36) NOT NULL PRIMARY KEY,
+  booking_id VARCHAR(36) NOT NULL,
+  business_id VARCHAR(36) NOT NULL,
+  actor_user_id VARCHAR(36) NULL,
+  actor_role ENUM('customer', 'shop', 'admin', 'system', 'public') NOT NULL,
+  event_type ENUM('created', 'status_changed', 'reschedule_requested') NOT NULL,
+  previous_status ENUM(
+    'pending',
+    'confirmed',
+    'cancelled',
+    'rejected',
+    'completed',
+    'no_show'
+  ) NULL,
+  next_status ENUM(
+    'pending',
+    'confirmed',
+    'cancelled',
+    'rejected',
+    'completed',
+    'no_show'
+  ) NULL,
+  reason VARCHAR(120) NULL,
+  metadata JSON NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_booking_events_booking
+    FOREIGN KEY (booking_id)
+    REFERENCES bookings (id)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_booking_events_business
+    FOREIGN KEY (business_id)
+    REFERENCES business_profiles (id)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_booking_events_actor
+    FOREIGN KEY (actor_user_id)
+    REFERENCES app_users (id)
+    ON DELETE SET NULL,
+  KEY idx_booking_events_booking_id (booking_id),
+  KEY idx_booking_events_business_id (business_id),
+  KEY idx_booking_events_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS media_items (
@@ -178,6 +304,7 @@ CREATE TABLE IF NOT EXISTS media_items (
   alt VARCHAR(160) NOT NULL DEFAULT '',
   sort_order INT NOT NULL DEFAULT 0,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_media_items_business
     FOREIGN KEY (business_id)
     REFERENCES business_profiles (id)
@@ -189,6 +316,7 @@ CREATE TABLE IF NOT EXISTS media_items (
 CREATE TABLE IF NOT EXISTS moderation_history (
   id VARCHAR(36) NOT NULL PRIMARY KEY,
   business_id VARCHAR(36) NOT NULL,
+  actor_user_id VARCHAR(36) NULL,
   status ENUM(
     'draft',
     'pending_review',
@@ -206,6 +334,10 @@ CREATE TABLE IF NOT EXISTS moderation_history (
     FOREIGN KEY (business_id)
     REFERENCES business_profiles (id)
     ON DELETE CASCADE,
+  CONSTRAINT fk_moderation_history_actor
+    FOREIGN KEY (actor_user_id)
+    REFERENCES app_users (id)
+    ON DELETE SET NULL,
   KEY idx_moderation_history_business_id (business_id),
   KEY idx_moderation_history_changed_at (changed_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -236,6 +368,7 @@ CREATE TABLE IF NOT EXISTS waitlist_requests (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS activity_logs (
+  sequence_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT UNIQUE,
   id VARCHAR(36) NOT NULL PRIMARY KEY,
   type ENUM(
     'business_status_changed',
@@ -249,7 +382,9 @@ CREATE TABLE IF NOT EXISTS activity_logs (
   ) NOT NULL,
   business_id VARCHAR(36) NULL,
   booking_id VARCHAR(36) NULL,
+  actor_user_id VARCHAR(36) NULL,
   summary TEXT NOT NULL,
+  metadata JSON NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_activity_logs_business
     FOREIGN KEY (business_id)
@@ -259,21 +394,80 @@ CREATE TABLE IF NOT EXISTS activity_logs (
     FOREIGN KEY (booking_id)
     REFERENCES bookings (id)
     ON DELETE CASCADE,
+  CONSTRAINT fk_activity_logs_actor
+    FOREIGN KEY (actor_user_id)
+    REFERENCES app_users (id)
+    ON DELETE SET NULL,
   KEY idx_activity_logs_business_id (business_id),
   KEY idx_activity_logs_booking_id (booking_id),
   KEY idx_activity_logs_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-INSERT INTO app_users (id, role, name, email, phone, password_hash)
-SELECT
-  'admin-local-1',
-  'admin',
-  'Reservee Admin',
-  'admin@reservee.tn',
-  '+216 00 000 000',
-  '096af41a2e3b6554247a0dde7903c0ed:6128d946648b02287710c0b2e23544b38e0bd9475d694cc29e825cfdb110dae31c5704995801159398bc9274efeca4682248ba2cab660a01d340af6446761506'
-WHERE NOT EXISTS (
-  SELECT 1
-  FROM app_users
-  WHERE email = 'admin@reservee.tn'
-);
+CREATE TABLE IF NOT EXISTS sessions (
+  id VARCHAR(36) NOT NULL PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL,
+  token_hash CHAR(64) NOT NULL,
+  expires_at DATETIME NOT NULL,
+  last_seen_at DATETIME NULL,
+  revoked_at DATETIME NULL,
+  ip_address VARCHAR(64) NULL,
+  user_agent VARCHAR(255) NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_sessions_user
+    FOREIGN KEY (user_id)
+    REFERENCES app_users (id)
+    ON DELETE CASCADE,
+  UNIQUE KEY uq_sessions_token_hash (token_hash),
+  KEY idx_sessions_user_id (user_id),
+  KEY idx_sessions_expires_at (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS auth_challenges (
+  id VARCHAR(36) NOT NULL PRIMARY KEY,
+  purpose ENUM('login', 'password_reset', 'booking_access') NOT NULL,
+  user_id VARCHAR(36) NULL,
+  reference_code VARCHAR(12) NULL,
+  customer_phone_normalized VARCHAR(32) NULL,
+  delivery_channel ENUM('email', 'sms') NOT NULL,
+  destination VARCHAR(255) NOT NULL,
+  code_hash CHAR(64) NOT NULL,
+  attempt_count INT NOT NULL DEFAULT 0,
+  max_attempts INT NOT NULL DEFAULT 5,
+  expires_at DATETIME NOT NULL,
+  consumed_at DATETIME NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_auth_challenges_user
+    FOREIGN KEY (user_id)
+    REFERENCES app_users (id)
+    ON DELETE CASCADE,
+  KEY idx_auth_challenges_user_id (user_id),
+  KEY idx_auth_challenges_reference_code (reference_code),
+  KEY idx_auth_challenges_expires_at (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS booking_access_sessions (
+  id VARCHAR(36) NOT NULL PRIMARY KEY,
+  reference_code VARCHAR(12) NOT NULL,
+  customer_phone_normalized VARCHAR(32) NOT NULL,
+  token_hash CHAR(64) NOT NULL,
+  expires_at DATETIME NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_booking_access_sessions_reference
+    FOREIGN KEY (reference_code)
+    REFERENCES bookings (reference_code)
+    ON DELETE CASCADE,
+  UNIQUE KEY uq_booking_access_sessions_token_hash (token_hash),
+  KEY idx_booking_access_sessions_reference_code (reference_code),
+  KEY idx_booking_access_sessions_expires_at (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS rate_limit_buckets (
+  bucket_key VARCHAR(190) NOT NULL PRIMARY KEY,
+  request_count INT NOT NULL DEFAULT 0,
+  expires_at DATETIME NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_rate_limit_buckets_expires_at (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

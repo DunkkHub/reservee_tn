@@ -69,9 +69,12 @@ export function BookingFlowPage({ slug }: { slug: string }) {
     const currentService = selectedService;
     let cancelled = false;
 
-    async function loadSlots() {
+    async function loadSlots(silent = false) {
       try {
-        setSlotsLoading(true);
+        if (!silent) {
+          setSlotsLoading(true);
+        }
+
         const slots = await fetchApi<string[]>(
           `/api/availability?businessId=${encodeURIComponent(currentBusiness.id)}&serviceId=${encodeURIComponent(currentService.id)}&type=slots&date=${formatDateKey(selectedDate)}`,
         );
@@ -81,19 +84,27 @@ export function BookingFlowPage({ slug }: { slug: string }) {
         }
       } catch {
         if (!cancelled) {
-          setAvailableSlots([]);
+          if (!silent) {
+            setAvailableSlots([]);
+          }
         }
       } finally {
-        if (!cancelled) {
+        if (!cancelled && !silent) {
           setSlotsLoading(false);
         }
       }
     }
 
     void loadSlots();
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void loadSlots(true);
+      }
+    }, 15_000);
 
     return () => {
       cancelled = true;
+      window.clearInterval(intervalId);
     };
   }, [business, selectedDate, selectedService]);
 

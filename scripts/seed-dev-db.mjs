@@ -1,52 +1,102 @@
-import fs from "node:fs/promises";
+import { randomBytes, scryptSync } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { addDays, addHours, addMinutes } from "date-fns";
+import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import mysql from "mysql2/promise";
+
+import { loadEnvFiles } from "./lib/load-env.mjs";
+import { getDatabaseConfigFromEnv } from "./lib/mysql-config.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, "..");
+const DEFAULT_TIMEZONE = "Africa/Tunis";
+const KEY_LENGTH = 64;
+const SLOT_LOCK_STEP_MINUTES = 5;
 
-const connection = await mysql.createConnection({
-  host: process.env.DB_HOST || "127.0.0.1",
-  port: Number(process.env.DB_PORT || "3306"),
-  user: process.env.DB_USER || "root",
-  password: process.env.DB_PASSWORD || "",
-  database: process.env.DB_NAME || "reservee_tn",
-  multipleStatements: true,
-});
+await loadEnvFiles(projectRoot);
+await import("./db-migrate.mjs");
 
-const schemaFiles = [
-  path.join(projectRoot, "database", "reservee_tn.sql"),
-  path.join(projectRoot, "database", "migrations", "2026-04-13-sync-backend-schema.sql"),
-  path.join(projectRoot, "database", "migrations", "2026-04-13-production-state-foundation.sql"),
-];
-
-for (const file of schemaFiles) {
-  const sql = await fs.readFile(file, "utf8");
-  await connection.query(sql);
+function hashPassword(password) {
+  const salt = randomBytes(16).toString("hex");
+  const derivedKey = scryptSync(password, salt, KEY_LENGTH).toString("hex");
+  return `${salt}:${derivedKey}`;
 }
 
-const seedPasswordHash = "dev-seed-placeholder-hash";
+function toDbDateTime(value) {
+  return formatInTimeZone(value, "UTC", "yyyy-MM-dd HH:mm:ss");
+}
+
+function formatDateKey(value) {
+  return formatInTimeZone(value, DEFAULT_TIMEZONE, "yyyy-MM-dd");
+}
+
+function createDateTime(dateKey, time) {
+  return fromZonedTime(`${dateKey}T${time}:00`, DEFAULT_TIMEZONE);
+}
+
+function getBookingExpiryAt(createdAt, startAt) {
+  const createdExpiry = addHours(createdAt, 2);
+  return createdExpiry < startAt ? createdExpiry : startAt;
+}
+
+function createSlotLocks(startAt, endAt) {
+  const slots = [];
+  let cursor = new Date(startAt);
+
+  while (cursor < endAt) {
+    slots.push(new Date(cursor));
+    cursor = addMinutes(cursor, SLOT_LOCK_STEP_MINUTES);
+  }
+
+  return slots;
+}
+
+const adminPassword = "Admin12345!";
+const ownerPassword = "Owner12345!";
+const customerPassword = "Customer12345!";
 
 const seedUsers = [
   {
+    id: "seed-user-admin",
+    role: "admin",
+    name: "Reservee Admin",
+    email: "admin@reservee.tn",
+    phone: "+216 20 000 001",
+    passwordHash: hashPassword(adminPassword),
+  },
+  {
     id: "seed-user-atlas",
+    role: "shop",
     name: "Atlas Owner",
-    email: "atlas@reservee.seed",
+    email: "atlas@reservee.tn",
     phone: "+216 20 111 111",
+    passwordHash: hashPassword(ownerPassword),
   },
   {
     id: "seed-user-nude",
+    role: "shop",
     name: "Nude Owner",
-    email: "nude@reservee.seed",
+    email: "nude@reservee.tn",
     phone: "+216 20 222 222",
+    passwordHash: hashPassword(ownerPassword),
   },
   {
     id: "seed-user-hammam",
-    name: "Hammam Owner",
-    email: "hammam@reservee.seed",
+    role: "shop",
+    name: "Hayat Owner",
+    email: "hayat@reservee.tn",
     phone: "+216 20 333 333",
+    passwordHash: hashPassword(ownerPassword),
+  },
+  {
+    id: "seed-user-customer",
+    role: "customer",
+    name: "Salma Ben Youssef",
+    email: "customer@reservee.tn",
+    phone: "+216 21 555 777",
+    passwordHash: hashPassword(customerPassword),
   },
 ];
 
@@ -65,31 +115,20 @@ const seedBusinesses = [
     instagram: "@atlasbarberclub",
     tagline: "Precision cuts, beard work, and a polished barbershop atmosphere.",
     description:
-      "Atlas Barber Club is a premium Tunis barbershop focused on fades, beard care, and clean appointment flow. Clients book quickly, businesses stay organized, and the profile feels like a real storefront instead of a listing stub.",
+      "Atlas Barber Club is a premium Tunis barbershop focused on fades, beard care, and clean appointment flow. Clients book quickly, businesses stay organised, and the profile feels like a real storefront instead of a listing stub.",
     logoText: "AB",
     coverUrl:
       "https://images.unsplash.com/photo-1517832606299-7ae9b720a186?auto=format&fit=crop&w=1600&q=80",
+    status: "featured",
+    featuredRank: 1,
+    featuredCopy: "Premium barber partner in Tunis.",
     audience: "men",
-    years: 6,
     bookingMode: "instant",
     operatingMode: "appointment_only",
     responseWindow: "Reponse sous 30 min",
-    phoneVerified: true,
-    addressVerified: true,
-    responseTimeTracked: true,
-    cancellationNotice: "Merci d annuler au moins 24h a l avance.",
-    lateArrivalGraceMinutes: 10,
-    noShowRule: "Deux absences non annulees peuvent limiter les prochaines demandes.",
-    hygieneNote: "Outils desinfectes entre chaque client.",
-    depositRequired: false,
-    childrenAccepted: true,
-    policyClarity: "clear",
-    status: "featured",
-    featuredUntil: "2026-12-31 23:59:59",
-    featuredRank: 1,
+    yearsInBusiness: 6,
     featuredCitySlug: "tunis",
     featuredCategorySlug: "barbers",
-    featuredCopy: "Premium barber partner in Tunis.",
   },
   {
     id: "seed-biz-nude",
@@ -105,31 +144,20 @@ const seedBusinesses = [
     instagram: "@nudeglowstudio",
     tagline: "Facials, glow rituals, and premium beauty care.",
     description:
-      "Nude Glow Studio gives skincare and beauty clients a calm, polished booking experience. Services, prices, and availability are clearly structured so clients can move from discovery to confirmed appointment in under a minute.",
+      "Nude Glow Studio gives skincare and beauty clients a calm, polished booking experience. Services, prices, and availability are clearly structured so clients can move from discovery to confirmed appointment quickly.",
     logoText: "NG",
     coverUrl:
       "https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?auto=format&fit=crop&w=1600&q=80",
+    status: "approved",
+    featuredRank: null,
+    featuredCopy: null,
     audience: "women",
-    years: 4,
     bookingMode: "approval_required",
     operatingMode: "both",
     responseWindow: "Reponse sous 1 heure",
-    phoneVerified: true,
-    addressVerified: true,
-    responseTimeTracked: true,
-    cancellationNotice: "Annulation souhaitee 12h avant le rendez-vous.",
-    lateArrivalGraceMinutes: 8,
-    noShowRule: "Les absences non annoncees peuvent affecter les prochaines reservations.",
-    hygieneNote: "Protocoles hygiene renforces pour chaque cabine.",
-    depositRequired: false,
-    childrenAccepted: false,
-    policyClarity: "clear",
-    status: "approved",
-    featuredUntil: null,
-    featuredRank: null,
+    yearsInBusiness: 4,
     featuredCitySlug: null,
     featuredCategorySlug: null,
-    featuredCopy: null,
   },
   {
     id: "seed-biz-hammam",
@@ -149,27 +177,16 @@ const seedBusinesses = [
     logoText: "HH",
     coverUrl:
       "https://images.unsplash.com/photo-1515377905703-c4788e51af15?auto=format&fit=crop&w=1600&q=80",
+    status: "approved",
+    featuredRank: null,
+    featuredCopy: null,
     audience: "unisex",
-    years: 9,
     bookingMode: "approval_required",
     operatingMode: "both",
     responseWindow: "Reponse sous 2 heures",
-    phoneVerified: true,
-    addressVerified: true,
-    responseTimeTracked: false,
-    cancellationNotice: "Merci d annuler au moins 24h avant votre soin.",
-    lateArrivalGraceMinutes: 15,
-    noShowRule: "Les no-shows repetes peuvent entrainer une confirmation manuelle.",
-    hygieneNote: "Espaces humides nettoyes et prepares entre chaque seance.",
-    depositRequired: false,
-    childrenAccepted: true,
-    policyClarity: "clear",
-    status: "approved",
-    featuredUntil: null,
-    featuredRank: null,
+    yearsInBusiness: 9,
     featuredCitySlug: null,
     featuredCategorySlug: null,
-    featuredCopy: null,
   },
 ];
 
@@ -197,46 +214,130 @@ const mediaItems = [
   ["seed-media-hammam-2", "seed-biz-hammam", "gallery", "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?auto=format&fit=crop&w=900&q=80", "Spa details", 2],
 ];
 
-const moderationRows = [
-  ["seed-mod-atlas", "seed-biz-atlas", "featured", "Profile approved and featured for launch.", "Votre fiche est mise en avant sur la marketplace.", "2026-04-13 10:00:00"],
-  ["seed-mod-nude", "seed-biz-nude", "approved", "Profile approved for public listing.", "Votre fiche est approuvee et visible.", "2026-04-13 10:05:00"],
-  ["seed-mod-hammam", "seed-biz-hammam", "approved", "Profile approved for public listing.", "Votre fiche est approuvee et visible.", "2026-04-13 10:10:00"],
+const tomorrowKey = formatDateKey(addDays(new Date(), 1));
+const dayAfterKey = formatDateKey(addDays(new Date(), 2));
+
+const seedBookings = [
+  {
+    id: "seed-booking-atlas-confirmed",
+    referenceCode: "ATLAS1001",
+    businessId: "seed-biz-atlas",
+    serviceId: "seed-svc-atlas-1",
+    customerUserId: "seed-user-customer",
+    customerName: "Salma Ben Youssef",
+    customerPhone: "+216 21 555 777",
+    customerNote: "Please keep the beard natural.",
+    startAt: createDateTime(tomorrowKey, "10:00"),
+    status: "confirmed",
+    source: "web",
+  },
+  {
+    id: "seed-booking-atlas-pending",
+    referenceCode: "ATLAS1002",
+    businessId: "seed-biz-atlas",
+    serviceId: "seed-svc-atlas-3",
+    customerUserId: null,
+    customerName: "Public Client",
+    customerPhone: "+216 20 444 888",
+    customerNote: "First visit.",
+    startAt: createDateTime(tomorrowKey, "13:00"),
+    status: "pending",
+    source: "web",
+  },
+  {
+    id: "seed-booking-nude-confirmed",
+    referenceCode: "NUDE1001",
+    businessId: "seed-biz-nude",
+    serviceId: "seed-svc-nude-1",
+    customerUserId: null,
+    customerName: "Amina Trabelsi",
+    customerPhone: "+216 24 900 111",
+    customerNote: "",
+    startAt: createDateTime(dayAfterKey, "15:00"),
+    status: "confirmed",
+    source: "web",
+  },
 ];
 
-const activityRows = [
-  ["seed-activity-atlas", "business_featured", "seed-biz-atlas", null, "Atlas Barber Club is placed as a featured partner in Tunis.", "2026-04-13 10:00:00"],
-  ["seed-activity-nude", "business_status_changed", "seed-biz-nude", null, "Nude Glow Studio is live on the marketplace.", "2026-04-13 10:05:00"],
-  ["seed-activity-hammam", "business_status_changed", "seed-biz-hammam", null, "Hayat Hammam & Spa is live on the marketplace.", "2026-04-13 10:10:00"],
-];
+const connection = await mysql.createConnection({
+  ...getDatabaseConfigFromEnv(),
+  multipleStatements: true,
+});
+
+const businessIds = seedBusinesses.map((business) => business.id);
+const userIds = seedUsers.map((user) => user.id);
+const userEmails = seedUsers.map((user) => user.email.toLowerCase());
+const userPhones = seedUsers.map((user) => user.phone.replace(/\D/g, ""));
+const businessSlugs = seedBusinesses.map((business) => business.slug);
+const bookingReferences = seedBookings.map((booking) => booking.referenceCode);
 
 try {
+  const [existingUsers] = await connection.query(
+    `
+      SELECT id
+      FROM app_users
+      WHERE id IN (${userIds.map(() => "?").join(", ")})
+         OR email IN (${userEmails.map(() => "?").join(", ")})
+         OR phone_normalized IN (${userPhones.map(() => "?").join(", ")})
+    `,
+    [...userIds, ...userEmails, ...userPhones],
+  );
+  const cleanupUserIds = [...new Set([...userIds, ...existingUsers.map((user) => user.id)])];
+
   await connection.beginTransaction();
+
+  await connection.execute(
+    `DELETE FROM sessions WHERE user_id IN (${cleanupUserIds.map(() => "?").join(", ")})`,
+    cleanupUserIds,
+  );
+  await connection.execute(
+    `DELETE FROM auth_challenges WHERE user_id IN (${cleanupUserIds.map(() => "?").join(", ")})`,
+    cleanupUserIds,
+  );
+  await connection.execute(
+    `DELETE FROM booking_access_sessions WHERE reference_code IN (${bookingReferences.map(() => "?").join(", ")})`,
+    bookingReferences,
+  );
+  await connection.execute(
+    `
+      DELETE FROM business_profiles
+      WHERE id IN (${businessIds.map(() => "?").join(", ")})
+         OR slug IN (${businessSlugs.map(() => "?").join(", ")})
+         OR owner_user_id IN (${cleanupUserIds.map(() => "?").join(", ")})
+    `,
+    [...businessIds, ...businessSlugs, ...cleanupUserIds],
+  );
+  await connection.execute(
+    `DELETE FROM app_users WHERE id IN (${cleanupUserIds.map(() => "?").join(", ")})`,
+    cleanupUserIds,
+  );
 
   for (const user of seedUsers) {
     await connection.execute(
       `
-        INSERT INTO app_users (id, role, name, email, phone, password_hash)
-        VALUES (?, 'shop', ?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE
-          name = VALUES(name),
-          phone = VALUES(phone),
-          password_hash = VALUES(password_hash)
+        INSERT INTO app_users (
+          id,
+          role,
+          name,
+          email,
+          phone,
+          phone_normalized,
+          password_hash,
+          password_updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
       `,
-      [user.id, user.name, user.email, user.phone, seedPasswordHash],
+      [
+        user.id,
+        user.role,
+        user.name,
+        user.email.toLowerCase(),
+        user.phone,
+        user.phone.replace(/\D/g, ""),
+        user.passwordHash,
+      ],
     );
   }
-
-  const businessIds = seedBusinesses.map((business) => business.id);
-  const placeholders = businessIds.map(() => "?").join(", ");
-
-  await connection.execute(`DELETE FROM activity_logs WHERE business_id IN (${placeholders})`, businessIds);
-  await connection.execute(`DELETE FROM moderation_history WHERE business_id IN (${placeholders})`, businessIds);
-  await connection.execute(`DELETE FROM waitlist_requests WHERE business_id IN (${placeholders})`, businessIds);
-  await connection.execute(`DELETE FROM blocked_slots WHERE business_id IN (${placeholders})`, businessIds);
-  await connection.execute(`DELETE FROM bookings WHERE business_id IN (${placeholders})`, businessIds);
-  await connection.execute(`DELETE FROM media_items WHERE business_id IN (${placeholders})`, businessIds);
-  await connection.execute(`DELETE FROM business_hours WHERE business_id IN (${placeholders})`, businessIds);
-  await connection.execute(`DELETE FROM services WHERE business_id IN (${placeholders})`, businessIds);
 
   for (const business of seedBusinesses) {
     await connection.execute(
@@ -257,6 +358,7 @@ try {
           logo_text,
           cover_url,
           slug,
+          timezone,
           audience,
           years_in_business,
           booking_mode,
@@ -279,44 +381,7 @@ try {
           featured_copy,
           status
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE
-          owner_user_id = VALUES(owner_user_id),
-          business_name = VALUES(business_name),
-          category_slug = VALUES(category_slug),
-          city_slug = VALUES(city_slug),
-          area = VALUES(area),
-          address = VALUES(address),
-          phone = VALUES(phone),
-          whatsapp = VALUES(whatsapp),
-          instagram = VALUES(instagram),
-          tagline = VALUES(tagline),
-          description = VALUES(description),
-          logo_text = VALUES(logo_text),
-          cover_url = VALUES(cover_url),
-          slug = VALUES(slug),
-          audience = VALUES(audience),
-          years_in_business = VALUES(years_in_business),
-          booking_mode = VALUES(booking_mode),
-          operating_mode = VALUES(operating_mode),
-          response_window = VALUES(response_window),
-          phone_verified = VALUES(phone_verified),
-          address_verified = VALUES(address_verified),
-          response_time_tracked = VALUES(response_time_tracked),
-          cancellation_notice = VALUES(cancellation_notice),
-          late_arrival_grace_minutes = VALUES(late_arrival_grace_minutes),
-          no_show_rule = VALUES(no_show_rule),
-          hygiene_note = VALUES(hygiene_note),
-          deposit_required = VALUES(deposit_required),
-          children_accepted = VALUES(children_accepted),
-          policy_clarity = VALUES(policy_clarity),
-          featured_until = VALUES(featured_until),
-          featured_rank = VALUES(featured_rank),
-          featured_city_slug = VALUES(featured_city_slug),
-          featured_category_slug = VALUES(featured_category_slug),
-          featured_copy = VALUES(featured_copy),
-          status = VALUES(status),
-          updated_at = NOW()
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE, TRUE, TRUE, ?, 10, ?, ?, FALSE, TRUE, 'clear', ?, ?, ?, ?, ?, ?)
       `,
       [
         business.id,
@@ -334,22 +399,18 @@ try {
         business.logoText,
         business.coverUrl,
         business.slug,
+        DEFAULT_TIMEZONE,
         business.audience,
-        business.years,
+        business.yearsInBusiness,
         business.bookingMode,
         business.operatingMode,
         business.responseWindow,
-        business.phoneVerified ? 1 : 0,
-        business.addressVerified ? 1 : 0,
-        business.responseTimeTracked ? 1 : 0,
-        business.cancellationNotice,
-        business.lateArrivalGraceMinutes,
-        business.noShowRule,
-        business.hygieneNote,
-        business.depositRequired ? 1 : 0,
-        business.childrenAccepted ? 1 : 0,
-        business.policyClarity,
-        business.featuredUntil,
+        "Merci d'annuler au moins 24h a l'avance.",
+        "Les absences non annoncees peuvent limiter la priorite sur les prochains creneaux.",
+        "Materiel desinfecte et poste prepare entre chaque client.",
+        business.status === "featured"
+          ? toDbDateTime(addDays(new Date(), 30))
+          : null,
         business.featuredRank,
         business.featuredCitySlug,
         business.featuredCategorySlug,
@@ -369,14 +430,14 @@ try {
           description,
           price,
           duration_minutes,
-          gender_target,
+          active,
           featured,
-          sort_order,
-          active
+          gender_target,
+          sort_order
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE)
+        VALUES (?, ?, ?, ?, ?, ?, TRUE, ?, ?, ?)
       `,
-      [id, businessId, title, description, price, duration, genderTarget, featured ? 1 : 0, sortOrder],
+      [id, businessId, title, description, price, duration, featured ? 1 : 0, genderTarget, sortOrder],
     );
   }
 
@@ -384,6 +445,7 @@ try {
     for (let day = 0; day < 7; day += 1) {
       const isClosed = day === 0;
       const breaks = day === 5 ? JSON.stringify([{ start: "13:00", end: "14:00" }]) : null;
+
       await connection.execute(
         `
           INSERT INTO business_hours (
@@ -412,28 +474,163 @@ try {
     );
   }
 
-  for (const [id, businessId, status, internalNote, businessMessage, changedAt] of moderationRows) {
+  for (const booking of seedBookings) {
+    const service = services.find((service) => service[0] === booking.serviceId);
+    const durationMinutes = Number(service?.[5] ?? 45);
+    const endAt = addMinutes(booking.startAt, durationMinutes);
+    const createdAt = addHours(booking.startAt, -20);
+    const expiresAt =
+      booking.status === "pending"
+        ? getBookingExpiryAt(createdAt, booking.startAt)
+        : null;
+
     await connection.execute(
       `
-        INSERT INTO moderation_history (id, business_id, status, internal_note, business_message, changed_at)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO bookings (
+          id,
+          reference_code,
+          business_id,
+          service_id,
+          customer_user_id,
+          customer_name,
+          customer_phone,
+          customer_phone_normalized,
+          customer_note,
+          start_at,
+          end_at,
+          status,
+          source,
+          expires_at,
+          status_updated_at,
+          created_at,
+          updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
-      [id, businessId, status, internalNote, businessMessage, changedAt],
+      [
+        booking.id,
+        booking.referenceCode,
+        booking.businessId,
+        booking.serviceId,
+        booking.customerUserId,
+        booking.customerName,
+        booking.customerPhone,
+        booking.customerPhone.replace(/\D/g, ""),
+        booking.customerNote || null,
+        toDbDateTime(booking.startAt),
+        toDbDateTime(endAt),
+        booking.status,
+        booking.source,
+        expiresAt ? toDbDateTime(expiresAt) : null,
+        toDbDateTime(createdAt),
+        toDbDateTime(createdAt),
+        toDbDateTime(createdAt),
+      ],
+    );
+
+    if (booking.status === "pending" || booking.status === "confirmed") {
+      for (const slotStart of createSlotLocks(booking.startAt, endAt)) {
+        await connection.execute(
+          `
+            INSERT INTO booking_slot_locks (id, booking_id, business_id, slot_start_at)
+            VALUES (UUID(), ?, ?, ?)
+          `,
+          [booking.id, booking.businessId, toDbDateTime(slotStart)],
+        );
+      }
+    }
+
+    await connection.execute(
+      `
+        INSERT INTO booking_events (
+          id,
+          booking_id,
+          business_id,
+          actor_user_id,
+          actor_role,
+          event_type,
+          next_status,
+          metadata
+        )
+        VALUES (?, ?, ?, ?, ?, 'created', ?, JSON_OBJECT('source', ?))
+      `,
+      [
+        `${booking.id}-event-created`,
+        booking.id,
+        booking.businessId,
+        booking.customerUserId,
+        booking.customerUserId ? "customer" : "public",
+        booking.status,
+        booking.source,
+      ],
+    );
+
+    await connection.execute(
+      `
+        INSERT INTO activity_logs (id, type, business_id, booking_id, actor_user_id, summary)
+        VALUES (?, 'booking_created', ?, ?, ?, ?)
+      `,
+      [
+        `${booking.id}-activity-created`,
+        booking.businessId,
+        booking.id,
+        booking.customerUserId,
+        `Booking ${booking.referenceCode} seeded with ${booking.status} status.`,
+      ],
     );
   }
 
-  for (const [id, type, businessId, bookingId, summary, createdAt] of activityRows) {
+  for (const business of seedBusinesses) {
     await connection.execute(
       `
-        INSERT INTO activity_logs (id, type, business_id, booking_id, summary, created_at)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO moderation_history (
+          id,
+          business_id,
+          actor_user_id,
+          status,
+          internal_note,
+          business_message,
+          changed_at
+        )
+        VALUES (?, ?, 'seed-user-admin', ?, ?, ?, ?)
       `,
-      [id, type, businessId, bookingId, summary, createdAt],
+      [
+        `${business.id}-moderation-1`,
+        business.id,
+        business.status,
+        business.status === "featured"
+          ? "Profile approved and featured for local development."
+          : "Profile approved for local development.",
+        business.status === "featured"
+          ? "Votre fiche est mise en avant en local."
+          : "Votre fiche est visible en local.",
+        toDbDateTime(addHours(new Date(), -4)),
+      ],
+    );
+
+    await connection.execute(
+      `
+        INSERT INTO activity_logs (id, type, business_id, actor_user_id, summary)
+        VALUES (?, ?, ?, 'seed-user-admin', ?)
+      `,
+      [
+        `${business.id}-activity-launch`,
+        business.status === "featured" ? "business_featured" : "business_status_changed",
+        business.id,
+        business.status === "featured"
+          ? `${business.name} is seeded as a featured marketplace partner.`
+          : `${business.name} is seeded as a live marketplace business.`,
+      ],
     );
   }
 
   await connection.commit();
-  console.log("Dev database seed complete.");
+  console.log("Development database seeded.");
+  console.log("");
+  console.log("Local development accounts");
+  console.log(`Admin: admin@reservee.tn / ${adminPassword}`);
+  console.log(`Business owner: atlas@reservee.tn / ${ownerPassword}`);
+  console.log(`Customer: customer@reservee.tn / ${customerPassword}`);
 } catch (error) {
   await connection.rollback();
   console.error(error);

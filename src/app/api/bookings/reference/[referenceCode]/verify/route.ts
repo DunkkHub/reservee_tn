@@ -3,6 +3,11 @@ import { NextResponse } from "next/server";
 import { verifyBookingReferenceChallenge } from "@/lib/booking-reference-access";
 import { getDatabaseErrorMessage } from "@/lib/db";
 import { consumeRateLimit } from "@/lib/rate-limit";
+import {
+  assertAllowedOrigin,
+  getClientIp,
+  HttpRequestError,
+} from "@/lib/security";
 
 export const runtime = "nodejs";
 
@@ -12,18 +17,12 @@ type RouteContext = {
   }>;
 };
 
-function getClientIp(request: Request) {
-  return (
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    request.headers.get("x-real-ip") ||
-    "unknown"
-  );
-}
-
 export async function POST(request: Request, context: RouteContext) {
   try {
+    assertAllowedOrigin(request);
+
     const { referenceCode } = await context.params;
-    const rateLimit = consumeRateLimit({
+    const rateLimit = await consumeRateLimit({
       key: `public-booking-reference-verify:${getClientIp(request)}:${referenceCode.toUpperCase()}`,
       windowMs: 10 * 60 * 1000,
       maxRequests: 10,
@@ -56,7 +55,7 @@ export async function POST(request: Request, context: RouteContext) {
       );
     }
 
-    const result = verifyBookingReferenceChallenge({
+    const result = await verifyBookingReferenceChallenge({
       challengeId: body.challengeId,
       referenceCode,
       code: body.code,
@@ -77,6 +76,16 @@ export async function POST(request: Request, context: RouteContext) {
       },
     });
   } catch (error) {
+    if (error instanceof HttpRequestError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: error.message,
+        },
+        { status: error.status },
+      );
+    }
+
     return NextResponse.json(
       {
         ok: false,

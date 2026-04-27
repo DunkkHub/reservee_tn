@@ -162,7 +162,7 @@ function mapBusiness(seed: LegacyBusinessSeed): Business {
 
 function mapBookingStatus(status: LegacyBookingStatus): Booking["status"] {
   if (status === "cancelled") {
-    return "cancelled_by_business";
+    return "cancelled";
   }
 
   return status;

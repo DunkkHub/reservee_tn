@@ -32,7 +32,7 @@ import {
   getYesNoLabel,
 } from "@/lib/i18n";
 import { isBusinessFeatured } from "@/lib/platform-rules";
-import { categories, cities } from "@/lib/seed-data";
+import { categories, cities } from "@/lib/taxonomy";
 import {
   bookingModeLabel,
   cn,
@@ -88,7 +88,7 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
     const currentService = selectedService;
     let cancelled = false;
 
-    async function loadAvailability() {
+    async function loadAvailability(silent = false) {
       try {
         const [slots, nextAvailableAt] = await Promise.all([
           fetchApi<string[]>(
@@ -105,16 +105,24 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
         }
       } catch {
         if (!cancelled) {
-          setAvailableSlots([]);
-          setNextBestSlot(null);
+          if (!silent) {
+            setAvailableSlots([]);
+            setNextBestSlot(null);
+          }
         }
       }
     }
 
     void loadAvailability();
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void loadAvailability(true);
+      }
+    }, 15_000);
 
     return () => {
       cancelled = true;
+      window.clearInterval(intervalId);
     };
   }, [business, selectedDate, selectedService]);
 
