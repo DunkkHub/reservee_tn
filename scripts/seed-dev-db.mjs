@@ -53,9 +53,19 @@ function createSlotLocks(startAt, endAt) {
   return slots;
 }
 
-const adminPassword = "Admin12345!";
-const ownerPassword = "Owner12345!";
-const customerPassword = "Customer12345!";
+function resolveSeedPassword(envKey) {
+  const configuredValue = process.env[envKey]?.trim();
+
+  if (configuredValue) {
+    return configuredValue;
+  }
+
+  return `Rv${randomBytes(10).toString("hex")}!A1`;
+}
+
+const adminPassword = resolveSeedPassword("SEED_ADMIN_PASSWORD");
+const ownerPassword = resolveSeedPassword("SEED_OWNER_PASSWORD");
+const customerPassword = resolveSeedPassword("SEED_CUSTOMER_PASSWORD");
 
 const seedUsers = [
   {

@@ -19,7 +19,7 @@ export async function fetchApi<T>(
   const payload = (await response.json()) as ApiResponse<T>;
 
   if (!response.ok || !payload.ok) {
-    throw new Error(payload.error || payload.message || "Request failed");
+    throw new Error(payload.error?.message || payload.message || "Request failed");
   }
 
   return payload.data as T;

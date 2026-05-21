@@ -1,21 +1,25 @@
-import { NextResponse } from "next/server";
-
+import {
+  errorResponse,
+  rateLimitResponse,
+  successResponse,
+  validationErrorResponse,
+} from "@/lib/api-response";
+import { handleRouteError } from "@/lib/api-route-helpers";
 import {
   createBookingReferenceChallenge,
   normalizePhone,
 } from "@/lib/booking-reference-access";
 import { findBookingByReference } from "@/lib/booking-repository";
-import { getRouteErrorMessage } from "@/lib/error-utils";
 import { consumeRateLimit } from "@/lib/rate-limit";
+import { assertAllowedOrigin, getClientIp } from "@/lib/security";
+import {
+  bookingReferenceChallengeSchema,
+  safeParseWithSchema,
+} from "@/lib/validation";
 import {
   deliverVerificationCode,
   formatVerificationDeliveryMessage,
 } from "@/lib/verification-delivery";
-import {
-  assertAllowedOrigin,
-  getClientIp,
-  HttpRequestError,
-} from "@/lib/security";
 
 export const runtime = "nodejs";
 
@@ -37,43 +41,29 @@ export async function POST(request: Request, context: RouteContext) {
     });
 
     if (!rateLimit.allowed) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: "Too many verification requests. Please try again later.",
-        },
-        {
-          status: 429,
-          headers: {
-            "Retry-After": String(Math.ceil((rateLimit.resetAt - Date.now()) / 1000)),
-          },
-        },
+      return rateLimitResponse(
+        "Too many verification requests. Please try again later.",
+        rateLimit.resetAt,
       );
     }
 
-    const body = (await request.json()) as {
-      customerPhone?: string;
-    };
+    const body = await request.json();
+    const parsed = safeParseWithSchema(bookingReferenceChallengeSchema, body);
 
-    if (!body.customerPhone?.trim()) {
-      return NextResponse.json(
-        { ok: false, message: "Customer phone is required to request a verification code." },
-        { status: 400 },
-      );
+    if (!parsed.success) {
+      return validationErrorResponse(parsed.error);
     }
 
     const booking = await findBookingByReference(referenceCode);
 
     if (
       !booking ||
-      normalizePhone(booking.customerPhone) !== normalizePhone(body.customerPhone)
+      normalizePhone(booking.customerPhone) !== normalizePhone(parsed.data.customerPhone)
     ) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: "Booking reference and phone number do not match.",
-        },
-        { status: 404 },
+      return errorResponse(
+        "Booking reference and phone number do not match.",
+        404,
+        "not_found",
       );
     }
 
@@ -88,37 +78,20 @@ export async function POST(request: Request, context: RouteContext) {
       purpose: "booking_access",
     });
 
-    return NextResponse.json({
-      ok: true,
-      message: formatVerificationDeliveryMessage({
-        purpose: "booking_access",
-        result: delivery,
-      }),
-      data: {
+    return successResponse(
+      {
         challengeId: challenge.challengeId,
         expiresAt: challenge.expiresAt,
         deliveryChannel: "sms",
         destinationHint: delivery.destinationHint,
         developmentCodePreview: delivery.developmentCodePreview,
       },
-    });
-  } catch (error) {
-    if (error instanceof HttpRequestError) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: error.message,
-        },
-        { status: error.status },
-      );
-    }
-
-    return NextResponse.json(
-      {
-        ok: false,
-        message: getRouteErrorMessage(error),
-      },
-      { status: 500 },
+      formatVerificationDeliveryMessage({
+        purpose: "booking_access",
+        result: delivery,
+      }),
     );
+  } catch (error) {
+    return handleRouteError(error, "Unable to start booking verification.");
   }
 }

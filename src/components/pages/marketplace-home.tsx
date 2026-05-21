@@ -19,7 +19,7 @@ import { usePlatform } from "@/components/providers/platform-provider";
 import { usePwa } from "@/components/providers/pwa-provider";
 import { BusinessCard } from "@/components/pages/business-card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonStyles } from "@/components/ui/button";
 import { CategoryIcon } from "@/components/ui/category-icon";
 import { SectionHeading } from "@/components/ui/section-heading";
 import {
@@ -69,7 +69,7 @@ export function MarketplaceHomePage() {
           src="https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=1600&q=80"
           alt={messages.home.heroTitle}
           fill
-          priority
+          preload
           className="object-cover"
           sizes="100vw"
         />
@@ -86,15 +86,15 @@ export function MarketplaceHomePage() {
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
-              <Link href="/explore">
-                <Button size="lg" icon={<ArrowIcon className="h-4 w-4" />}>
-                  {messages.home.bookNow}
-                </Button>
+              <Link href="/explore" className={buttonStyles({ size: "lg" })}>
+                <ArrowIcon className="h-4 w-4" />
+                {messages.home.bookNow}
               </Link>
-              <Link href="/register?role=shop">
-                <Button variant="secondary" size="lg">
-                  {messages.home.addBusiness}
-                </Button>
+              <Link
+                href="/register?role=shop"
+                className={buttonStyles({ variant: "secondary", size: "lg" })}
+              >
+                {messages.home.addBusiness}
               </Link>
               {canInstall ? (
                 <Button
@@ -229,13 +229,16 @@ export function MarketplaceHomePage() {
           title={messages.home.featuredTitle}
           description={messages.home.featuredDescription}
           action={
-            <Link href="/explore">
-              <Button variant="secondary">{messages.home.featuredAction}</Button>
+            <Link
+              href="/explore"
+              className={buttonStyles({ variant: "secondary" })}
+            >
+              {messages.home.featuredAction}
             </Link>
           }
         />
         <div className="grid gap-5 xl:grid-cols-3">
-          {featuredBusinesses.slice(0, 3).map((business) => {
+          {featuredBusinesses.slice(0, 3).map((business, index) => {
             const category = categories.find((item) => item.id === business.categoryId);
             const city = cities.find((item) => item.id === business.cityId);
             const localizedCategory = category
@@ -249,6 +252,7 @@ export function MarketplaceHomePage() {
                 business={business}
                 categoryName={localizedCategory?.name ?? ""}
                 cityName={localizedCity?.name ?? city?.name ?? ""}
+                eagerImage={index === 0}
               />
             );
           })}
@@ -332,10 +336,11 @@ export function MarketplaceHomePage() {
               );
             })}
           </div>
-          <Link href="/register?role=shop">
-            <Button fullWidth variant="secondary">
-              {messages.home.becomePartner}
-            </Button>
+          <Link
+            href="/register?role=shop"
+            className={buttonStyles({ fullWidth: true, variant: "secondary" })}
+          >
+            {messages.home.becomePartner}
           </Link>
         </div>
       </section>
@@ -392,13 +397,15 @@ export function MarketplaceHomePage() {
             {messages.home.joinDescription}
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
-            <Link href="/register?role=shop">
-              <Button icon={<ArrowIcon className="h-4 w-4" />}>
-                {messages.home.addBusiness}
-              </Button>
+            <Link href="/register?role=shop" className={buttonStyles()}>
+              <ArrowIcon className="h-4 w-4" />
+              {messages.home.addBusiness}
             </Link>
-            <Link href="/login?role=shop&next=/dashboard">
-              <Button variant="secondary">{messages.home.viewDashboard}</Button>
+            <Link
+              href="/login?role=shop&next=/dashboard"
+              className={buttonStyles({ variant: "secondary" })}
+            >
+              {messages.home.viewDashboard}
             </Link>
           </div>
         </div>

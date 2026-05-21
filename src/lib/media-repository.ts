@@ -12,6 +12,10 @@ type MediaRow = RowDataPacket & {
   type: MediaType;
   url: string;
   alt: string;
+  storage_provider: string | null;
+  storage_key: string | null;
+  mime_type: string | null;
+  file_size_bytes: number | null;
   sort_order: number;
   created_at: string;
 };
@@ -23,6 +27,11 @@ function mapRowToMedia(row: MediaRow): MediaItem {
     type: row.type,
     url: row.url,
     alt: row.alt,
+    storageProvider:
+      (row.storage_provider as MediaItem["storageProvider"] | null) ?? undefined,
+    storageKey: row.storage_key ?? undefined,
+    mimeType: row.mime_type ?? undefined,
+    fileSizeBytes: row.file_size_bytes ?? undefined,
   };
 }
 
@@ -68,6 +77,10 @@ export async function createMediaItem(input: {
   type?: MediaType;
   url: string;
   alt: string;
+  storageProvider?: string;
+  storageKey?: string | null;
+  mimeType?: string | null;
+  fileSizeBytes?: number | null;
 }) {
   const pool = getDbPool();
   const connection = await pool.getConnection();
@@ -83,10 +96,32 @@ export async function createMediaItem(input: {
     const sortOrder = Number(existingRows[0]?.count ?? 0);
     await connection.execute<ResultSetHeader>(
       `
-        INSERT INTO media_items (id, business_id, type, url, alt, sort_order)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO media_items (
+          id,
+          business_id,
+          type,
+          url,
+          alt,
+          storage_provider,
+          storage_key,
+          mime_type,
+          file_size_bytes,
+          sort_order
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
-      [mediaId, input.businessId, input.type ?? "gallery", input.url.trim(), input.alt.trim(), sortOrder],
+      [
+        mediaId,
+        input.businessId,
+        input.type ?? "gallery",
+        input.url.trim(),
+        input.alt.trim(),
+        input.storageProvider ?? "external_url",
+        input.storageKey ?? null,
+        input.mimeType ?? null,
+        input.fileSizeBytes ?? null,
+        sortOrder,
+      ],
     );
 
     if ((input.type ?? "gallery") === "cover") {

@@ -22,7 +22,7 @@ import { getDbPool } from "@/lib/db";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { categories, cities } from "@/lib/taxonomy";
 import { toSlug } from "@/lib/utils";
-import { validateEmail, validatePhone } from "@/lib/validation";
+import { validateEmail, validatePassword, validatePhone } from "@/lib/validation";
 
 type UserRow = RowDataPacket & {
   id: string;
@@ -142,8 +142,10 @@ function validateCommonRegistration(input: RegistrationInput) {
     return "Enter a valid phone number.";
   }
 
-  if (input.password.trim().length < 8) {
-    return "Password must be at least 8 characters.";
+  const passwordValidation = validatePassword(input.password);
+
+  if (!passwordValidation.valid) {
+    return passwordValidation.errors[0]?.message ?? "Password does not meet security requirements.";
   }
 
   return null;

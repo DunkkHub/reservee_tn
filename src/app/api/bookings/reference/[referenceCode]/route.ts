@@ -1,5 +1,11 @@
-import { NextResponse } from "next/server";
-
+import {
+  errorResponse,
+  rateLimitResponse,
+  successResponse,
+  unauthorizedResponse,
+} from "@/lib/api-response";
+import { handleRouteError } from "@/lib/api-route-helpers";
+import { recordActivity } from "@/lib/activity-log-repository";
 import {
   normalizePhone,
   parseBookingReferenceAccessToken,
@@ -9,14 +15,11 @@ import {
   requestBookingReschedule,
   updateBookingStatus,
 } from "@/lib/booking-repository";
-import { recordActivity } from "@/lib/activity-log-repository";
-import { getDatabaseErrorMessage } from "@/lib/db";
+import { findBusinessById } from "@/lib/business-repository";
+import { sendBookingCancellationNotifications } from "@/lib/notifications/booking-notifications";
 import { consumeRateLimit } from "@/lib/rate-limit";
-import {
-  assertAllowedOrigin,
-  getClientIp,
-  HttpRequestError,
-} from "@/lib/security";
+import { assertAllowedOrigin, getClientIp } from "@/lib/security";
+import { findServiceById } from "@/lib/service-repository";
 
 export const runtime = "nodejs";
 
@@ -37,73 +40,36 @@ export async function GET(request: Request, context: RouteContext) {
     });
 
     if (!rateLimit.allowed) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: "Too many booking lookups. Please try again in a few minutes.",
-        },
-        {
-          status: 429,
-          headers: {
-            "Retry-After": String(Math.ceil((rateLimit.resetAt - Date.now()) / 1000)),
-          },
-        },
+      return rateLimitResponse(
+        "Too many booking lookups. Please try again in a few minutes.",
+        rateLimit.resetAt,
       );
     }
 
     const parsedToken = await parseBookingReferenceAccessToken(token);
 
     if (!parsedToken || parsedToken.referenceCode !== referenceCode.toUpperCase()) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: "Booking verification required. Request and verify a code first.",
-        },
-        { status: 401 },
+      return unauthorizedResponse(
+        "Booking verification required. Request and verify a code first.",
       );
     }
 
     const booking = await findBookingByReference(referenceCode);
 
-    if (
-      !booking ||
-      normalizePhone(booking.customerPhone) !== parsedToken.customerPhone
-    ) {
-      return NextResponse.json(
-        { ok: false, message: "Booking not found" },
-        { status: 404 },
-      );
+    if (!booking || normalizePhone(booking.customerPhone) !== parsedToken.customerPhone) {
+      return errorResponse("Booking not found.", 404, "not_found");
     }
 
-    return NextResponse.json(
+    return successResponse(
+      booking,
+      "Booking loaded.",
+      200,
       {
-        ok: true,
-        data: booking,
-      },
-      {
-        headers: {
-          "X-RateLimit-Remaining": String(rateLimit.remaining),
-        },
+        "X-RateLimit-Remaining": String(rateLimit.remaining),
       },
     );
   } catch (error) {
-    if (error instanceof HttpRequestError) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: error.message,
-        },
-        { status: error.status },
-      );
-    }
-
-    return NextResponse.json(
-      {
-        ok: false,
-        message: getDatabaseErrorMessage(error),
-      },
-      { status: 500 },
-    );
+    return handleRouteError(error, "Unable to load this booking.");
   }
 }
 
@@ -117,25 +83,15 @@ export async function PATCH(request: Request, context: RouteContext) {
     const parsedToken = await parseBookingReferenceAccessToken(token);
 
     if (!parsedToken || parsedToken.referenceCode !== referenceCode.toUpperCase()) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: "Booking verification required. Request and verify a code first.",
-        },
-        { status: 401 },
+      return unauthorizedResponse(
+        "Booking verification required. Request and verify a code first.",
       );
     }
 
     const booking = await findBookingByReference(referenceCode);
 
-    if (
-      !booking ||
-      normalizePhone(booking.customerPhone) !== parsedToken.customerPhone
-    ) {
-      return NextResponse.json(
-        { ok: false, message: "Booking not found" },
-        { status: 404 },
-      );
+    if (!booking || normalizePhone(booking.customerPhone) !== parsedToken.customerPhone) {
+      return errorResponse("Booking not found.", 404, "not_found");
     }
 
     const body = (await request.json()) as {
@@ -154,21 +110,14 @@ export async function PATCH(request: Request, context: RouteContext) {
         summary: `Customer requested a reschedule for ${booking.referenceCode}.`,
       });
 
-      return NextResponse.json({
-        ok: true,
-        message: "Reschedule requested",
-        data: updated,
-      });
+      return successResponse(updated, "Reschedule requested.");
     }
 
     if (body.action !== "cancel") {
-      return NextResponse.json(
-        { ok: false, message: "Unsupported booking action" },
-        { status: 400 },
-      );
+      return errorResponse("Unsupported booking action.", 400, "invalid_input");
     }
 
-    const updated = await updateBookingStatus(booking.id, "cancelled", {
+    const updated = await updateBookingStatus(booking.id, "cancelled_by_customer", {
       role: "customer",
       reason: "cancelled_by_customer",
     });
@@ -180,28 +129,21 @@ export async function PATCH(request: Request, context: RouteContext) {
       summary: `Customer cancelled booking ${booking.referenceCode}.`,
     });
 
-    return NextResponse.json({
-      ok: true,
-      message: "Booking cancelled",
-      data: updated,
-    });
-  } catch (error) {
-    if (error instanceof HttpRequestError) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: error.message,
-        },
-        { status: error.status },
-      );
+    const [business, service] = await Promise.all([
+      findBusinessById(booking.businessId),
+      findServiceById(booking.serviceId),
+    ]);
+
+    if (business && service && updated) {
+      await sendBookingCancellationNotifications({
+        booking: updated,
+        business,
+        service,
+      });
     }
 
-    return NextResponse.json(
-      {
-        ok: false,
-        message: getDatabaseErrorMessage(error),
-      },
-      { status: 500 },
-    );
+    return successResponse(updated, "Booking cancelled.");
+  } catch (error) {
+    return handleRouteError(error, "Unable to manage this booking.");
   }
 }

@@ -28,8 +28,17 @@ const envSchema = z.object({
   DB_NAME: z.string().default("reservee_tn"),
   AUTH_SECRET: z.string().default("dev-auth-secret-change-me"),
   SESSION_COOKIE_NAME: z.string().default("reservee_session"),
+  SESSION_TTL_HOURS: z.coerce.number().int().min(1).max(24 * 30).default(24 * 7),
   VERIFICATION_CODE_DEV_PREVIEW: booleanLike,
   BOOKING_OTP_DEV_PREVIEW: booleanLike,
+  NOTIFICATION_EMAIL_PROVIDER: z.enum(["console", "resend"]).default("console"),
+  NOTIFICATION_SMS_PROVIDER: z.enum(["console", "twilio"]).default("console"),
+  MEDIA_STORAGE_PROVIDER: z
+    .enum(["local", "external_url", "s3", "r2", "cloudinary"])
+    .default("local"),
+  MEDIA_LOCAL_UPLOAD_DIR: z.string().default("public/uploads"),
+  MEDIA_PUBLIC_BASE_PATH: z.string().default("/uploads"),
+  MEDIA_UPLOAD_MAX_BYTES: z.coerce.number().int().positive().default(5_000_000),
   TWILIO_ACCOUNT_SID: z.string().optional(),
   TWILIO_AUTH_TOKEN: z.string().optional(),
   TWILIO_MESSAGING_SERVICE_SID: z.string().optional(),

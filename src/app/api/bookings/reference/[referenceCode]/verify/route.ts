@@ -1,13 +1,17 @@
-import { NextResponse } from "next/server";
-
-import { verifyBookingReferenceChallenge } from "@/lib/booking-reference-access";
-import { getDatabaseErrorMessage } from "@/lib/db";
-import { consumeRateLimit } from "@/lib/rate-limit";
 import {
-  assertAllowedOrigin,
-  getClientIp,
-  HttpRequestError,
-} from "@/lib/security";
+  errorResponse,
+  rateLimitResponse,
+  successResponse,
+  validationErrorResponse,
+} from "@/lib/api-response";
+import { handleRouteError } from "@/lib/api-route-helpers";
+import { verifyBookingReferenceChallenge } from "@/lib/booking-reference-access";
+import { consumeRateLimit } from "@/lib/rate-limit";
+import { assertAllowedOrigin, getClientIp } from "@/lib/security";
+import {
+  bookingReferenceVerifySchema,
+  safeParseWithSchema,
+} from "@/lib/validation";
 
 export const runtime = "nodejs";
 
@@ -29,69 +33,36 @@ export async function POST(request: Request, context: RouteContext) {
     });
 
     if (!rateLimit.allowed) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: "Too many verification attempts. Please request a new code later.",
-        },
-        {
-          status: 429,
-          headers: {
-            "Retry-After": String(Math.ceil((rateLimit.resetAt - Date.now()) / 1000)),
-          },
-        },
+      return rateLimitResponse(
+        "Too many verification attempts. Please request a new code later.",
+        rateLimit.resetAt,
       );
     }
 
-    const body = (await request.json()) as {
-      challengeId?: string;
-      code?: string;
-    };
+    const body = await request.json();
+    const parsed = safeParseWithSchema(bookingReferenceVerifySchema, body);
 
-    if (!body.challengeId?.trim() || !body.code?.trim()) {
-      return NextResponse.json(
-        { ok: false, message: "Challenge ID and verification code are required." },
-        { status: 400 },
-      );
+    if (!parsed.success) {
+      return validationErrorResponse(parsed.error);
     }
 
     const result = await verifyBookingReferenceChallenge({
-      challengeId: body.challengeId,
+      challengeId: parsed.data.challengeId,
       referenceCode,
-      code: body.code,
+      code: parsed.data.code,
     });
 
     if (!result.ok) {
-      return NextResponse.json(
-        { ok: false, message: result.message },
-        { status: 401 },
-      );
+      return errorResponse(result.message, 401, "unauthorized");
     }
 
-    return NextResponse.json({
-      ok: true,
-      message: "Booking verification completed.",
-      data: {
+    return successResponse(
+      {
         token: result.token,
       },
-    });
-  } catch (error) {
-    if (error instanceof HttpRequestError) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: error.message,
-        },
-        { status: error.status },
-      );
-    }
-
-    return NextResponse.json(
-      {
-        ok: false,
-        message: getDatabaseErrorMessage(error),
-      },
-      { status: 500 },
+      "Booking verification completed.",
     );
+  } catch (error) {
+    return handleRouteError(error, "Unable to verify booking access.");
   }
 }

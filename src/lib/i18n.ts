@@ -64,9 +64,10 @@ const labelDictionary = {
     bookingStatuses: {
       pending: "En attente",
       confirmed: "Confirmee",
-      cancelled: "Annulee",
-      rejected: "Rejetee",
+      cancelled_by_customer: "Annulee par le client",
+      cancelled_by_business: "Annulee par l etablissement",
       completed: "Terminee",
+      expired: "Expiree",
       no_show: "No-show",
     },
     bookingModes: {
@@ -97,9 +98,10 @@ const labelDictionary = {
     bookingStatuses: {
       pending: "Pending",
       confirmed: "Confirmed",
-      cancelled: "Cancelled",
-      rejected: "Rejected",
+      cancelled_by_customer: "Cancelled by customer",
+      cancelled_by_business: "Cancelled by business",
       completed: "Completed",
+      expired: "Expired",
       no_show: "No-show",
     },
     bookingModes: {

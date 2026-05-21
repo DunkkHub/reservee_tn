@@ -1,12 +1,15 @@
-import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
+import { successResponse } from "@/lib/api-response";
+import { handleRouteError } from "@/lib/api-route-helpers";
 import {
   AUTH_COOKIE_NAME,
   clearSessionCookie,
   revokeSessionByToken,
 } from "@/lib/auth-session";
-import { assertAllowedOrigin, HttpRequestError } from "@/lib/security";
+import { verifySignedSessionToken } from "@/lib/auth-session-token";
+import { env } from "@/lib/env";
+import { assertAllowedOrigin } from "@/lib/security";
 
 export const runtime = "nodejs";
 
@@ -15,36 +18,19 @@ export async function POST(request: Request) {
     assertAllowedOrigin(request);
 
     const cookieStore = await cookies();
-    const token = cookieStore.get(AUTH_COOKIE_NAME)?.value;
+    const signedToken = cookieStore.get(AUTH_COOKIE_NAME)?.value;
+    const verifiedToken = signedToken
+      ? verifySignedSessionToken(signedToken, env.AUTH_SECRET)
+      : null;
 
-    if (token) {
-      await revokeSessionByToken(token);
+    if (verifiedToken?.ok) {
+      await revokeSessionByToken(verifiedToken.token);
     }
 
-    const response = NextResponse.json({
-      ok: true,
-      message: "Logged out successfully.",
-    });
-
+    const response = successResponse({ loggedOut: true }, "Logged out successfully.");
     clearSessionCookie(response);
     return response;
   } catch (error) {
-    if (error instanceof HttpRequestError) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: error.message,
-        },
-        { status: error.status },
-      );
-    }
-
-    return NextResponse.json(
-      {
-        ok: false,
-        message: "Unable to log out right now.",
-      },
-      { status: 500 },
-    );
+    return handleRouteError(error, "Unable to log out right now.");
   }
 }

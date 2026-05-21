@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { buttonStyles } from "@/components/ui/button";
 
 interface EmptyStateProps {
   icon: LucideIcon;
@@ -30,8 +30,8 @@ export function EmptyState({
         </p>
       </div>
       {ctaLabel && ctaHref ? (
-        <Link href={ctaHref}>
-          <Button>{ctaLabel}</Button>
+        <Link href={ctaHref} className={buttonStyles()}>
+          {ctaLabel}
         </Link>
       ) : null}
     </div>

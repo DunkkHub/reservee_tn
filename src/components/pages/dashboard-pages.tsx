@@ -54,9 +54,10 @@ const bookingTabs: BookingStatus[] = [
   "pending",
   "confirmed",
   "completed",
-  "cancelled",
-  "rejected",
+  "cancelled_by_customer",
+  "cancelled_by_business",
   "no_show",
+  "expired",
 ];
 
 function useOwnerBookings() {
@@ -293,7 +294,7 @@ export function DashboardBookingsPage() {
       <SectionHeading
         eyebrow="Bookings"
         title="Status-based booking operations"
-        description="Every booking lifecycle is now explicit, with a single cancelled state backed by booking audit events."
+        description="Every booking lifecycle is explicit, including who cancelled the booking and which pending requests expired automatically."
       />
 
       <div className="flex flex-wrap gap-2">
@@ -355,16 +356,16 @@ export function DashboardBookingsPage() {
                       <Button
                         variant="secondary"
                         size="sm"
-                        onClick={() => updateBookingStatus(booking.id, "rejected")}
+                        onClick={() => updateBookingStatus(booking.id, "cancelled_by_business")}
                       >
-                        Reject
+                        Decline
                       </Button>
                     ) : null}
                     {booking.status === "confirmed" ? (
                       <Button
                         variant="secondary"
                         size="sm"
-                        onClick={() => updateBookingStatus(booking.id, "cancelled")}
+                        onClick={() => updateBookingStatus(booking.id, "cancelled_by_business")}
                       >
                         Cancel
                       </Button>
@@ -401,7 +402,7 @@ export function DashboardBookingsPage() {
           <EmptyState
             icon={CalendarClock}
             title="No bookings in this status"
-            description="Separate lifecycle tabs make it easier to distinguish demand from cancellations, no-shows, and completed work."
+            description="Separate lifecycle tabs make it easier to distinguish demand from customer cancellations, business cancellations, expiries, no-shows, and completed work."
           />
         )}
       </div>

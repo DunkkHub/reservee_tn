@@ -13,11 +13,12 @@ import {
   isSameDateKey,
   parseDateKeyInTimeZone,
 } from "@/lib/datetime";
-import { isBookingBlocking } from "@/lib/platform-rules";
+import { isBookingBlockingStatus } from "@/lib/booking-lifecycle";
 import { DEFAULT_TIMEZONE } from "@/lib/site";
 import type { Booking, Business, Service } from "@/lib/types";
 
 const SLOT_STEP_MINUTES = 15;
+export const SAME_DAY_BOOKING_LEAD_MINUTES = 15;
 
 function getBusinessTimeZone(business?: Pick<Business, "timezone"> | null) {
   return business?.timezone ?? DEFAULT_TIMEZONE;
@@ -55,7 +56,7 @@ function overlapsBreaks(
         start: timeToDate(dateKey, breakWindow.start, timeZone),
         end: timeToDate(dateKey, breakWindow.end, timeZone),
       },
-      { inclusive: true },
+      { inclusive: false },
     ),
   );
 }
@@ -105,11 +106,12 @@ export function generateAvailableSlots(
   const businessBookings = bookings.filter(
     (booking) =>
       booking.businessId === business.id &&
-      isBookingBlocking(booking.status) &&
+      isBookingBlockingStatus(booking.status) &&
       isSameDateKey(booking.startAt, selectedDateKey, timeZone),
   );
   const now = new Date();
   const todayKey = formatDateKey(now, timeZone);
+  const earliestSameDayStart = addMinutes(now, SAME_DAY_BOOKING_LEAD_MINUTES);
   const slots: Date[] = [];
 
   for (
@@ -120,7 +122,10 @@ export function generateAvailableSlots(
     const startAt = cursor;
     const endAt = addMinutes(startAt, service.durationMinutes);
 
-    if (selectedDateKey === todayKey && isBefore(startAt, now)) {
+    if (
+      selectedDateKey === todayKey &&
+      startAt.getTime() < earliestSameDayStart.getTime()
+    ) {
       continue;
     }
 
@@ -132,7 +137,7 @@ export function generateAvailableSlots(
       areIntervalsOverlapping(
         { start: startAt, end: endAt },
         { start: new Date(slot.startAt), end: new Date(slot.endAt) },
-        { inclusive: true },
+        { inclusive: false },
       ),
     );
 
@@ -144,7 +149,7 @@ export function generateAvailableSlots(
       areIntervalsOverlapping(
         { start: startAt, end: endAt },
         { start: new Date(booking.startAt), end: new Date(booking.endAt) },
-        { inclusive: true },
+        { inclusive: false },
       ),
     );
 

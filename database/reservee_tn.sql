@@ -203,10 +203,11 @@ CREATE TABLE IF NOT EXISTS bookings (
   status ENUM(
     'pending',
     'confirmed',
-    'cancelled',
-    'rejected',
+    'cancelled_by_customer',
+    'cancelled_by_business',
     'completed',
-    'no_show'
+    'no_show',
+    'expired'
   ) NOT NULL DEFAULT 'pending',
   source ENUM('web', 'dashboard') NOT NULL DEFAULT 'web',
   expires_at DATETIME NULL,
@@ -232,7 +233,8 @@ CREATE TABLE IF NOT EXISTS bookings (
   KEY idx_bookings_status (status),
   KEY idx_bookings_start_at (start_at),
   KEY idx_bookings_end_at (end_at),
-  KEY idx_bookings_business_window (business_id, start_at, end_at)
+  KEY idx_bookings_business_window (business_id, start_at, end_at),
+  KEY idx_bookings_business_status_start_at (business_id, status, start_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS booking_slot_locks (
@@ -263,18 +265,20 @@ CREATE TABLE IF NOT EXISTS booking_events (
   previous_status ENUM(
     'pending',
     'confirmed',
-    'cancelled',
-    'rejected',
+    'cancelled_by_customer',
+    'cancelled_by_business',
     'completed',
-    'no_show'
+    'no_show',
+    'expired'
   ) NULL,
   next_status ENUM(
     'pending',
     'confirmed',
-    'cancelled',
-    'rejected',
+    'cancelled_by_customer',
+    'cancelled_by_business',
     'completed',
-    'no_show'
+    'no_show',
+    'expired'
   ) NULL,
   reason VARCHAR(120) NULL,
   metadata JSON NULL,
@@ -302,6 +306,10 @@ CREATE TABLE IF NOT EXISTS media_items (
   type ENUM('cover', 'gallery') NOT NULL,
   url VARCHAR(500) NOT NULL,
   alt VARCHAR(160) NOT NULL DEFAULT '',
+  storage_provider VARCHAR(32) NOT NULL DEFAULT 'external_url',
+  storage_key VARCHAR(255) NULL,
+  mime_type VARCHAR(120) NULL,
+  file_size_bytes BIGINT NULL,
   sort_order INT NOT NULL DEFAULT 0,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -310,7 +318,8 @@ CREATE TABLE IF NOT EXISTS media_items (
     REFERENCES business_profiles (id)
     ON DELETE CASCADE,
   KEY idx_media_items_business_id (business_id),
-  KEY idx_media_items_type (type)
+  KEY idx_media_items_type (type),
+  KEY idx_media_items_business_type_sort (business_id, type, sort_order)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS moderation_history (

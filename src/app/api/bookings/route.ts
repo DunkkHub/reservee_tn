@@ -1,6 +1,16 @@
 import { addMinutes } from "date-fns";
-import { NextResponse } from "next/server";
 
+import {
+  conflictResponse,
+  errorResponse,
+  forbiddenResponse,
+  rateLimitResponse,
+  successResponse,
+  unauthorizedResponse,
+  validationErrorResponse,
+} from "@/lib/api-response";
+import { handleRouteError } from "@/lib/api-route-helpers";
+import { getApiSession } from "@/lib/auth-session";
 import {
   createBooking,
   expireOldBookings,
@@ -9,19 +19,21 @@ import {
   findBookingsByPhone,
 } from "@/lib/booking-repository";
 import { recordActivity } from "@/lib/activity-log-repository";
-import { getApiSession } from "@/lib/auth-session";
-import { generateAvailableSlots } from "@/lib/availability";
-import { findBusinessById, findBusinessByOwner } from "@/lib/business-repository";
-import { getDatabaseErrorMessage } from "@/lib/db";
-import { getBookingExpiryAt } from "@/lib/platform-rules";
-import { consumeRateLimit } from "@/lib/rate-limit";
 import {
-  assertAllowedOrigin,
-  getClientIp,
-  HttpRequestError,
-} from "@/lib/security";
+  generateAvailableSlots,
+  SAME_DAY_BOOKING_LEAD_MINUTES,
+} from "@/lib/availability";
+import { findBusinessById, findBusinessByOwner } from "@/lib/business-repository";
+import { getBookingExpiryAt } from "@/lib/platform-rules";
+import { sendBookingCreatedNotifications } from "@/lib/notifications/booking-notifications";
+import { consumeRateLimit } from "@/lib/rate-limit";
+import { assertAllowedOrigin, getClientIp } from "@/lib/security";
 import { findServiceById } from "@/lib/service-repository";
 import type { BookingStatus } from "@/lib/types";
+import {
+  bookingCreateSchema,
+  safeParseWithSchema,
+} from "@/lib/validation";
 
 export const runtime = "nodejs";
 
@@ -30,10 +42,7 @@ export async function GET(request: Request) {
     const session = await getApiSession();
 
     if (!session) {
-      return NextResponse.json(
-        { ok: false, message: "Authentication required" },
-        { status: 401 },
-      );
+      return unauthorizedResponse("Authentication required.");
     }
 
     const { searchParams } = new URL(request.url);
@@ -42,10 +51,7 @@ export async function GET(request: Request) {
 
     if (session.user.role === "customer") {
       const bookings = await findBookingsByPhone(session.user.phone);
-      return NextResponse.json({
-        ok: true,
-        data: bookings,
-      });
+      return successResponse(bookings);
     }
 
     if (session.user.role === "shop") {
@@ -55,62 +61,40 @@ export async function GET(request: Request) {
           : null) ?? (await findBusinessByOwner(session.user.id));
 
       if (!ownedBusiness) {
-        return NextResponse.json(
-          { ok: false, message: "Business profile not found for this shop account" },
-          { status: 404 },
+        return errorResponse(
+          "Business profile not found for this shop account.",
+          404,
+          "not_found",
         );
       }
 
       if (businessId && businessId !== ownedBusiness.id) {
-        return NextResponse.json(
-          { ok: false, message: "You don't have permission to view those bookings" },
-          { status: 403 },
-        );
+        return forbiddenResponse("You do not have permission to view those bookings.");
       }
 
       const bookings = await findBookingsByBusiness(ownedBusiness.id);
-      return NextResponse.json({
-        ok: true,
-        data: bookings,
-      });
-    }
-
-    if (businessId) {
-      const bookings = await findBookingsByBusiness(businessId);
-      return NextResponse.json({
-        ok: true,
-        data: bookings,
-      });
-    }
-
-    if (customerPhone) {
-      const bookings = await findBookingsByPhone(customerPhone);
-      return NextResponse.json({
-        ok: true,
-        data: bookings,
-      });
+      return successResponse(bookings);
     }
 
     if (session.user.role === "admin") {
-      const bookings = await findAllBookings();
-      return NextResponse.json({
-        ok: true,
-        data: bookings,
-      });
+      if (businessId) {
+        return successResponse(await findBookingsByBusiness(businessId));
+      }
+
+      if (customerPhone) {
+        return successResponse(await findBookingsByPhone(customerPhone));
+      }
+
+      return successResponse(await findAllBookings());
     }
 
-    return NextResponse.json(
-      { ok: false, message: "Provide businessId or customerPhone for admin booking lookups" },
-      { status: 400 },
+    return errorResponse(
+      "Provide businessId or customerPhone for privileged booking lookups.",
+      400,
+      "invalid_input",
     );
   } catch (error) {
-    return NextResponse.json(
-      {
-        ok: false,
-        message: getDatabaseErrorMessage(error),
-      },
-      { status: 500 },
-    );
+    return handleRouteError(error, "Unable to load bookings.");
   }
 }
 
@@ -118,147 +102,80 @@ export async function POST(request: Request) {
   try {
     assertAllowedOrigin(request);
 
-    const body = (await request.json()) as {
-      businessId?: string;
-      serviceId?: string;
-      customerName?: string;
-      customerPhone?: string;
-      customerNote?: string;
-      startAt?: string;
-      endAt?: string;
-      source?: "web" | "dashboard";
-    };
+    const body = await request.json();
+    const parsed = safeParseWithSchema(bookingCreateSchema, body);
+
+    if (!parsed.success) {
+      return validationErrorResponse(parsed.error);
+    }
 
     const session = await getApiSession();
     const rateLimit = await consumeRateLimit({
       key: `booking-create:${session?.user.id ?? getClientIp(request)}`,
       windowMs: 10 * 60 * 1000,
-      maxRequests: body.source === "dashboard" ? 20 : 8,
+      maxRequests: parsed.data.source === "dashboard" ? 20 : 8,
     });
 
     if (!rateLimit.allowed) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: "Too many booking attempts. Please try again shortly.",
-        },
-        {
-          status: 429,
-          headers: {
-            "Retry-After": String(Math.ceil((rateLimit.resetAt - Date.now()) / 1000)),
-          },
-        },
+      return rateLimitResponse(
+        "Too many booking attempts. Please try again shortly.",
+        rateLimit.resetAt,
       );
     }
 
-    if (body.source === "dashboard") {
+    if (parsed.data.source === "dashboard") {
       if (!session) {
-        return NextResponse.json(
-          { ok: false, message: "Authentication required for dashboard bookings" },
-          { status: 401 },
-        );
+        return unauthorizedResponse("Authentication required for dashboard bookings.");
       }
 
       if (session.user.role !== "shop" && session.user.role !== "admin") {
-        return NextResponse.json(
-          { ok: false, message: "Only shop owners and admins can create dashboard bookings" },
-          { status: 403 },
+        return forbiddenResponse(
+          "Only shop owners and admins can create dashboard bookings.",
         );
       }
     }
 
-    if (!body.businessId?.trim()) {
-      return NextResponse.json(
-        { ok: false, message: "Business ID is required" },
-        { status: 400 },
-      );
-    }
-
-    if (!body.serviceId?.trim()) {
-      return NextResponse.json(
-        { ok: false, message: "Service ID is required" },
-        { status: 400 },
-      );
-    }
-
-    if (!body.customerName?.trim()) {
-      return NextResponse.json(
-        { ok: false, message: "Customer name is required" },
-        { status: 400 },
-      );
-    }
-
-    if (!body.customerPhone?.trim()) {
-      return NextResponse.json(
-        { ok: false, message: "Customer phone is required" },
-        { status: 400 },
-      );
-    }
-
-    if (!body.startAt) {
-      return NextResponse.json(
-        { ok: false, message: "Start time is required" },
-        { status: 400 },
-      );
-    }
-
-    const business = await findBusinessById(body.businessId);
+    const business = await findBusinessById(parsed.data.businessId);
 
     if (!business) {
-      return NextResponse.json(
-        { ok: false, message: "Business not found" },
-        { status: 404 },
-      );
+      return errorResponse("Business not found.", 404, "not_found");
     }
 
     if (session?.user.role === "shop" && business.ownerId !== session.user.id) {
-      return NextResponse.json(
-        { ok: false, message: "You don't have permission to create bookings for this business" },
-        { status: 403 },
+      return forbiddenResponse(
+        "You do not have permission to create bookings for this business.",
       );
     }
 
     const [service, existingBookings] = await Promise.all([
-      findServiceById(body.serviceId),
-      findBookingsByBusiness(body.businessId),
+      findServiceById(parsed.data.serviceId),
+      findBookingsByBusiness(parsed.data.businessId),
     ]);
 
     if (!service) {
-      return NextResponse.json(
-        { ok: false, message: "Service not found" },
-        { status: 404 },
-      );
+      return errorResponse("Service not found.", 404, "not_found");
     }
 
-    if (service.businessId !== body.businessId) {
-      return NextResponse.json(
-        { ok: false, message: "Service does not belong to the specified business" },
-        { status: 400 },
+    if (service.businessId !== parsed.data.businessId) {
+      return errorResponse(
+        "Service does not belong to the specified business.",
+        400,
+        "invalid_input",
       );
     }
 
     if (!service.active) {
-      return NextResponse.json(
-        { ok: false, message: "This service is not currently bookable" },
-        { status: 409 },
-      );
+      return conflictResponse("This service is not currently bookable.");
     }
 
-    const startAtDate = new Date(body.startAt);
+    const startAtDate = new Date(parsed.data.startAt);
+    const earliestAllowedStart = Date.now() + SAME_DAY_BOOKING_LEAD_MINUTES * 60 * 1000;
 
-    if (Number.isNaN(startAtDate.getTime())) {
-      return NextResponse.json(
-        { ok: false, message: "Start time must be a valid ISO date" },
-        { status: 400 },
-      );
-    }
-
-    // Allow a 2-minute buffer for booking form completion
-    const bufferMs = 2 * 60 * 1000;
-    if (startAtDate.getTime() < Date.now() - bufferMs) {
-      return NextResponse.json(
-        { ok: false, message: "Start time cannot be in the past" },
-        { status: 400 },
+    if (startAtDate.getTime() < earliestAllowedStart) {
+      return errorResponse(
+        `Same-day bookings must start at least ${SAME_DAY_BOOKING_LEAD_MINUTES} minutes from now.`,
+        400,
+        "invalid_input",
       );
     }
 
@@ -271,10 +188,7 @@ export async function POST(request: Request) {
     ).some((slot) => slot.getTime() === startAtDate.getTime());
 
     if (!isRequestedSlotAvailable) {
-      return NextResponse.json(
-        { ok: false, message: "This time slot is no longer available." },
-        { status: 409 },
-      );
+      return conflictResponse("This time slot is no longer available.");
     }
 
     const initialStatus: BookingStatus =
@@ -282,16 +196,16 @@ export async function POST(request: Request) {
     const createdAt = new Date().toISOString();
 
     const booking = await createBooking({
-      businessId: body.businessId,
-      serviceId: body.serviceId,
+      businessId: parsed.data.businessId,
+      serviceId: parsed.data.serviceId,
       customerUserId: session?.user.role === "customer" ? session.user.id : null,
-      customerName: body.customerName,
-      customerPhone: body.customerPhone,
-      customerNote: body.customerNote,
+      customerName: parsed.data.customerName,
+      customerPhone: parsed.data.customerPhone,
+      customerNote: parsed.data.customerNote,
       startAt: startAtDate.toISOString(),
       endAt,
       status: initialStatus,
-      source: body.source ?? "web",
+      source: parsed.data.source ?? "web",
       expiresAt:
         initialStatus === "pending"
           ? getBookingExpiryAt(createdAt, startAtDate.toISOString())
@@ -308,50 +222,31 @@ export async function POST(request: Request) {
     });
 
     if (!booking.ok || !booking.booking) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: booking.error,
-          error: booking.error,
-        },
-        { status: booking.status },
+      return errorResponse(
+        booking.error ?? "Unable to create this booking.",
+        booking.status,
+        "conflict",
       );
     }
 
     await recordActivity({
       type: "booking_created",
-      businessId: body.businessId,
+      businessId: parsed.data.businessId,
       bookingId: booking.booking.id,
       actorUserId: session?.user.id ?? null,
       summary: `Booking ${booking.booking.referenceCode} created with ${initialStatus} status.`,
     });
 
-    return NextResponse.json(
-      {
-        ok: true,
-        message: "Booking created successfully",
-        data: booking.booking,
-      },
-      { status: booking.status },
-    );
-  } catch (error) {
-    if (error instanceof HttpRequestError) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: error.message,
-        },
-        { status: error.status },
-      );
-    }
+    await sendBookingCreatedNotifications({
+      booking: booking.booking,
+      business,
+      service,
+      customer: session?.user.role === "customer" ? session.user : null,
+    });
 
-    return NextResponse.json(
-      {
-        ok: false,
-        message: getDatabaseErrorMessage(error),
-      },
-      { status: 500 },
-    );
+    return successResponse(booking.booking, "Booking created successfully", booking.status);
+  } catch (error) {
+    return handleRouteError(error, "Unable to create the booking.");
   }
 }
 
@@ -362,46 +257,20 @@ export async function PATCH(request: Request) {
     const session = await getApiSession();
 
     if (!session || session.user.role !== "admin") {
-      return NextResponse.json(
-        { ok: false, message: "Only admins can run bulk booking maintenance" },
-        { status: session ? 403 : 401 },
-      );
+      return session
+        ? forbiddenResponse("Only admins can run bulk booking maintenance.")
+        : unauthorizedResponse("Authentication required.");
     }
 
-    const body = (await request.json()) as {
-      action?: "expireOld";
-    };
+    const body = (await request.json()) as { action?: "expireOld" };
 
     if (body.action !== "expireOld") {
-      return NextResponse.json(
-        { ok: false, message: "Unsupported booking batch action" },
-        { status: 400 },
-      );
+      return errorResponse("Unsupported booking batch action.", 400, "invalid_input");
     }
 
     await expireOldBookings();
-
-    return NextResponse.json({
-      ok: true,
-      message: "Expired old bookings",
-    });
+    return successResponse({ expired: true }, "Expired old bookings.");
   } catch (error) {
-    if (error instanceof HttpRequestError) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: error.message,
-        },
-        { status: error.status },
-      );
-    }
-
-    return NextResponse.json(
-      {
-        ok: false,
-        message: getDatabaseErrorMessage(error),
-      },
-      { status: 500 },
-    );
+    return handleRouteError(error, "Unable to run booking maintenance.");
   }
 }

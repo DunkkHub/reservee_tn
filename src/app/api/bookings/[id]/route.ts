@@ -1,6 +1,16 @@
-import { NextResponse } from "next/server";
-
+import {
+  errorResponse,
+  forbiddenResponse,
+  successResponse,
+  unauthorizedResponse,
+  validationErrorResponse,
+} from "@/lib/api-response";
+import { handleRouteError } from "@/lib/api-route-helpers";
 import { recordActivity } from "@/lib/activity-log-repository";
+import {
+  canAccessBookingPhone,
+  canManageBusinessProfile,
+} from "@/lib/access-control";
 import { getApiSession } from "@/lib/auth-session";
 import {
   findBookingById,
@@ -8,9 +18,14 @@ import {
   updateBookingStatus,
 } from "@/lib/booking-repository";
 import { findBusinessById } from "@/lib/business-repository";
-import { getDatabaseErrorMessage } from "@/lib/db";
-import { assertAllowedOrigin, HttpRequestError } from "@/lib/security";
-import type { Booking, BookingStatus } from "@/lib/types";
+import { sendBookingCancellationNotifications, sendBookingConfirmedNotifications } from "@/lib/notifications/booking-notifications";
+import { assertAllowedOrigin } from "@/lib/security";
+import { findServiceById } from "@/lib/service-repository";
+import type { Booking } from "@/lib/types";
+import {
+  bookingStatusUpdateSchema,
+  safeParseWithSchema,
+} from "@/lib/validation";
 
 export const runtime = "nodejs";
 
@@ -20,22 +35,23 @@ type RouteContext = {
   }>;
 };
 
-function normalizePhone(value: string) {
-  return value.replace(/\D/g, "");
-}
-
-async function canAccessBooking(session: NonNullable<Awaited<ReturnType<typeof getApiSession>>>, booking: Booking) {
+async function canAccessBooking(
+  session: NonNullable<Awaited<ReturnType<typeof getApiSession>>>,
+  booking: Booking,
+) {
   if (session.user.role === "admin") {
     return true;
   }
 
   if (session.user.role === "shop") {
     const business = await findBusinessById(booking.businessId);
-    return Boolean(business && business.ownerId === session.user.id);
+    return Boolean(
+      business && canManageBusinessProfile(session.user, business.ownerId),
+    );
   }
 
   if (session.user.role === "customer") {
-    return normalizePhone(session.user.phone) === normalizePhone(booking.customerPhone);
+    return canAccessBookingPhone(session.user.phone, booking.customerPhone);
   }
 
   return false;
@@ -46,41 +62,23 @@ export async function GET(_: Request, context: RouteContext) {
     const session = await getApiSession();
 
     if (!session) {
-      return NextResponse.json(
-        { ok: false, message: "Authentication required" },
-        { status: 401 },
-      );
+      return unauthorizedResponse("Authentication required.");
     }
 
     const { id } = await context.params;
     const booking = await findBookingById(id);
 
     if (!booking) {
-      return NextResponse.json(
-        { ok: false, message: "Booking not found" },
-        { status: 404 },
-      );
+      return errorResponse("Booking not found.", 404, "not_found");
     }
 
     if (!(await canAccessBooking(session, booking))) {
-      return NextResponse.json(
-        { ok: false, message: "You don't have permission to view this booking" },
-        { status: 403 },
-      );
+      return forbiddenResponse("You do not have permission to view this booking.");
     }
 
-    return NextResponse.json({
-      ok: true,
-      data: booking,
-    });
+    return successResponse(booking);
   } catch (error) {
-    return NextResponse.json(
-      {
-        ok: false,
-        message: getDatabaseErrorMessage(error),
-      },
-      { status: 500 },
-    );
+    return handleRouteError(error, "Unable to load this booking.");
   }
 }
 
@@ -91,35 +89,28 @@ export async function PATCH(request: Request, context: RouteContext) {
     const session = await getApiSession();
 
     if (!session) {
-      return NextResponse.json(
-        { ok: false, message: "Authentication required" },
-        { status: 401 },
-      );
+      return unauthorizedResponse("Authentication required.");
     }
 
     const { id } = await context.params;
-    const body = (await request.json()) as {
-      status?: BookingStatus;
-      action?: "updateStatus" | "requestReschedule";
-    };
-
     const booking = await findBookingById(id);
 
     if (!booking) {
-      return NextResponse.json(
-        { ok: false, message: "Booking not found" },
-        { status: 404 },
-      );
+      return errorResponse("Booking not found.", 404, "not_found");
     }
 
     if (!(await canAccessBooking(session, booking))) {
-      return NextResponse.json(
-        { ok: false, message: "You don't have permission to manage this booking" },
-        { status: 403 },
-      );
+      return forbiddenResponse("You do not have permission to manage this booking.");
     }
 
-    if (body.action === "requestReschedule") {
+    const body = await request.json();
+    const parsed = safeParseWithSchema(bookingStatusUpdateSchema, body);
+
+    if (!parsed.success) {
+      return validationErrorResponse(parsed.error);
+    }
+
+    if (parsed.data.action === "requestReschedule") {
       const updatedBooking = await requestBookingReschedule(id, {
         userId: session.user.id,
         role: session.user.role,
@@ -132,29 +123,20 @@ export async function PATCH(request: Request, context: RouteContext) {
         summary: `Customer requested a reschedule for ${booking.referenceCode}.`,
       });
 
-      return NextResponse.json({
-        ok: true,
-        message: "Reschedule requested",
-        data: updatedBooking,
-      });
+      return successResponse(updatedBooking, "Reschedule requested.");
     }
 
-    if (!body.status) {
-      return NextResponse.json(
-        { ok: false, message: "Status is required" },
-        { status: 400 },
-      );
+    if (!parsed.data.status) {
+      return errorResponse("Status is required.", 400, "invalid_input");
     }
 
-    if (session.user.role === "customer" && body.status !== "cancelled") {
-      return NextResponse.json(
-        { ok: false, message: "Customers can only cancel their own bookings" },
-        { status: 403 },
-      );
+    if (session.user.role === "customer" && parsed.data.status !== "cancelled_by_customer") {
+      return forbiddenResponse("Customers can only cancel their own bookings.");
     }
 
     const reason =
-      body.status === "cancelled"
+      parsed.data.status === "cancelled_by_customer" ||
+      parsed.data.status === "cancelled_by_business"
         ? session.user.role === "customer"
           ? "cancelled_by_customer"
           : session.user.role === "shop"
@@ -162,48 +144,52 @@ export async function PATCH(request: Request, context: RouteContext) {
             : "cancelled_by_admin"
         : null;
 
-    const updatedBooking = await updateBookingStatus(id, body.status, {
+    const updatedBooking = await updateBookingStatus(id, parsed.data.status, {
       userId: session.user.id,
       role: session.user.role,
       reason,
     });
 
     if (!updatedBooking) {
-      return NextResponse.json(
-        { ok: false, message: "Booking not found" },
-        { status: 404 },
-      );
+      return errorResponse("Booking not found.", 404, "not_found");
     }
 
     await recordActivity({
       type: "booking_status_changed",
       businessId: booking.businessId,
       bookingId: booking.id,
-      summary: `Booking status changed to ${body.status}.`,
+      summary: `Booking status changed to ${parsed.data.status}.`,
     });
 
-    return NextResponse.json({
-      ok: true,
-      message: "Booking status updated",
-      data: updatedBooking,
-    });
-  } catch (error) {
-    if (error instanceof HttpRequestError) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: error.message,
-        },
-        { status: error.status },
-      );
+    const [business, service] = await Promise.all([
+      findBusinessById(booking.businessId),
+      findServiceById(booking.serviceId),
+    ]);
+
+    if (business && service) {
+      if (
+        parsed.data.status === "cancelled_by_customer" ||
+        parsed.data.status === "cancelled_by_business"
+      ) {
+        await sendBookingCancellationNotifications({
+          booking: updatedBooking,
+          business,
+          service,
+        });
+      }
+
+      if (parsed.data.status === "confirmed" && booking.status !== "confirmed") {
+        await sendBookingConfirmedNotifications({
+          booking: updatedBooking,
+          business,
+          service,
+          customer: session.user.role === "customer" ? session.user : null,
+        });
+      }
     }
 
-    return NextResponse.json(
-      {
-        ok: false,
-        message: getDatabaseErrorMessage(error),
-      },
-      { status: 500 },
-    );
+    return successResponse(updatedBooking, "Booking status updated.");
+  } catch (error) {
+    return handleRouteError(error, "Unable to update this booking.");
   }
 }

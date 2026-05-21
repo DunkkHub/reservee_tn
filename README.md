@@ -1,86 +1,139 @@
 # Reservee TN
 
-Reservee TN is a mobile-first PWA booking platform for beauty businesses in Tunisia. Version 1 is intentionally focused on barbers, hair salons, beauty centers, nail studios, and spas.
+Reservee TN is a Tunisia-focused beauty booking platform built for barbers, hair salons, beauty centers, nail studios, and spas.
 
-The product solves two problems at once:
+This repository is no longer just a visual demo. It now includes a stricter booking lifecycle, signed sessions, role-aware dashboard protections, structured notification/media abstractions, repeatable database seeding, smoke checks, and CI.
 
-- Customers can discover a trusted nearby business, review services and prices, see free slots, and book quickly.
-- Businesses get a premium storefront, cleaner availability management, better booking visibility, and fewer WhatsApp-driven mistakes.
+## Current status
+
+What works now:
+
+- Public marketplace pages for discovery, business profiles, and booking
+- Customer account and booking self-service flows
+- Shop dashboard flows for bookings, services, availability, gallery, and settings
+- Admin moderation surface
+- MySQL-backed auth, sessions, bookings, business data, moderation history, waitlist, and activity logs
+- Signed session cookies with stronger password validation
+- OTP-style login and booking-reference verification with rate limiting
+- Booking expiry script and health/readiness endpoints
+- Unit and smoke test foundations with CI
+
+What is still dev- or setup-dependent:
+
+- Real SMS delivery requires Twilio configuration
+- Real email delivery requires Resend configuration
+- Media upload is still URL/metadata driven; direct binary upload is not fully implemented
+- Scheduled expiry/reminder jobs must be wired by the deployer
+- Monitoring, alerting, and backup automation must be provided by infrastructure
 
 ## Stack
 
 - Next.js App Router
 - TypeScript
-- Tailwind CSS
-- MySQL-backed marketplace, booking, availability, moderation, media, waitlist, and auth flows
-- Client-side provider that reads and mutates state through API routes instead of `localStorage`
-- PWA metadata and installable shell
+- React 19
+- Tailwind CSS 4
+- MySQL 8
+- Zod validation
+- Node test runner + `tsx`
 
-## Run locally
+## Quick start
+
+1. Install dependencies:
 
 ```bash
 npm install
-npm run db:seed-dev
-npm run lint
 ```
 
-The dev seed script applies the base schema, runs the local migrations, and inserts repeatable marketplace sample data such as `atlas-barber-club`.
-
-If you prefer phpMyAdmin/XAMPP manually, import the schema first:
+2. Copy environment variables:
 
 ```bash
-# import database/reservee_tn.sql in phpMyAdmin
-# import database/migrations/2026-04-13-sync-backend-schema.sql
-# import database/migrations/2026-04-13-production-state-foundation.sql
+cp .env.example .env.local
+```
+
+3. Seed a local database:
+
+```bash
+npm run db:seed-dev
+```
+
+4. Start development:
+
+```bash
 npm run dev
 ```
 
-Production checks:
+## Required environment variables
+
+The full reference is in [.env.example](/D:/barber/.env.example), but the minimum local set is:
+
+- `APP_URL`
+- `AUTH_SECRET`
+- `DB_HOST`
+- `DB_PORT`
+- `DB_USER`
+- `DB_PASSWORD`
+- `DB_NAME`
+
+Optional provider configuration:
+
+- `NOTIFICATION_EMAIL_PROVIDER`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL`
+- `NOTIFICATION_SMS_PROVIDER`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_MESSAGING_SERVICE_SID`, `TWILIO_FROM_PHONE`
+- `MEDIA_STORAGE_PROVIDER`, `MEDIA_LOCAL_UPLOAD_DIR`, `MEDIA_PUBLIC_BASE_PATH`, `MEDIA_UPLOAD_MAX_BYTES`
+
+## Database and seed
+
+- Base schema: [database/reservee_tn.sql](/D:/barber/database/reservee_tn.sql)
+- SQL migrations: [database/migrations](/D:/barber/database/migrations)
+- Local seed: `npm run db:seed-dev`
+- Pending-booking expiry job: `npm run bookings:expire-pending`
+
+The seed is repeatable. It uses generated or environment-provided local passwords instead of committed fixed credentials.
+
+## Quality gates
 
 ```bash
 npm run lint
+npm run typecheck
+npm run test
 npm run build
+npm run test:smoke
 ```
 
-## Main routes
+Useful extras:
 
-- `/` home and premium marketplace landing page
-- `/explore` search, filters, sort, and city/category discovery
-- `/login` shared sign-in page
-- `/register` customer or shop signup
-- `/account` customer-only account area
-- `/business/[slug]` public business profile with services, trust, slots, waitlist, and booking CTA
-- `/book/[slug]` booking flow with status-aware confirmation and reference code
-- `/manage-booking` booking lookup page
-- `/manage-booking/[referenceCode]` customer-side booking management
-- `/api/bookings/reference/[referenceCode]/challenge` request a short-lived phone verification code
-- `/api/bookings/reference/[referenceCode]/verify` exchange the code for a short-lived booking access token
-- `/dashboard` business operating dashboard
-- `/dashboard/*` onboarding, bookings, services, availability, gallery, insights, and settings
-- `/admin` moderation, featured logic, filters, notes, and audit trail
+- `npm run test:watch`
+- `npm run db:migrate`
+- `npm run db:reset-dev`
 
-## MVP scope
+## Production deployment
 
-- Customer marketplace and booking flow
-- Customer account with role-protected access
-- Business onboarding and operating dashboard
-- Admin moderation panel
-- MySQL-backed auth and operational state
-- Installable PWA shell
-- Stronger business status model and richer booking lifecycle
+High-level deployment flow:
+
+1. Provision MySQL 8 and backups.
+2. Set production env vars from [.env.example](/D:/barber/.env.example).
+3. Run `npm ci`.
+4. Run `npm run db:migrate`.
+5. Run `npm run build`.
+6. Start the app with `npm run start`.
+7. Wire a scheduler for `npm run bookings:expire-pending`.
+8. Run the post-deploy smoke checklist from [docs/deployment.md](/D:/barber/docs/deployment.md).
 
 ## Documentation
 
-- [Product overview](./docs/product-overview.md)
-- [Functionalities](./docs/functionalities.md)
-- [Testing guide](./docs/testing-guide.md)
-- [Production roadmap](./docs/production-roadmap.md)
-- [Design system](./docs/design-system.md)
-- [XAMPP + phpMyAdmin setup](./docs/xampp-phpmyadmin-setup.md)
+- [Architecture](/D:/barber/docs/architecture.md)
+- [Testing](/D:/barber/docs/testing.md)
+- [Database](/D:/barber/docs/database.md)
+- [Deployment](/D:/barber/docs/deployment.md)
+- [Security](/D:/barber/docs/security.md)
+- [Admin workflows](/D:/barber/docs/admin-workflows.md)
+- [Media](/D:/barber/docs/media.md)
+- [Production checklist](/D:/barber/docs/production-checklist.md)
+- [Technical review](/D:/barber/TECHNICAL_REVIEW.md)
 
-## Notes
+## Known limitations
 
-- Version 1 does not include doctors, clinics, padel, football, wallets, loyalty, chat, or multi-branch logic.
-- Core business actions, booking actions, moderation actions, gallery changes, waitlist requests, and availability updates now persist through MySQL-backed API routes.
-- Local development now has a repeatable database seed via `npm run db:seed-dev`.
-- Public booking-reference API access now requires a short-lived OTP-style verification flow before full booking details are returned.
+- No integrated payment/deposit workflow yet
+- No real job queue yet
+- No direct cloud media uploader yet
+- No browser E2E suite yet beyond seeded smoke checks
+- A few transitive `npm audit` moderate findings remain unresolved upstream or in dev tooling

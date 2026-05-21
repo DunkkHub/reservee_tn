@@ -7,14 +7,19 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { NextResponse } from "next/server";
 
+import {
+  forbiddenResponse as createForbiddenResponse,
+  unauthorizedResponse as createUnauthorizedResponse,
+} from "@/lib/api-response";
 import { findSessionUserById } from "@/lib/auth-repository";
+import { signSessionToken, verifySignedSessionToken } from "@/lib/auth-session-token";
 import { getDbPool } from "@/lib/db";
 import { fromDatabaseDateTime, toDatabaseDateTime } from "@/lib/datetime";
 import { env } from "@/lib/env";
 import { hashValue } from "@/lib/security";
 import type { AuthSession, AuthSessionUser, UserRole } from "@/lib/auth-types";
 
-const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
+const SESSION_TTL_MS = env.SESSION_TTL_HOURS * 60 * 60 * 1000;
 
 type SessionRow = RowDataPacket & {
   id: string;
@@ -104,6 +109,18 @@ async function findSessionByToken(token: string) {
   return rows[0] ?? null;
 }
 
+async function touchSession(sessionId: string) {
+  const pool = getDbPool();
+  await pool.execute<ResultSetHeader>(
+    `
+      UPDATE sessions
+      SET last_seen_at = UTC_TIMESTAMP()
+      WHERE id = ?
+    `,
+    [sessionId],
+  );
+}
+
 export async function revokeSessionByToken(token: string) {
   const pool = getDbPool();
   await pool.execute<ResultSetHeader>(
@@ -132,13 +149,19 @@ export async function revokeSessionsForUser(userId: string) {
 
 export async function getCurrentSession() {
   const cookieStore = await cookies();
-  const token = cookieStore.get(AUTH_COOKIE_NAME)?.value;
+  const signedToken = cookieStore.get(AUTH_COOKIE_NAME)?.value;
 
-  if (!token) {
+  if (!signedToken) {
     return null;
   }
 
-  const sessionRow = await findSessionByToken(token);
+  const verifiedToken = verifySignedSessionToken(signedToken, env.AUTH_SECRET);
+
+  if (!verifiedToken.ok) {
+    return null;
+  }
+
+  const sessionRow = await findSessionByToken(verifiedToken.token);
 
   if (!sessionRow) {
     return null;
@@ -156,6 +179,8 @@ export async function getCurrentSession() {
     return null;
   }
 
+  await touchSession(sessionRow.id);
+
   return {
     user,
     expiresAt,
@@ -172,13 +197,22 @@ export function applySessionCookie(
   token: string,
   expiresAt: string,
 ) {
-  response.cookies.set(AUTH_COOKIE_NAME, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: env.NODE_ENV === "production",
-    path: "/",
-    expires: new Date(expiresAt),
-  });
+  response.cookies.set(
+    AUTH_COOKIE_NAME,
+    signSessionToken({
+      token,
+      expiresAt,
+      secret: env.AUTH_SECRET,
+    }),
+    {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: env.NODE_ENV === "production",
+      path: "/",
+      expires: new Date(expiresAt),
+      priority: "high",
+    },
+  );
 }
 
 export function clearSessionCookie(response: NextResponse) {
@@ -227,17 +261,11 @@ export async function getApiSession() {
 }
 
 export function unauthorizedResponse(message: string = "Unauthorized") {
-  return NextResponse.json(
-    { ok: false, error: message, message },
-    { status: 401 },
-  );
+  return createUnauthorizedResponse(message);
 }
 
 export function forbiddenResponse(message: string = "Forbidden") {
-  return NextResponse.json(
-    { ok: false, error: message, message },
-    { status: 403 },
-  );
+  return createForbiddenResponse(message);
 }
 
 export async function requireApiRole(roles: UserRole[]) {

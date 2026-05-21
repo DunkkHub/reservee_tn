@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
 
+import {
+  errorResponse,
+  rateLimitResponse,
+  validationErrorResponse,
+} from "@/lib/api-response";
+import { handleRouteError } from "@/lib/api-route-helpers";
 import { verifyAuthChallenge } from "@/lib/auth-challenges";
 import { findSessionUserById, updateUserPassword } from "@/lib/auth-repository";
 import {
@@ -8,13 +14,12 @@ import {
   createSession,
   revokeSessionsForUser,
 } from "@/lib/auth-session";
-import { getRouteErrorMessage } from "@/lib/error-utils";
 import { consumeRateLimit } from "@/lib/rate-limit";
+import { assertAllowedOrigin, getClientIp } from "@/lib/security";
 import {
-  assertAllowedOrigin,
-  getClientIp,
-  HttpRequestError,
-} from "@/lib/security";
+  passwordResetConfirmRequestSchema,
+  safeParseWithSchema,
+} from "@/lib/validation";
 
 export const runtime = "nodejs";
 
@@ -29,74 +34,39 @@ export async function POST(request: Request) {
     });
 
     if (!rateLimit.allowed) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: "Too many verification attempts. Please request a new reset code.",
-        },
-        {
-          status: 429,
-          headers: {
-            "Retry-After": String(Math.ceil((rateLimit.resetAt - Date.now()) / 1000)),
-          },
-        },
+      return rateLimitResponse(
+        "Too many verification attempts. Please request a new reset code.",
+        rateLimit.resetAt,
       );
     }
 
-    const body = (await request.json()) as {
-      challengeId?: string;
-      code?: string;
-      password?: string;
-    };
+    const body = await request.json();
+    const parsed = safeParseWithSchema(passwordResetConfirmRequestSchema, body);
 
-    if (!body.challengeId?.trim() || !body.code?.trim() || !body.password?.trim()) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: "Challenge ID, verification code, and new password are required.",
-        },
-        { status: 400 },
-      );
-    }
-
-    if (body.password.trim().length < 8) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: "Password must be at least 8 characters.",
-        },
-        { status: 400 },
-      );
+    if (!parsed.success) {
+      return validationErrorResponse(parsed.error);
     }
 
     const result = await verifyAuthChallenge({
-      challengeId: body.challengeId,
+      challengeId: parsed.data.challengeId,
       purpose: "password_reset",
-      code: body.code,
+      code: parsed.data.code,
     });
 
     if (!result.ok) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: result.message,
-        },
-        { status: 401 },
-      );
+      return errorResponse(result.message, 401, "unauthorized");
     }
 
-    await updateUserPassword(result.userId, body.password);
+    await updateUserPassword(result.userId, parsed.data.password);
     await revokeSessionsForUser(result.userId);
 
     const user = await findSessionUserById(result.userId);
 
     if (!user) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: "The password was updated, but the account could not be loaded.",
-        },
-        { status: 404 },
+      return errorResponse(
+        "The password was updated, but the account could not be loaded.",
+        404,
+        "not_found",
       );
     }
 
@@ -105,8 +75,10 @@ export async function POST(request: Request) {
       {
         ok: true,
         message: "Password reset successful.",
-        session,
-        redirectTo: buildRedirectPath(user.role),
+        data: {
+          session,
+          redirectTo: buildRedirectPath(user.role),
+        },
       },
       { status: 200 },
     );
@@ -114,22 +86,6 @@ export async function POST(request: Request) {
     applySessionCookie(response, token, session.expiresAt);
     return response;
   } catch (error) {
-    if (error instanceof HttpRequestError) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: error.message,
-        },
-        { status: error.status },
-      );
-    }
-
-    return NextResponse.json(
-      {
-        ok: false,
-        message: getRouteErrorMessage(error),
-      },
-      { status: 500 },
-    );
+    return handleRouteError(error, "Unable to complete the password reset.");
   }
 }

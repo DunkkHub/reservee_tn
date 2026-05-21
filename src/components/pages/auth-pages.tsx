@@ -16,6 +16,7 @@ import { useAuth } from "@/components/providers/auth-provider";
 import { useLocale } from "@/components/providers/locale-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import type { ApiResponse } from "@/lib/api-response";
 import { getCategoryTranslation, getCityTranslation } from "@/lib/i18n";
 import { categories, cities } from "@/lib/taxonomy";
 import type { AuthDeliveryChannel, AuthSession } from "@/lib/auth-types";
@@ -29,9 +30,7 @@ type VerificationChallengePayload = {
   developmentCodePreview: string | null;
 };
 
-type AuthApiResponse = {
-  ok: boolean;
-  message: string;
+type AuthApiPayload = {
   redirectTo?: string;
   session?: AuthSession | null;
   challenge?: VerificationChallengePayload | null;
@@ -219,16 +218,17 @@ export function LoginPage() {
         }),
       });
 
-      const data = (await response.json()) as AuthApiResponse;
+      const data = (await response.json()) as ApiResponse<AuthApiPayload>;
+      const challengePayload = data.data?.challenge;
 
-      if (!response.ok || !data.ok || !data.challenge) {
+      if (!response.ok || !data.ok || !challengePayload) {
         setError(data.message || messages.auth.loginFailed);
         return;
       }
 
-      setChallenge(data.challenge);
+      setChallenge(challengePayload);
       setForm((current) => ({ ...current, code: "" }));
-      setMessage(data.message);
+      setMessage(data.message ?? messages.auth.loginFailed);
     } catch {
       setError(messages.auth.loginFailed);
     } finally {
@@ -257,15 +257,16 @@ export function LoginPage() {
         }),
       });
 
-      const data = (await response.json()) as AuthApiResponse;
+      const data = (await response.json()) as ApiResponse<AuthApiPayload>;
+      const sessionPayload = data.data?.session;
 
-      if (!response.ok || !data.ok || !data.session) {
+      if (!response.ok || !data.ok || !sessionPayload) {
         setError(data.message || messages.auth.loginFailed);
         return;
       }
 
-      setSession(data.session);
-      let destination = data.redirectTo ?? "/";
+      setSession(sessionPayload);
+      let destination = data.data?.redirectTo ?? "/";
 
       if (isSafeInternalPath(next) && next) {
         destination = next;
@@ -526,15 +527,16 @@ export function RegisterPage() {
         body: JSON.stringify(payload),
       });
 
-      const data = (await response.json()) as AuthApiResponse;
+      const data = (await response.json()) as ApiResponse<AuthApiPayload>;
+      const sessionPayload = data.data?.session;
 
-      if (!response.ok || !data.ok || !data.session) {
+      if (!response.ok || !data.ok || !sessionPayload) {
         setError(data.message || messages.auth.registerFailed);
         return;
       }
 
-      setSession(data.session);
-      let destination = data.redirectTo ?? "/";
+      setSession(sessionPayload);
+      let destination = data.data?.redirectTo ?? "/";
 
       if (isSafeInternalPath(next) && next) {
         destination = next;
@@ -789,16 +791,17 @@ export function ResetPasswordPage() {
         }),
       });
 
-      const data = (await response.json()) as AuthApiResponse;
+      const data = (await response.json()) as ApiResponse<AuthApiPayload>;
+      const challengePayload = data.data?.challenge;
 
-      if (!response.ok || !data.ok || !data.challenge) {
+      if (!response.ok || !data.ok) {
         setError(data.message || messages.auth.resetFailed);
         return;
       }
 
-      setChallenge(data.challenge);
+      setChallenge(challengePayload ?? null);
       setForm((current) => ({ ...current, code: "" }));
-      setMessage(data.message);
+      setMessage(data.message ?? messages.auth.resetFailed);
     } catch {
       setError(messages.auth.resetFailed);
     } finally {
@@ -833,15 +836,16 @@ export function ResetPasswordPage() {
         }),
       });
 
-      const data = (await response.json()) as AuthApiResponse;
+      const data = (await response.json()) as ApiResponse<AuthApiPayload>;
+      const sessionPayload = data.data?.session;
 
-      if (!response.ok || !data.ok || !data.session) {
+      if (!response.ok || !data.ok || !sessionPayload) {
         setError(data.message || messages.auth.resetFailed);
         return;
       }
 
-      setSession(data.session);
-      router.push(data.redirectTo ?? "/account");
+      setSession(sessionPayload);
+      router.push(data.data?.redirectTo ?? "/account");
       router.refresh();
     } catch {
       setError(messages.auth.resetFailed);

@@ -17,7 +17,7 @@ import { useEffect, useMemo } from "react";
 
 import { useAuth } from "@/components/providers/auth-provider";
 import { useLocale } from "@/components/providers/locale-provider";
-import { Button } from "@/components/ui/button";
+import { Button, buttonStyles } from "@/components/ui/button";
 import { LanguageSwitcher } from "@/components/ui/language-switcher";
 import { LogoMark } from "@/components/ui/logo-mark";
 import { cn } from "@/lib/utils";
@@ -161,8 +161,11 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
                   <LogIn className="h-4 w-4" />
                   {messages.shell.login}
                 </Link>
-                <Link href="/register?role=shop">
-                  <Button size="sm">{messages.shell.addBusiness}</Button>
+                <Link
+                  href="/register?role=shop"
+                  className={buttonStyles({ size: "sm" })}
+                >
+                  {messages.shell.addBusiness}
                 </Link>
               </>
             )}

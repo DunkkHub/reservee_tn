@@ -1,5 +1,13 @@
 import { addHours, formatISO } from "date-fns";
 
+import {
+  canBusinessComplete as canBusinessCompleteLifecycle,
+  canBusinessConfirm as canBusinessConfirmLifecycle,
+  canBusinessReject as canBusinessRejectLifecycle,
+  canCustomerCancel as canCustomerCancelLifecycle,
+  canRequestReschedule as canRequestRescheduleLifecycle,
+  isBookingBlockingStatus,
+} from "@/lib/booking-lifecycle";
 import type {
   Booking,
   BookingStatus,
@@ -155,30 +163,27 @@ export function isBusinessFeatured(business: Business) {
 }
 
 export function isBookingBlocking(status: BookingStatus) {
-  return status === "pending" || status === "confirmed";
+  return isBookingBlockingStatus(status);
 }
 
 export function canCustomerCancel(booking: Booking) {
-  return (
-    (booking.status === "pending" || booking.status === "confirmed") &&
-    new Date(booking.startAt).getTime() > Date.now()
-  );
+  return canCustomerCancelLifecycle(booking);
 }
 
 export function canBusinessReject(booking: Booking) {
-  return booking.status === "pending";
+  return canBusinessRejectLifecycle(booking);
 }
 
 export function canBusinessConfirm(booking: Booking) {
-  return booking.status === "pending";
+  return canBusinessConfirmLifecycle(booking);
 }
 
 export function canBusinessComplete(booking: Booking) {
-  return booking.status === "confirmed";
+  return canBusinessCompleteLifecycle(booking);
 }
 
 export function canRequestReschedule(booking: Booking) {
-  return booking.status === "pending" || booking.status === "confirmed";
+  return canRequestRescheduleLifecycle(booking);
 }
 
 export function businessStatusLabel(status: BusinessStatus) {
@@ -228,8 +233,9 @@ export function bookingStatusTone(status: BookingStatus) {
       return "success";
     case "pending":
       return "accent";
-    case "cancelled":
-    case "rejected":
+    case "cancelled_by_customer":
+    case "cancelled_by_business":
+    case "expired":
       return "danger";
     case "no_show":
       return "warning";

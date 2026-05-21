@@ -20,7 +20,7 @@ import {
 import { useLocale } from "@/components/providers/locale-provider";
 import { usePlatform } from "@/components/providers/platform-provider";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonStyles } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LogoMark } from "@/components/ui/logo-mark";
 import { generateDateOptions } from "@/lib/availability";
@@ -175,7 +175,7 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
             src={business.coverUrl}
             alt={business.name}
             fill
-            priority
+            preload
             className="object-cover"
             sizes="100vw"
           />
@@ -247,24 +247,22 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
               <div className="panel space-y-3 p-4 backdrop-blur-md">
                 <Link
                   href={`/book/${business.slug}${selectedServiceId ? `?service=${selectedServiceId}` : ""}`}
+                  className={buttonStyles({ fullWidth: true, size: "lg" })}
                 >
-                  <Button fullWidth size="lg">
-                    {messages.businessProfile.bookNow}
-                  </Button>
+                  {messages.businessProfile.bookNow}
                 </Link>
                 <a
                   href={`https://wa.me/${business.whatsapp.replace(/\D/g, "")}`}
                   target="_blank"
                   rel="noreferrer"
+                  className={buttonStyles({
+                    variant: "secondary",
+                    fullWidth: true,
+                    size: "lg",
+                  })}
                 >
-                  <Button
-                    variant="secondary"
-                    fullWidth
-                    size="lg"
-                    icon={<MessageCircle className="h-4 w-4" />}
-                  >
-                    WhatsApp
-                  </Button>
+                  <MessageCircle className="h-4 w-4" />
+                  WhatsApp
                 </a>
                 <div className="rounded-2xl border border-white/8 bg-white/4 p-4 text-sm text-[var(--color-secondary)]">
                   {messages.businessProfile.bookingPageNote}
@@ -593,10 +591,9 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
             </div>
             <Link
               href={`/book/${business.slug}${selectedServiceId ? `?service=${selectedServiceId}` : ""}`}
+              className={buttonStyles({ fullWidth: true, size: "lg" })}
             >
-              <Button fullWidth size="lg">
-                {messages.businessProfile.continueToBooking}
-              </Button>
+              {messages.businessProfile.continueToBooking}
             </Link>
           </div>
 
@@ -761,8 +758,9 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
           </div>
           <Link
             href={`/book/${business.slug}${selectedServiceId ? `?service=${selectedServiceId}` : ""}`}
+            className={buttonStyles()}
           >
-            <Button>{messages.businessProfile.bookNow}</Button>
+            {messages.businessProfile.bookNow}
           </Link>
         </div>
       </div>

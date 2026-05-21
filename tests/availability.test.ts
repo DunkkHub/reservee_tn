@@ -1,16 +1,22 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { addDays } from "date-fns";
 
 import {
   findNextAvailableSlot,
   generateAvailableSlots,
   parseDateKey,
 } from "../src/lib/availability";
-import { combineDateKeyAndTime } from "../src/lib/datetime";
+import {
+  combineDateKeyAndTime,
+  formatDateKey,
+  getDayOfWeekForDateKey,
+} from "../src/lib/datetime";
 import type { Booking, Business, Service } from "../src/lib/types";
 
-const dateKey = "2099-06-10";
 const timeZone = "Africa/Tunis";
+const dateKey = formatDateKey(addDays(new Date(), 1), timeZone);
+const dayOfWeek = getDayOfWeekForDateKey(dateKey, timeZone);
 
 function slotAt(time: string) {
   return combineDateKeyAndTime(dateKey, time, timeZone).toISOString();
@@ -45,7 +51,7 @@ const business: Business = {
     {
       id: "hours-3",
       businessId: "biz-test",
-      dayOfWeek: 3,
+      dayOfWeek: dayOfWeek ?? 1,
       openTime: "09:00",
       closeTime: "12:00",
       isClosed: false,
@@ -123,7 +129,7 @@ const bookings: Booking[] = [
     customerPhone: "+216 20 222 222",
     startAt: slotAt("11:15"),
     endAt: slotAt("12:00"),
-    status: "cancelled",
+    status: "cancelled_by_customer",
     source: "web",
     createdAt: "2099-06-01T10:00:00.000Z",
   },
@@ -142,8 +148,8 @@ test("generateAvailableSlots excludes blocking bookings and blocked windows", ()
   assert.ok(isoSlots.includes(slotAt("11:00")));
 });
 
-test("cancelled bookings do not block the next available slot", () => {
-  const nextSlot = findNextAvailableSlot(business, service, bookings, 3);
+test("cancelled customer bookings do not block the next available slot", () => {
+  const nextSlot = findNextAvailableSlot(business, service, bookings, 7);
 
   assert.ok(nextSlot);
   assert.equal(nextSlot.toISOString(), slotAt("10:30"));

@@ -17,7 +17,7 @@ import {
 import { useLocale } from "@/components/providers/locale-provider";
 import { usePlatform } from "@/components/providers/platform-provider";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonStyles } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatDateKey, generateDateOptions } from "@/lib/availability";
 import { fetchApi } from "@/lib/client-api";
@@ -194,23 +194,22 @@ export function BookingFlowPage({ slug }: { slug: string }) {
         <div className="flex flex-col gap-3 sm:flex-row">
           <Link
             href={`/manage-booking/${confirmedBooking.referenceCode}`}
-            className="flex-1"
+            className={buttonStyles({ fullWidth: true, className: "flex-1" })}
           >
-            <Button fullWidth>{messages.bookingFlow.manageBookingButton}</Button>
+            {messages.bookingFlow.manageBookingButton}
           </Link>
           <a
             href={`https://wa.me/${business.whatsapp.replace(/\D/g, "")}`}
             target="_blank"
             rel="noreferrer"
-            className="flex-1"
+            className={buttonStyles({
+              variant: "secondary",
+              fullWidth: true,
+              className: "flex-1",
+            })}
           >
-            <Button
-              fullWidth
-              variant="secondary"
-              icon={<MessageCircle className="h-4 w-4" />}
-            >
-              {messages.bookingFlow.contactWhatsapp}
-            </Button>
+            <MessageCircle className="h-4 w-4" />
+            {messages.bookingFlow.contactWhatsapp}
           </a>
         </div>
       </div>
@@ -276,10 +275,12 @@ export function BookingFlowPage({ slug }: { slug: string }) {
                 {messages.bookingFlow.heroDescription}
               </p>
             </div>
-            <Link href={`/business/${business.slug}`}>
-              <Button variant="ghost" icon={<BackIcon className="h-4 w-4" />}>
-                {messages.bookingFlow.backToProfile}
-              </Button>
+            <Link
+              href={`/business/${business.slug}`}
+              className={buttonStyles({ variant: "ghost" })}
+            >
+              <BackIcon className="h-4 w-4" />
+              {messages.bookingFlow.backToProfile}
             </Link>
           </div>
           <div className="mt-6 grid gap-3 md:grid-cols-4">

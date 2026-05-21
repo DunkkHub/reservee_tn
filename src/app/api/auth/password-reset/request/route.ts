@@ -1,25 +1,31 @@
-import { NextResponse } from "next/server";
-
 import { createAuthChallenge } from "@/lib/auth-challenges";
+import {
+  rateLimitResponse,
+  successResponse,
+  validationErrorResponse,
+} from "@/lib/api-response";
+import { handleRouteError } from "@/lib/api-route-helpers";
 import {
   findUserByIdentifier,
   resolveUserDeliveryDestination,
 } from "@/lib/auth-repository";
 import { looksLikeEmailIdentifier } from "@/lib/contact-utils";
-import { getRouteErrorMessage } from "@/lib/error-utils";
 import { consumeRateLimit } from "@/lib/rate-limit";
+import { assertAllowedOrigin, getClientIp } from "@/lib/security";
+import {
+  passwordResetRequestSchema,
+  safeParseWithSchema,
+} from "@/lib/validation";
 import {
   deliverVerificationCode,
   formatVerificationDeliveryMessage,
   type VerificationDeliveryChannel,
 } from "@/lib/verification-delivery";
-import {
-  assertAllowedOrigin,
-  getClientIp,
-  HttpRequestError,
-} from "@/lib/security";
 
 export const runtime = "nodejs";
+
+const PASSWORD_RESET_RESPONSE_MESSAGE =
+  "If an account matches those details, a reset code has been sent.";
 
 function resolveDeliveryChannel(
   requested: string | undefined,
@@ -43,63 +49,38 @@ export async function POST(request: Request) {
     });
 
     if (!rateLimit.allowed) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: "Too many reset requests. Please try again in a few minutes.",
-        },
-        {
-          status: 429,
-          headers: {
-            "Retry-After": String(Math.ceil((rateLimit.resetAt - Date.now()) / 1000)),
-          },
-        },
+      return rateLimitResponse(
+        "Too many reset requests. Please try again in a few minutes.",
+        rateLimit.resetAt,
       );
     }
 
-    const body = (await request.json()) as {
-      identifier?: string;
-      deliveryChannel?: VerificationDeliveryChannel;
-    };
+    const body = await request.json();
+    const parsed = safeParseWithSchema(passwordResetRequestSchema, body);
 
-    if (!body.identifier?.trim()) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: "Email or phone number is required.",
-        },
-        { status: 400 },
-      );
-    }
-
-    const user = await findUserByIdentifier(body.identifier);
-
-    if (!user) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: "No account matches this email or phone number.",
-        },
-        { status: 404 },
-      );
+    if (!parsed.success) {
+      return validationErrorResponse(parsed.error);
     }
 
     const deliveryChannel = resolveDeliveryChannel(
-      body.deliveryChannel,
-      body.identifier,
+      parsed.data.deliveryChannel,
+      parsed.data.identifier,
     );
+    const user = await findUserByIdentifier(parsed.data.identifier);
+
+    if (!user) {
+      return successResponse(
+        { challenge: null },
+        PASSWORD_RESET_RESPONSE_MESSAGE,
+      );
+    }
+
     const destination = resolveUserDeliveryDestination(user, deliveryChannel);
 
     if (!destination) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message:
-            deliveryChannel === "email"
-              ? "This account does not have an email address for password reset."
-              : "This account does not have a phone number for password reset.",
-        },
-        { status: 400 },
+      return successResponse(
+        { challenge: null },
+        PASSWORD_RESET_RESPONSE_MESSAGE,
       );
     }
 
@@ -116,13 +97,8 @@ export async function POST(request: Request) {
       purpose: "password_reset",
     });
 
-    return NextResponse.json(
+    return successResponse(
       {
-        ok: true,
-        message: formatVerificationDeliveryMessage({
-          purpose: "password_reset",
-          result: delivery,
-        }),
         challenge: {
           challengeId: challenge.challengeId,
           expiresAt: challenge.expiresAt,
@@ -131,25 +107,12 @@ export async function POST(request: Request) {
           developmentCodePreview: delivery.developmentCodePreview,
         },
       },
-      { status: 200 },
+      formatVerificationDeliveryMessage({
+        purpose: "password_reset",
+        result: delivery,
+      }),
     );
   } catch (error) {
-    if (error instanceof HttpRequestError) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: error.message,
-        },
-        { status: error.status },
-      );
-    }
-
-    return NextResponse.json(
-      {
-        ok: false,
-        message: getRouteErrorMessage(error),
-      },
-      { status: 500 },
-    );
+    return handleRouteError(error, "Unable to start the password reset flow.");
   }
 }

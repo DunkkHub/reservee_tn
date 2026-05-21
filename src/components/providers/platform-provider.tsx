@@ -129,6 +129,26 @@ function findBookingId(bookings: Booking[], referenceCode: string) {
   )?.id;
 }
 
+async function fetchPublicBusinessesWithRetry() {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      return await fetchApi<Business[]>("/api/businesses?scope=public&limit=200");
+    } catch (error) {
+      lastError = error;
+
+      if (attempt === 0) {
+        await new Promise<void>((resolve) => {
+          window.setTimeout(resolve, 300);
+        });
+      }
+    }
+  }
+
+  throw lastError;
+}
+
 export function PlatformProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [businesses, setBusinesses] = useState<Business[]>([]);
@@ -147,7 +167,7 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
 
     try {
       if (!user) {
-        const publicBusinesses = await fetchApi<Business[]>("/api/businesses?scope=public&limit=200");
+        const publicBusinesses = await fetchPublicBusinessesWithRetry();
 
         startTransition(() => {
           setBusinesses(publicBusinesses.map(normalizeBusiness));
@@ -161,7 +181,7 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
 
       if (user.role === "customer") {
         const [publicBusinesses, customerBookings] = await Promise.all([
-          fetchApi<Business[]>("/api/businesses?scope=public&limit=200"),
+          fetchPublicBusinessesWithRetry(),
           fetchApi<Booking[]>("/api/bookings"),
         ]);
 
@@ -178,7 +198,7 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
       if (user.role === "shop") {
         const [publicBusinesses, ownerBusiness, ownerBookings, ownerWaitlist, ownerActivity] =
           await Promise.all([
-            fetchApi<Business[]>("/api/businesses?scope=public&limit=200"),
+            fetchPublicBusinessesWithRetry(),
             fetchApi<Business>("/api/businesses?scope=owner"),
             fetchApi<Booking[]>("/api/bookings"),
             fetchApi<WaitlistRequest[]>("/api/waitlist"),
@@ -321,7 +341,7 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    await updateBookingStatus(bookingId, "cancelled");
+    await updateBookingStatus(bookingId, "cancelled_by_customer");
   }
 
   async function requestBookingReschedule(referenceCode: string) {

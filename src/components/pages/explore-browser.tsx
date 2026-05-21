@@ -9,7 +9,7 @@ import { useLocale } from "@/components/providers/locale-provider";
 import { usePlatform } from "@/components/providers/platform-provider";
 import { BusinessCard } from "@/components/pages/business-card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { buttonStyles } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionHeading } from "@/components/ui/section-heading";
 import {
@@ -268,8 +268,11 @@ export function ExploreBrowser({
         title={resolvedTitle}
         description={resolvedDescription}
         action={
-          <Link href="/register?role=shop">
-            <Button variant="secondary">{messages.explore.addBusiness}</Button>
+          <Link
+            href="/register?role=shop"
+            className={buttonStyles({ variant: "secondary" })}
+          >
+            {messages.explore.addBusiness}
           </Link>
         }
       />
@@ -426,7 +429,7 @@ export function ExploreBrowser({
 
       {filteredBusinesses.length > 0 ? (
         <div className="grid gap-5 xl:grid-cols-2">
-          {filteredBusinesses.map((business) => {
+          {filteredBusinesses.map((business, index) => {
             const category = categories.find((item) => item.id === business.categoryId);
             const city = cities.find((item) => item.id === business.cityId);
             const localizedCategory = category
@@ -441,6 +444,7 @@ export function ExploreBrowser({
                 categoryName={localizedCategory?.name ?? ""}
                 cityName={localizedCity?.name ?? city?.name ?? ""}
                 compact
+                eagerImage={index < 2}
               />
             );
           })}

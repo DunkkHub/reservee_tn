@@ -1,10 +1,15 @@
-import { NextResponse } from "next/server";
-
+import {
+  errorResponse,
+  forbiddenResponse,
+  successResponse,
+  unauthorizedResponse,
+  validationErrorResponse,
+} from "@/lib/api-response";
+import { handleRouteError } from "@/lib/api-route-helpers";
 import { recordActivity } from "@/lib/activity-log-repository";
+import { canManageBusinessProfile } from "@/lib/access-control";
 import { getApiSession } from "@/lib/auth-session";
 import { findBusinessById } from "@/lib/business-repository";
-import { getDatabaseErrorMessage } from "@/lib/db";
-import { assertAllowedOrigin, HttpRequestError } from "@/lib/security";
 import {
   createMediaItem,
   deleteMediaItem,
@@ -12,10 +17,19 @@ import {
   reorderMediaItem,
   setCoverMediaItem,
 } from "@/lib/media-repository";
+import { assertAllowedOrigin } from "@/lib/security";
+import {
+  mediaCreateSchema,
+  mediaUpdateSchema,
+  safeParseWithSchema,
+} from "@/lib/validation";
 
 export const runtime = "nodejs";
 
-async function canManageBusiness(session: NonNullable<Awaited<ReturnType<typeof getApiSession>>>, businessId: string) {
+async function canManageBusiness(
+  session: NonNullable<Awaited<ReturnType<typeof getApiSession>>>,
+  businessId: string,
+) {
   if (session.user.role === "admin") {
     return true;
   }
@@ -25,7 +39,7 @@ async function canManageBusiness(session: NonNullable<Awaited<ReturnType<typeof 
   }
 
   const business = await findBusinessById(businessId);
-  return Boolean(business && business.ownerId === session.user.id);
+  return Boolean(business && canManageBusinessProfile(session.user, business.ownerId));
 }
 
 export async function GET(request: Request) {
@@ -34,26 +48,12 @@ export async function GET(request: Request) {
     const businessId = searchParams.get("businessId");
 
     if (!businessId) {
-      return NextResponse.json(
-        { ok: false, message: "Business ID is required" },
-        { status: 400 },
-      );
+      return errorResponse("Business ID is required.", 400, "invalid_input");
     }
 
-    const media = await findMediaByBusiness(businessId);
-
-    return NextResponse.json({
-      ok: true,
-      data: media,
-    });
+    return successResponse(await findMediaByBusiness(businessId));
   } catch (error) {
-    return NextResponse.json(
-      {
-        ok: false,
-        message: getDatabaseErrorMessage(error),
-      },
-      { status: 500 },
-    );
+    return handleRouteError(error, "Unable to load media.");
   }
 }
 
@@ -64,79 +64,40 @@ export async function POST(request: Request) {
     const session = await getApiSession();
 
     if (!session) {
-      return NextResponse.json(
-        { ok: false, message: "Authentication required" },
-        { status: 401 },
-      );
+      return unauthorizedResponse("Authentication required.");
     }
 
-    const body = (await request.json()) as {
-      businessId?: string;
-      url?: string;
-      alt?: string;
-      type?: "cover" | "gallery";
-    };
+    const body = await request.json();
+    const parsed = safeParseWithSchema(mediaCreateSchema, body);
 
-    if (!body.businessId) {
-      return NextResponse.json(
-        { ok: false, message: "Business ID is required" },
-        { status: 400 },
-      );
+    if (!parsed.success) {
+      return validationErrorResponse(parsed.error);
     }
 
-    if (!(await canManageBusiness(session, body.businessId))) {
-      return NextResponse.json(
-        { ok: false, message: "You don't have permission to manage media for this business" },
-        { status: 403 },
-      );
-    }
-
-    if (!body.url?.trim()) {
-      return NextResponse.json(
-        { ok: false, message: "Image URL is required" },
-        { status: 400 },
-      );
+    if (!(await canManageBusiness(session, parsed.data.businessId))) {
+      return forbiddenResponse("You do not have permission to manage media for this business.");
     }
 
     const media = await createMediaItem({
-      businessId: body.businessId,
-      url: body.url,
-      alt: body.alt ?? "",
-      type: body.type ?? "gallery",
+      businessId: parsed.data.businessId,
+      url: parsed.data.url,
+      alt: parsed.data.alt,
+      type: parsed.data.type ?? "gallery",
+      storageProvider: parsed.data.storageProvider,
+      storageKey: parsed.data.storageKey,
+      mimeType: parsed.data.mimeType,
+      fileSizeBytes: parsed.data.fileSizeBytes,
     });
 
     await recordActivity({
       type: "business_settings_edited",
-      businessId: body.businessId,
+      businessId: parsed.data.businessId,
       summary: "Business gallery was updated.",
     });
 
-    return NextResponse.json(
-      {
-        ok: true,
-        message: "Media item created",
-        data: media,
-      },
-      { status: 201 },
-    );
+    return successResponse(media, "Media item created", 201);
   } catch (error) {
-    if (error instanceof HttpRequestError) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: error.message,
-        },
-        { status: error.status },
-      );
-    }
-
-    return NextResponse.json(
-      {
-        ok: false,
-        message: getDatabaseErrorMessage(error),
-      },
-      { status: 500 },
-    );
+    return handleRouteError(error, "Unable to create this media item.");
   }
 }
 
@@ -147,70 +108,41 @@ export async function PATCH(request: Request) {
     const session = await getApiSession();
 
     if (!session) {
-      return NextResponse.json(
-        { ok: false, message: "Authentication required" },
-        { status: 401 },
-      );
+      return unauthorizedResponse("Authentication required.");
     }
 
-    const body = (await request.json()) as {
-      businessId?: string;
-      mediaId?: string;
-      actionType?: "move" | "setCover";
-      direction?: "up" | "down";
-    };
+    const body = await request.json();
+    const parsed = safeParseWithSchema(mediaUpdateSchema, body);
 
-    if (!body.businessId || !body.mediaId || !body.actionType) {
-      return NextResponse.json(
-        { ok: false, message: "Business ID, media ID, and action type are required" },
-        { status: 400 },
-      );
+    if (!parsed.success) {
+      return validationErrorResponse(parsed.error);
     }
 
-    if (!(await canManageBusiness(session, body.businessId))) {
-      return NextResponse.json(
-        { ok: false, message: "You don't have permission to manage media for this business" },
-        { status: 403 },
-      );
+    if (!(await canManageBusiness(session, parsed.data.businessId))) {
+      return forbiddenResponse("You do not have permission to manage media for this business.");
     }
 
     const media =
-      body.actionType === "setCover"
-        ? await setCoverMediaItem(body.businessId, body.mediaId)
-        : await reorderMediaItem(body.businessId, body.mediaId, body.direction ?? "up");
+      parsed.data.actionType === "setCover"
+        ? await setCoverMediaItem(parsed.data.businessId, parsed.data.mediaId)
+        : await reorderMediaItem(
+            parsed.data.businessId,
+            parsed.data.mediaId,
+            parsed.data.direction ?? "up",
+          );
 
     await recordActivity({
       type: "business_settings_edited",
-      businessId: body.businessId,
+      businessId: parsed.data.businessId,
       summary:
-        body.actionType === "setCover"
+        parsed.data.actionType === "setCover"
           ? "Business cover image was updated."
           : "Business gallery order changed.",
     });
 
-    return NextResponse.json({
-      ok: true,
-      message: "Media updated",
-      data: media,
-    });
+    return successResponse(media, "Media updated");
   } catch (error) {
-    if (error instanceof HttpRequestError) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: error.message,
-        },
-        { status: error.status },
-      );
-    }
-
-    return NextResponse.json(
-      {
-        ok: false,
-        message: getDatabaseErrorMessage(error),
-      },
-      { status: 500 },
-    );
+    return handleRouteError(error, "Unable to update this media item.");
   }
 }
 
@@ -221,10 +153,7 @@ export async function DELETE(request: Request) {
     const session = await getApiSession();
 
     if (!session) {
-      return NextResponse.json(
-        { ok: false, message: "Authentication required" },
-        { status: 401 },
-      );
+      return unauthorizedResponse("Authentication required.");
     }
 
     const { searchParams } = new URL(request.url);
@@ -232,17 +161,11 @@ export async function DELETE(request: Request) {
     const mediaId = searchParams.get("mediaId");
 
     if (!businessId || !mediaId) {
-      return NextResponse.json(
-        { ok: false, message: "Business ID and media ID are required" },
-        { status: 400 },
-      );
+      return errorResponse("Business ID and media ID are required.", 400, "invalid_input");
     }
 
     if (!(await canManageBusiness(session, businessId))) {
-      return NextResponse.json(
-        { ok: false, message: "You don't have permission to manage media for this business" },
-        { status: 403 },
-      );
+      return forbiddenResponse("You do not have permission to manage media for this business.");
     }
 
     await deleteMediaItem(businessId, mediaId);
@@ -253,27 +176,8 @@ export async function DELETE(request: Request) {
       summary: "A gallery image was removed.",
     });
 
-    return NextResponse.json({
-      ok: true,
-      message: "Media deleted",
-    });
+    return successResponse({ deleted: true }, "Media deleted");
   } catch (error) {
-    if (error instanceof HttpRequestError) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: error.message,
-        },
-        { status: error.status },
-      );
-    }
-
-    return NextResponse.json(
-      {
-        ok: false,
-        message: getDatabaseErrorMessage(error),
-      },
-      { status: 500 },
-    );
+    return handleRouteError(error, "Unable to delete this media item.");
   }
 }

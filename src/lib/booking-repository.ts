@@ -8,6 +8,12 @@ import type {
   RowDataPacket,
 } from "mysql2/promise";
 
+import { ApiRouteError } from "@/lib/api-response";
+import {
+  canRequestReschedule,
+  getBookingTransitionErrorMessage,
+  isBookingBlockingStatus,
+} from "@/lib/booking-lifecycle";
 import { getDbPool } from "@/lib/db";
 import {
   fromDatabaseDateTime,
@@ -66,10 +72,6 @@ function isDuplicateEntryError(error: unknown) {
     "code" in error &&
     error.code === "ER_DUP_ENTRY"
   );
-}
-
-function isBlockingStatus(status: BookingStatus) {
-  return status === "pending" || status === "confirmed";
 }
 
 function buildSlotLockStarts(startAt: Date, endAt: Date) {
@@ -181,7 +183,7 @@ export async function expireOldBookings(connection?: PoolConnection) {
     await executor.execute<ResultSetHeader>(
       `
         UPDATE bookings
-        SET status = 'cancelled',
+        SET status = 'expired',
             status_updated_at = UTC_TIMESTAMP()
         WHERE id = ?
       `,
@@ -203,7 +205,7 @@ export async function expireOldBookings(connection?: PoolConnection) {
         actorRole: "system",
         eventType: "status_changed",
         previousStatus: "pending",
-        nextStatus: "cancelled",
+        nextStatus: "expired",
         reason: "pending_expired",
       });
     }
@@ -329,7 +331,7 @@ export async function createBooking(input: {
         ],
       );
 
-      if (isBlockingStatus(input.status)) {
+      if (isBookingBlockingStatus(input.status)) {
         await createSlotLocks(
           connection,
           bookingId,
@@ -481,6 +483,21 @@ export async function updateBookingStatus(
     }
 
     if (existing.status !== status) {
+      const transitionError = getBookingTransitionErrorMessage(
+        existing.status,
+        status,
+        actor?.role ?? "system",
+      );
+
+      if (transitionError) {
+        await connection.rollback();
+        throw new ApiRouteError({
+          code: "conflict",
+          status: 409,
+          message: transitionError,
+        });
+      }
+
       await connection.execute<ResultSetHeader>(
         `
           UPDATE bookings
@@ -490,7 +507,7 @@ export async function updateBookingStatus(
         [status, bookingId],
       );
 
-      if (!isBlockingStatus(status)) {
+      if (!isBookingBlockingStatus(status)) {
         await releaseSlotLocks(connection, bookingId);
       }
 
@@ -544,6 +561,15 @@ export async function requestBookingReschedule(
     if (!existing) {
       await connection.rollback();
       return null;
+    }
+
+    if (!canRequestReschedule(mapRowToBooking(existing))) {
+      await connection.rollback();
+      throw new ApiRouteError({
+        code: "conflict",
+        status: 409,
+        message: "This booking can no longer request a reschedule.",
+      });
     }
 
     await connection.execute<ResultSetHeader>(

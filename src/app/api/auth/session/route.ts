@@ -1,14 +1,9 @@
-import { NextResponse } from "next/server";
-
+import { successResponse } from "@/lib/api-response";
 import { getCurrentSession } from "@/lib/auth-session";
 
 export const runtime = "nodejs";
 
 export async function GET() {
   const session = await getCurrentSession();
-
-  return NextResponse.json({
-    ok: true,
-    session,
-  });
+  return successResponse({ session });
 }

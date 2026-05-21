@@ -163,7 +163,7 @@ export const enMessages = {
     phoneOrEmailPlaceholder: "you@example.com or +216...",
     email: "Email",
     password: "Password",
-    minPassword: "Minimum 8 characters",
+    minPassword: "Minimum 10 chars, with upper, lower, number, and symbol",
     deliveryChannel: "Send my verification code by",
     smsCode: "SMS",
     emailCode: "Email",

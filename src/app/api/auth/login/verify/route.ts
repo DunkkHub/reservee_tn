@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
 
+import {
+  errorResponse,
+  rateLimitResponse,
+  validationErrorResponse,
+} from "@/lib/api-response";
+import { handleRouteError } from "@/lib/api-route-helpers";
 import { verifyAuthChallenge } from "@/lib/auth-challenges";
 import { findSessionUserById } from "@/lib/auth-repository";
 import {
@@ -7,13 +13,12 @@ import {
   buildRedirectPath,
   createSession,
 } from "@/lib/auth-session";
-import { getRouteErrorMessage } from "@/lib/error-utils";
 import { consumeRateLimit } from "@/lib/rate-limit";
+import { assertAllowedOrigin, getClientIp } from "@/lib/security";
 import {
-  assertAllowedOrigin,
-  getClientIp,
-  HttpRequestError,
-} from "@/lib/security";
+  loginVerifyRequestSchema,
+  safeParseWithSchema,
+} from "@/lib/validation";
 
 export const runtime = "nodejs";
 
@@ -28,61 +33,33 @@ export async function POST(request: Request) {
     });
 
     if (!rateLimit.allowed) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: "Too many verification attempts. Please request a new code.",
-        },
-        {
-          status: 429,
-          headers: {
-            "Retry-After": String(Math.ceil((rateLimit.resetAt - Date.now()) / 1000)),
-          },
-        },
+      return rateLimitResponse(
+        "Too many verification attempts. Please request a new code.",
+        rateLimit.resetAt,
       );
     }
 
-    const body = (await request.json()) as {
-      challengeId?: string;
-      code?: string;
-    };
+    const body = await request.json();
+    const parsed = safeParseWithSchema(loginVerifyRequestSchema, body);
 
-    if (!body.challengeId?.trim() || !body.code?.trim()) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: "Challenge ID and verification code are required.",
-        },
-        { status: 400 },
-      );
+    if (!parsed.success) {
+      return validationErrorResponse(parsed.error);
     }
 
     const result = await verifyAuthChallenge({
-      challengeId: body.challengeId,
+      challengeId: parsed.data.challengeId,
       purpose: "login",
-      code: body.code,
+      code: parsed.data.code,
     });
 
     if (!result.ok) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: result.message,
-        },
-        { status: 401 },
-      );
+      return errorResponse(result.message, 401, "unauthorized");
     }
 
     const user = await findSessionUserById(result.userId);
 
     if (!user) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: "This account could not be loaded anymore.",
-        },
-        { status: 404 },
-      );
+      return errorResponse("This account could not be loaded anymore.", 404, "not_found");
     }
 
     const { token, session } = await createSession(user, request);
@@ -90,8 +67,10 @@ export async function POST(request: Request) {
       {
         ok: true,
         message: "Login successful.",
-        session,
-        redirectTo: buildRedirectPath(user.role),
+        data: {
+          session,
+          redirectTo: buildRedirectPath(user.role),
+        },
       },
       { status: 200 },
     );
@@ -99,22 +78,6 @@ export async function POST(request: Request) {
     applySessionCookie(response, token, session.expiresAt);
     return response;
   } catch (error) {
-    if (error instanceof HttpRequestError) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: error.message,
-        },
-        { status: error.status },
-      );
-    }
-
-    return NextResponse.json(
-      {
-        ok: false,
-        message: getRouteErrorMessage(error),
-      },
-      { status: 500 },
-    );
+    return handleRouteError(error, "Unable to verify the login code.");
   }
 }

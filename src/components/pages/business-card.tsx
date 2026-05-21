@@ -6,7 +6,7 @@ import { ArrowLeft, ArrowRight, Clock3, MapPin, MessageCircle, Zap } from "lucid
 
 import { useLocale } from "@/components/providers/locale-provider";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { buttonStyles } from "@/components/ui/button";
 import { LogoMark } from "@/components/ui/logo-mark";
 import { isBusinessFeatured } from "@/lib/platform-rules";
 import type { Business } from "@/lib/types";
@@ -22,6 +22,7 @@ interface BusinessCardProps {
   categoryName: string;
   cityName: string;
   compact?: boolean;
+  eagerImage?: boolean;
 }
 
 export function BusinessCard({
@@ -29,6 +30,7 @@ export function BusinessCard({
   categoryName,
   cityName,
   compact,
+  eagerImage,
 }: BusinessCardProps) {
   const { direction, locale, messages } = useLocale();
   const nextAvailable = business.nextAvailableAt ? new Date(business.nextAvailableAt) : null;
@@ -45,6 +47,7 @@ export function BusinessCard({
           src={business.coverUrl}
           alt={business.name}
           fill
+          loading={eagerImage ? "eager" : undefined}
           className="object-cover transition duration-700 group-hover:scale-[1.03]"
           sizes={compact ? "(max-width: 768px) 100vw, 50vw" : "(max-width: 1024px) 100vw, 33vw"}
         />
@@ -116,24 +119,25 @@ export function BusinessCard({
           </div>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row">
-          <Link href={`/business/${business.slug}`} className="flex-1">
-            <Button fullWidth icon={<ArrowIcon className="h-4 w-4" />}>
-              {messages.businessCard.viewProfile}
-            </Button>
+          <Link
+            href={`/business/${business.slug}`}
+            className={buttonStyles({ fullWidth: true, className: "flex-1" })}
+          >
+            <ArrowIcon className="h-4 w-4" />
+            {messages.businessCard.viewProfile}
           </Link>
           <a
             href={`https://wa.me/${business.whatsapp.replace(/\D/g, "")}`}
             target="_blank"
             rel="noreferrer"
-            className="flex-1"
+            className={buttonStyles({
+              variant: "secondary",
+              fullWidth: true,
+              className: "flex-1",
+            })}
           >
-            <Button
-              variant="secondary"
-              fullWidth
-              icon={<MessageCircle className="h-4 w-4" />}
-            >
-              WhatsApp
-            </Button>
+            <MessageCircle className="h-4 w-4" />
+            WhatsApp
           </a>
         </div>
       </div>

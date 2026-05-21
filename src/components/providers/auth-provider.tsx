@@ -10,6 +10,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 
+import type { ApiResponse } from "@/lib/api-response";
 import type { AuthSession, AuthSessionUser } from "@/lib/auth-types";
 
 interface AuthContextValue {
@@ -40,8 +41,8 @@ export function AuthProvider({
       credentials: "include",
     });
 
-    const data = (await response.json()) as { session?: AuthSession | null };
-    const nextSession = data.session ?? null;
+    const data = (await response.json()) as ApiResponse<{ session: AuthSession | null }>;
+    const nextSession = data.data?.session ?? null;
     setSession(nextSession);
     return nextSession;
   }, []);

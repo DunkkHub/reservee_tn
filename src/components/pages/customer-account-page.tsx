@@ -8,7 +8,7 @@ import { useAuth } from "@/components/providers/auth-provider";
 import { useLocale } from "@/components/providers/locale-provider";
 import { usePlatform } from "@/components/providers/platform-provider";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonStyles } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionHeading } from "@/components/ui/section-heading";
 import {
@@ -101,10 +101,11 @@ export function CustomerAccountPage() {
                   {messages.account.upcomingDescription}
                 </p>
               </div>
-              <Link href="/explore">
-                <Button variant="secondary" size="sm">
-                  {messages.account.bookAnother}
-                </Button>
+              <Link
+                href="/explore"
+                className={buttonStyles({ variant: "secondary", size: "sm" })}
+              >
+                {messages.account.bookAnother}
               </Link>
             </div>
 
@@ -161,10 +162,11 @@ export function CustomerAccountPage() {
                               {messages.account.requestReschedule}
                             </Button>
                           ) : null}
-                          <Link href={`/manage-booking/${booking.referenceCode}`}>
-                            <Button variant="ghost" size="sm">
-                              {messages.account.openDetails}
-                            </Button>
+                          <Link
+                            href={`/manage-booking/${booking.referenceCode}`}
+                            className={buttonStyles({ variant: "ghost", size: "sm" })}
+                          >
+                            {messages.account.openDetails}
                           </Link>
                         </div>
                       </div>

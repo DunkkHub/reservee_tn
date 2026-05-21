@@ -163,7 +163,7 @@ export const arMessages = {
     phoneOrEmailPlaceholder: "you@example.com أو +216...",
     email: "البريد الإلكتروني",
     password: "كلمة المرور",
-    minPassword: "8 أحرف على الأقل",
+    minPassword: "10 أحرف على الأقل مع كبير وصغير ورقم ورمز",
     deliveryChannel: "أرسل رمز التحقق عبر",
     smsCode: "SMS",
     emailCode: "Email",

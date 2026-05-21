@@ -1,20 +1,24 @@
-import { NextResponse } from "next/server";
-
 import { createAuthChallenge } from "@/lib/auth-challenges";
+import {
+  errorResponse,
+  rateLimitResponse,
+  successResponse,
+  validationErrorResponse,
+} from "@/lib/api-response";
+import { handleRouteError } from "@/lib/api-route-helpers";
 import { loginUser, resolveUserDeliveryDestination } from "@/lib/auth-repository";
 import { looksLikeEmailIdentifier } from "@/lib/contact-utils";
-import { getRouteErrorMessage } from "@/lib/error-utils";
+import { consumeRateLimit } from "@/lib/rate-limit";
+import { assertAllowedOrigin, getClientIp } from "@/lib/security";
+import {
+  loginRequestSchema,
+  safeParseWithSchema,
+} from "@/lib/validation";
 import {
   deliverVerificationCode,
   formatVerificationDeliveryMessage,
   type VerificationDeliveryChannel,
 } from "@/lib/verification-delivery";
-import { consumeRateLimit } from "@/lib/rate-limit";
-import {
-  assertAllowedOrigin,
-  getClientIp,
-  HttpRequestError,
-} from "@/lib/security";
 
 export const runtime = "nodejs";
 
@@ -40,57 +44,45 @@ export async function POST(request: Request) {
     });
 
     if (!rateLimit.allowed) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: "Too many login attempts. Please try again in a few minutes.",
-        },
-        {
-          status: 429,
-          headers: {
-            "Retry-After": String(Math.ceil((rateLimit.resetAt - Date.now()) / 1000)),
-          },
-        },
+      return rateLimitResponse(
+        "Too many login attempts. Please try again in a few minutes.",
+        rateLimit.resetAt,
       );
     }
 
-    const body = (await request.json()) as {
-      identifier?: string;
-      password?: string;
-      deliveryChannel?: VerificationDeliveryChannel;
-    };
+    const body = await request.json();
+    const parsed = safeParseWithSchema(loginRequestSchema, body);
+
+    if (!parsed.success) {
+      return validationErrorResponse(parsed.error);
+    }
 
     const result = await loginUser({
-      identifier: body.identifier ?? "",
-      password: body.password ?? "",
+      identifier: parsed.data.identifier,
+      password: parsed.data.password,
     });
 
     if (!result.ok) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: result.message,
-        },
-        { status: result.status },
+      return errorResponse(
+        result.message,
+        result.status,
+        result.status === 400 ? "invalid_input" : "unauthorized",
       );
     }
 
     const deliveryChannel = resolveDeliveryChannel(
-      body.deliveryChannel,
-      body.identifier ?? "",
+      parsed.data.deliveryChannel,
+      parsed.data.identifier,
     );
     const destination = resolveUserDeliveryDestination(result.user, deliveryChannel);
 
     if (!destination) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message:
-            deliveryChannel === "email"
-              ? "This account does not have an email address for verification."
-              : "This account does not have a phone number for verification.",
-        },
-        { status: 400 },
+      return errorResponse(
+        deliveryChannel === "email"
+          ? "This account does not have an email address for verification."
+          : "This account does not have a phone number for verification.",
+        400,
+        "invalid_input",
       );
     }
 
@@ -107,13 +99,8 @@ export async function POST(request: Request) {
       purpose: "login",
     });
 
-    return NextResponse.json(
+    return successResponse(
       {
-        ok: true,
-        message: formatVerificationDeliveryMessage({
-          purpose: "login",
-          result: delivery,
-        }),
         challenge: {
           challengeId: challenge.challengeId,
           expiresAt: challenge.expiresAt,
@@ -122,25 +109,13 @@ export async function POST(request: Request) {
           developmentCodePreview: delivery.developmentCodePreview,
         },
       },
-      { status: result.status },
+      formatVerificationDeliveryMessage({
+        purpose: "login",
+        result: delivery,
+      }),
+      result.status,
     );
   } catch (error) {
-    if (error instanceof HttpRequestError) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: error.message,
-        },
-        { status: error.status },
-      );
-    }
-
-    return NextResponse.json(
-      {
-        ok: false,
-        message: getRouteErrorMessage(error),
-      },
-      { status: 500 },
-    );
+    return handleRouteError(error, "Unable to start login verification.");
   }
 }

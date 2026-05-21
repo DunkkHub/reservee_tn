@@ -14,7 +14,7 @@ import {
 
 import { useLocale } from "@/components/providers/locale-provider";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { buttonStyles } from "@/components/ui/button";
 import { SectionHeading } from "@/components/ui/section-heading";
 
 export function PartnerPage() {
@@ -33,13 +33,15 @@ export function PartnerPage() {
             {messages.partner.description}
           </p>
           <div className="flex flex-wrap gap-3">
-            <Link href="/register?role=shop">
-              <Button icon={<ArrowIcon className="h-4 w-4" />}>
-                {messages.partner.createShopAccount}
-              </Button>
+            <Link href="/register?role=shop" className={buttonStyles()}>
+              <ArrowIcon className="h-4 w-4" />
+              {messages.partner.createShopAccount}
             </Link>
-            <Link href="/login?role=shop&next=/dashboard">
-              <Button variant="secondary">{messages.partner.openDashboard}</Button>
+            <Link
+              href="/login?role=shop&next=/dashboard"
+              className={buttonStyles({ variant: "secondary" })}
+            >
+              {messages.partner.openDashboard}
             </Link>
           </div>
         </div>
@@ -129,8 +131,11 @@ export function PartnerPage() {
               </p>
             ))}
           </div>
-          <Link href="/register?role=shop">
-            <Button fullWidth>{messages.partner.startSignup}</Button>
+          <Link
+            href="/register?role=shop"
+            className={buttonStyles({ fullWidth: true })}
+          >
+            {messages.partner.startSignup}
           </Link>
         </div>
       </section>

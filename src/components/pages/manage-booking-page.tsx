@@ -8,7 +8,7 @@ import { CalendarClock, Clock3, MessageCircle, Search, ShieldCheck } from "lucid
 import { useLocale } from "@/components/providers/locale-provider";
 import { usePlatform } from "@/components/providers/platform-provider";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonStyles } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { fetchApi } from "@/lib/client-api";
 import { canCustomerCancel, canRequestReschedule, bookingStatusTone } from "@/lib/platform-rules";
@@ -322,8 +322,11 @@ export function ManageBookingPage({ referenceCode }: { referenceCode: string }) 
                 {messages.manageBooking.verifyBooking}
               </Button>
             )}
-            <Link href="/manage-booking">
-              <Button variant="ghost">{messages.manageBooking.tryAnotherReference}</Button>
+            <Link
+              href="/manage-booking"
+              className={buttonStyles({ variant: "ghost" })}
+            >
+              {messages.manageBooking.tryAnotherReference}
             </Link>
           </div>
         </div>
@@ -416,10 +419,10 @@ export function ManageBookingPage({ referenceCode }: { referenceCode: string }) 
                 href={`https://wa.me/${business.whatsapp.replace(/\D/g, "")}`}
                 target="_blank"
                 rel="noreferrer"
+                className={buttonStyles({ variant: "ghost" })}
               >
-                <Button variant="ghost" icon={<MessageCircle className="h-4 w-4" />}>
-                  {messages.manageBooking.whatsappBusiness}
-                </Button>
+                <MessageCircle className="h-4 w-4" />
+                {messages.manageBooking.whatsappBusiness}
               </a>
             </div>
             <div className="space-y-3 text-sm text-[var(--color-secondary)]">
@@ -479,8 +482,11 @@ export function ManageBookingPage({ referenceCode }: { referenceCode: string }) 
               {messages.manageBooking.helpDescription}
             </p>
             <div className="mt-4">
-              <Link href={`/business/${business.slug}`}>
-                <Button variant="secondary">{messages.manageBooking.openBusinessPage}</Button>
+              <Link
+                href={`/business/${business.slug}`}
+                className={buttonStyles({ variant: "secondary" })}
+              >
+                {messages.manageBooking.openBusinessPage}
               </Link>
             </div>
           </div>

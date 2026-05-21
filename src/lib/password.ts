@@ -1,5 +1,3 @@
-import "server-only";
-
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 
 const KEY_LENGTH = 64;

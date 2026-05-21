@@ -2,9 +2,11 @@ export type BookingStatus =
   | "pending"
   | "confirmed"
   | "cancelled"
-  | "rejected"
+  | "cancelled_by_customer"
+  | "cancelled_by_business"
   | "completed"
-  | "no_show";
+  | "no_show"
+  | "expired";
 
 export type BusinessStatus =
   | "draft"
@@ -99,6 +101,10 @@ export interface MediaItem {
   type: MediaType;
   url: string;
   alt: string;
+  storageProvider?: "local" | "external_url" | "s3" | "r2" | "cloudinary";
+  storageKey?: string | null;
+  mimeType?: string | null;
+  fileSizeBytes?: number | null;
 }
 
 export interface BusinessPolicy {

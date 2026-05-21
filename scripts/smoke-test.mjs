@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -27,6 +28,12 @@ const protectedRoutes = [
   { path: "/dashboard", location: "/login?next=%2Fdashboard" },
   { path: "/admin", location: "/login?next=%2Fadmin" },
 ];
+
+const seedPasswords = {
+  admin: `Rv${randomBytes(6).toString("hex")}!A1`,
+  owner: `Rv${randomBytes(6).toString("hex")}!A1`,
+  customer: `Rv${randomBytes(6).toString("hex")}!A1`,
+};
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -108,8 +115,9 @@ async function completeLogin({ identifier, password, deliveryChannel }) {
     password,
     deliveryChannel,
   });
+  const challengePayload = challenge.payload?.data?.challenge;
 
-  if (!challenge.response.ok || !challenge.payload?.challenge?.challengeId) {
+  if (!challenge.response.ok || !challengePayload?.challengeId) {
     return {
       ok: false,
       challenge,
@@ -120,16 +128,17 @@ async function completeLogin({ identifier, password, deliveryChannel }) {
   }
 
   const verify = await postJson("/api/auth/login/verify", {
-    challengeId: challenge.payload.challenge.challengeId,
-    code: challenge.payload.challenge.developmentCodePreview,
+    challengeId: challengePayload.challengeId,
+    code: challengePayload.developmentCodePreview,
   });
+  const sessionPayload = verify.payload?.data?.session;
 
   return {
-    ok: Boolean(verify.response.ok && verify.payload?.session),
+    ok: Boolean(verify.response.ok && sessionPayload),
     challenge,
     verify,
     cookie: getCookieHeader(verify.response),
-    session: verify.payload?.session ?? null,
+    session: sessionPayload ?? null,
   };
 }
 
@@ -137,7 +146,12 @@ async function runSeed() {
   await new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [seedScript], {
       cwd: projectRoot,
-      env: process.env,
+      env: {
+        ...process.env,
+        SEED_ADMIN_PASSWORD: seedPasswords.admin,
+        SEED_OWNER_PASSWORD: seedPasswords.owner,
+        SEED_CUSTOMER_PASSWORD: seedPasswords.customer,
+      },
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
     });
@@ -182,6 +196,11 @@ function formatResult(ok, label, details = "") {
   return ok;
 }
 
+function reportFailure(label, payload) {
+  console.error(`[smoke-debug] ${label}`);
+  console.error(JSON.stringify(payload, null, 2));
+}
+
 function getOutsideHoursIso(slotIso) {
   const slot = new Date(slotIso);
   const year = slot.getUTCFullYear();
@@ -204,7 +223,7 @@ async function run() {
     }
 
     for (const route of protectedRoutes) {
-      const { response } = await fetchHtml(route);
+      const { response } = await fetchHtml(route.path);
       const ok =
         response.status >= 300 &&
         response.status < 400 &&
@@ -218,24 +237,51 @@ async function run() {
 
     const customerLogin = await completeLogin({
       identifier: "customer@reservee.tn",
-      password: "Customer12345!",
+      password: seedPasswords.customer,
       deliveryChannel: "email",
     });
     hasFailure ||= !formatResult(customerLogin.ok, "customer login with OTP");
 
+    if (!customerLogin.ok) {
+      reportFailure("customer login", {
+        challenge: customerLogin.challenge.payload,
+        verify: customerLogin.verify?.payload ?? null,
+      });
+      process.exitCode = 1;
+      return;
+    }
+
     const ownerLogin = await completeLogin({
       identifier: "atlas@reservee.tn",
-      password: "Owner12345!",
+      password: seedPasswords.owner,
       deliveryChannel: "email",
     });
     hasFailure ||= !formatResult(ownerLogin.ok, "owner login with OTP");
 
+    if (!ownerLogin.ok) {
+      reportFailure("owner login", {
+        challenge: ownerLogin.challenge.payload,
+        verify: ownerLogin.verify?.payload ?? null,
+      });
+      process.exitCode = 1;
+      return;
+    }
+
     const adminLogin = await completeLogin({
       identifier: "admin@reservee.tn",
-      password: "Admin12345!",
+      password: seedPasswords.admin,
       deliveryChannel: "email",
     });
     hasFailure ||= !formatResult(adminLogin.ok, "admin login with OTP");
+
+    if (!adminLogin.ok) {
+      reportFailure("admin login", {
+        challenge: adminLogin.challenge.payload,
+        verify: adminLogin.verify?.payload ?? null,
+      });
+      process.exitCode = 1;
+      return;
+    }
 
     const customerSession = await fetchJson("/api/auth/session", {
       headers: {
@@ -243,7 +289,8 @@ async function run() {
       },
     });
     hasFailure ||= !formatResult(
-      customerSession.response.ok && customerSession.payload?.session?.user?.role === "customer",
+      customerSession.response.ok &&
+        customerSession.payload?.data?.session?.user?.role === "customer",
       "session lookup after login",
     );
 
@@ -309,7 +356,7 @@ async function run() {
     });
     hasFailure ||= !formatResult(
       duplicateBooking.response.status === 409 &&
-        duplicateBooking.payload?.error === "This time slot is no longer available.",
+        duplicateBooking.payload?.error?.message === "This time slot is no longer available.",
       "double booking returns 409 conflict",
     );
 
@@ -343,7 +390,7 @@ async function run() {
       `/api/bookings/${booking.id}`,
       {
         action: "updateStatus",
-        status: "cancelled",
+        status: "cancelled_by_customer",
       },
       customerLogin.cookie,
     );
@@ -400,7 +447,7 @@ async function run() {
       },
     });
     hasFailure ||= !formatResult(
-      logout.response.ok && !sessionAfterLogout.payload?.session,
+      logout.response.ok && !sessionAfterLogout.payload?.data?.session,
       "logout revokes the session",
     );
 

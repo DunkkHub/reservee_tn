@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import { env, getAllowedOrigin } from "@/lib/env";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "::1"]);
 
 export class HttpRequestError extends Error {
   status: number;
@@ -27,6 +28,22 @@ export function hashValue(value: string) {
   return createHash("sha256").update(value).digest("hex");
 }
 
+function isEquivalentLocalOrigin(left: string, right: string) {
+  try {
+    const leftUrl = new URL(left);
+    const rightUrl = new URL(right);
+
+    return (
+      leftUrl.protocol === rightUrl.protocol &&
+      leftUrl.port === rightUrl.port &&
+      LOOPBACK_HOSTS.has(leftUrl.hostname) &&
+      LOOPBACK_HOSTS.has(rightUrl.hostname)
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function assertAllowedOrigin(request: Request) {
   if (SAFE_METHODS.has(request.method.toUpperCase())) {
     return;
@@ -42,7 +59,15 @@ export function assertAllowedOrigin(request: Request) {
       ? new URL(refererHeader).origin
       : null;
 
-  if (candidateOrigin && allowedOrigins.has(candidateOrigin)) {
+  if (
+    candidateOrigin &&
+    (
+      allowedOrigins.has(candidateOrigin) ||
+      [...allowedOrigins].some((allowedOrigin) =>
+        isEquivalentLocalOrigin(candidateOrigin, allowedOrigin),
+      )
+    )
+  ) {
     return;
   }
 
