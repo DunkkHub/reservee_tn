@@ -16,11 +16,12 @@ State is persisted in MySQL. The frontend talks to route handlers instead of mut
 
 ### Auth and sessions
 
-- Account records live in `app_users`
-- Passwords are hashed with `scrypt`
-- Login uses password + OTP challenge verification
-- Sessions are stored server-side in `sessions`
-- Cookies are signed, `HttpOnly`, `SameSite=Lax`, and `Secure` in production
+- Better Auth is mounted at `/api/auth/[...all]`
+- Account records live in `app_users`, mapped as the Better Auth user model
+- Credential hashes are owned by Better Auth and stored in `account.password`
+- Login uses Better Auth email/password
+- Sessions are stored server-side in Better Auth's `session` table
+- Cookies are managed by Better Auth as HTTP-only cookies and are secure in production
 - Mutating requests are origin-checked to reduce CSRF exposure
 
 ### Booking lifecycle
@@ -97,7 +98,7 @@ This supports local/external storage abstractions now and leaves room for S3/R2/
 
 - Centralized validation schemas
 - Centralized API response envelope
-- Signed session cookies
+- Better Auth-backed session and role guards
 - Explicit booking state machine
 - Structured logging helper
 - Repeatable migration + seed flow

@@ -11,8 +11,10 @@ The project uses MySQL with:
 ## Key tables
 
 - `app_users`: customers, business users, admins
-- `sessions`: server-side sessions
-- `auth_challenges`: login, password reset, and booking access OTP challenges
+- `account`: Better Auth provider accounts and credential password hashes
+- `session`: Better Auth server-side sessions
+- `verification`: Better Auth verification records
+- `auth_challenges`: password reset and booking access OTP challenges
 - `business_profiles`: business public and operational profile data
 - `services`: bookable services
 - `business_hours`: recurring availability
@@ -24,6 +26,8 @@ The project uses MySQL with:
 - `moderation_history`: admin notes and status changes
 - `activity_logs`: business/admin activity feed
 - `booking_access_sessions`: short-lived public booking access tokens
+
+`sessions` is a legacy table from the previous custom auth implementation. It is not used for user login/session authorization now that Better Auth owns app sessions.
 
 ## Booking lifecycle schema
 

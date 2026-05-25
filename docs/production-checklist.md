@@ -7,12 +7,12 @@
 
 ## Tests
 
-- Done: unit coverage exists for passwords, session signing, validation, availability, role checks, lifecycle rules, and health.
+- Done: unit coverage exists for validation, availability, role checks, lifecycle rules, and health.
 - Partially done: smoke tests cover critical flows, but there is no browser E2E suite or route-by-route integration harness yet.
 
 ## Security
 
-- Done: signed cookies, origin checks, rate limits, OTP verification, stronger passwords, and safer error envelopes are in place.
+- Done: Better Auth HTTP-only session cookies, origin checks, rate limits, OTP verification for reset/booking access, stronger passwords, and safer error envelopes are in place.
 - Partially done: no CAPTCHA, advanced lockout policy, or external security monitoring yet.
 
 ## Database
@@ -22,8 +22,8 @@
 
 ## Auth
 
-- Done: stronger password policy, OTP login, password reset challenge flow, revocable server-side sessions.
-- Partially done: no automated secret rotation or multi-factor enrollment UX beyond OTP challenge flows.
+- Done: Better Auth email/password login, stronger password policy, password reset challenge flow, and revocable MySQL-backed sessions.
+- Partially done: no automated secret rotation or multi-factor enrollment UX yet.
 
 ## Booking lifecycle
 

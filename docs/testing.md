@@ -6,8 +6,6 @@
 
 Current unit coverage includes:
 
-- password hashing and verification
-- session token signing, tamper detection, and expiry
 - slot availability logic
 - booking conflict detection
 - booking status transitions
@@ -33,7 +31,7 @@ The smoke flow is seeded and end-to-end at the HTTP level. It covers:
 
 - public routes
 - protected redirects
-- OTP login for customer, business owner, and admin
+- Better Auth email/password login for customer, business owner, and admin
 - session lookup
 - admin access control
 - public business loading
