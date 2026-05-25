@@ -1,189 +1,41 @@
 import "server-only";
 
-import { randomBytes, randomUUID } from "node:crypto";
-
-import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
-import { cookies } from "next/headers";
+import type { ResultSetHeader } from "mysql2/promise";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { NextResponse } from "next/server";
 
 import {
   forbiddenResponse as createForbiddenResponse,
   unauthorizedResponse as createUnauthorizedResponse,
 } from "@/lib/api-response";
+import { auth } from "@/lib/auth";
 import { findSessionUserById } from "@/lib/auth-repository";
-import { signSessionToken, verifySignedSessionToken } from "@/lib/auth-session-token";
+import { getRoleHomePath } from "@/lib/auth-role-model";
+import type { AuthSession, UserRole } from "@/lib/auth-types";
 import { getDbPool } from "@/lib/db";
-import { fromDatabaseDateTime, toDatabaseDateTime } from "@/lib/datetime";
-import { env } from "@/lib/env";
-import { hashValue } from "@/lib/security";
-import type { AuthSession, AuthSessionUser, UserRole } from "@/lib/auth-types";
-
-const SESSION_TTL_MS = env.SESSION_TTL_HOURS * 60 * 60 * 1000;
-
-type SessionRow = RowDataPacket & {
-  id: string;
-  user_id: string;
-  expires_at: string;
-};
-
-type CreatedSession = {
-  session: AuthSession;
-  token: string;
-};
-
-export const AUTH_COOKIE_NAME = env.SESSION_COOKIE_NAME;
-
-function generateSessionToken() {
-  return randomBytes(32).toString("base64url");
-}
 
 export function buildRedirectPath(role: UserRole) {
-  switch (role) {
-    case "shop":
-      return "/dashboard";
-    case "admin":
-      return "/admin";
-    case "customer":
-    default:
-      return "/account";
-  }
-}
-
-export async function createSession(
-  user: AuthSessionUser,
-  request?: Request,
-): Promise<CreatedSession> {
-  const pool = getDbPool();
-  const token = generateSessionToken();
-  const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
-
-  await pool.execute<ResultSetHeader>(
-    `
-      INSERT INTO sessions (
-        id,
-        user_id,
-        token_hash,
-        expires_at,
-        last_seen_at,
-        ip_address,
-        user_agent
-      )
-      VALUES (?, ?, ?, ?, UTC_TIMESTAMP(), ?, ?)
-    `,
-    [
-      randomUUID(),
-      user.id,
-      hashValue(token),
-      toDatabaseDateTime(expiresAt),
-      request?.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-        request?.headers.get("x-real-ip") ??
-        null,
-      request?.headers.get("user-agent") ?? null,
-    ],
-  );
-
-  return {
-    token,
-    session: {
-      user,
-      expiresAt: expiresAt.toISOString(),
-    },
-  };
-}
-
-async function findSessionByToken(token: string) {
-  const pool = getDbPool();
-  const [rows] = await pool.query<SessionRow[]>(
-    `
-      SELECT id, user_id, expires_at
-      FROM sessions
-      WHERE token_hash = ?
-        AND revoked_at IS NULL
-        AND expires_at > UTC_TIMESTAMP()
-      LIMIT 1
-    `,
-    [hashValue(token)],
-  );
-
-  return rows[0] ?? null;
-}
-
-async function touchSession(sessionId: string) {
-  const pool = getDbPool();
-  await pool.execute<ResultSetHeader>(
-    `
-      UPDATE sessions
-      SET last_seen_at = UTC_TIMESTAMP()
-      WHERE id = ?
-    `,
-    [sessionId],
-  );
-}
-
-export async function revokeSessionByToken(token: string) {
-  const pool = getDbPool();
-  await pool.execute<ResultSetHeader>(
-    `
-      UPDATE sessions
-      SET revoked_at = UTC_TIMESTAMP()
-      WHERE token_hash = ?
-        AND revoked_at IS NULL
-    `,
-    [hashValue(token)],
-  );
-}
-
-export async function revokeSessionsForUser(userId: string) {
-  const pool = getDbPool();
-  await pool.execute<ResultSetHeader>(
-    `
-      UPDATE sessions
-      SET revoked_at = UTC_TIMESTAMP()
-      WHERE user_id = ?
-        AND revoked_at IS NULL
-    `,
-    [userId],
-  );
+  return getRoleHomePath(role);
 }
 
 export async function getCurrentSession() {
-  const cookieStore = await cookies();
-  const signedToken = cookieStore.get(AUTH_COOKIE_NAME)?.value;
+  const betterSession = await auth.api.getSession({
+    headers: await headers(),
+  });
 
-  if (!signedToken) {
+  if (!betterSession?.user?.id) {
     return null;
   }
 
-  const verifiedToken = verifySignedSessionToken(signedToken, env.AUTH_SECRET);
-
-  if (!verifiedToken.ok) {
-    return null;
-  }
-
-  const sessionRow = await findSessionByToken(verifiedToken.token);
-
-  if (!sessionRow) {
-    return null;
-  }
-
-  const user = await findSessionUserById(sessionRow.user_id);
+  const user = await findSessionUserById(betterSession.user.id);
 
   if (!user) {
     return null;
   }
 
-  const expiresAt = fromDatabaseDateTime(sessionRow.expires_at);
-
-  if (!expiresAt) {
-    return null;
-  }
-
-  await touchSession(sessionRow.id);
-
   return {
     user,
-    expiresAt,
+    expiresAt: new Date(betterSession.session.expiresAt).toISOString(),
   } satisfies AuthSession;
 }
 
@@ -192,37 +44,18 @@ export async function getCurrentUser() {
   return session?.user ?? null;
 }
 
-export function applySessionCookie(
-  response: NextResponse,
-  token: string,
-  expiresAt: string,
-) {
-  response.cookies.set(
-    AUTH_COOKIE_NAME,
-    signSessionToken({
-      token,
-      expiresAt,
-      secret: env.AUTH_SECRET,
-    }),
-    {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: env.NODE_ENV === "production",
-      path: "/",
-      expires: new Date(expiresAt),
-      priority: "high",
-    },
-  );
+export async function revokeSessionByToken(token: string) {
+  const pool = getDbPool();
+  await pool.execute<ResultSetHeader>("DELETE FROM `session` WHERE token = ? LIMIT 1", [
+    token,
+  ]);
 }
 
-export function clearSessionCookie(response: NextResponse) {
-  response.cookies.set(AUTH_COOKIE_NAME, "", {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 0,
-  });
+export async function revokeSessionsForUser(userId: string) {
+  const pool = getDbPool();
+  await pool.execute<ResultSetHeader>("DELETE FROM `session` WHERE userId = ?", [
+    userId,
+  ]);
 }
 
 export async function requireSession(nextPath?: string) {

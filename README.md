@@ -12,9 +12,9 @@ What works now:
 - Customer account and booking self-service flows
 - Shop dashboard flows for bookings, services, availability, gallery, and settings
 - Admin moderation surface
-- MySQL-backed auth, sessions, bookings, business data, moderation history, waitlist, and activity logs
-- Signed session cookies with stronger password validation
-- OTP-style login and booking-reference verification with rate limiting
+- Better Auth email/password sign-in with MySQL-backed users, sessions, bookings, business data, moderation history, waitlist, and activity logs
+- Server-side role guards for customers, shop owners, and admins
+- Booking-reference verification with rate limiting
 - Booking expiry script and health/readiness endpoints
 - Unit and smoke test foundations with CI
 
@@ -67,6 +67,8 @@ npm run dev
 The full reference is in [.env.example](/D:/barber/.env.example), but the minimum local set is:
 
 - `APP_URL`
+- `BETTER_AUTH_URL`
+- `BETTER_AUTH_SECRET`
 - `AUTH_SECRET`
 - `DB_HOST`
 - `DB_PORT`
@@ -85,6 +87,7 @@ Optional provider configuration:
 - Base schema: [database/reservee_tn.sql](/D:/barber/database/reservee_tn.sql)
 - SQL migrations: [database/migrations](/D:/barber/database/migrations)
 - Local seed: `npm run db:seed-dev`
+- First admin seed: `npm run auth:create-admin`
 - Pending-booking expiry job: `npm run bookings:expire-pending`
 
 The seed is repeatable. It uses generated or environment-provided local passwords instead of committed fixed credentials.
@@ -125,6 +128,8 @@ High-level deployment flow:
 - [Database](/D:/barber/docs/database.md)
 - [Deployment](/D:/barber/docs/deployment.md)
 - [Security](/D:/barber/docs/security.md)
+- [Authentication](/D:/barber/docs/AUTH.md)
+- [Production readiness](/D:/barber/docs/PRODUCTION.md)
 - [Admin workflows](/D:/barber/docs/admin-workflows.md)
 - [Media](/D:/barber/docs/media.md)
 - [Production checklist](/D:/barber/docs/production-checklist.md)

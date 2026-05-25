@@ -178,6 +178,13 @@ export async function POST(request: Request) {
       );
     }
 
+    if (session.user.role !== "shop" && session.user.role !== "admin") {
+      return NextResponse.json(
+        { ok: false, message: "Only shop owners and admins can manage availability" },
+        { status: 403 },
+      );
+    }
+
     if (!body.businessId) {
       return NextResponse.json(
         { ok: false, message: "Business ID is required" },
@@ -301,6 +308,13 @@ export async function DELETE(request: Request) {
       return NextResponse.json(
         { ok: false, message: "Authentication required" },
         { status: 401 },
+      );
+    }
+
+    if (session.user.role !== "shop" && session.user.role !== "admin") {
+      return NextResponse.json(
+        { ok: false, message: "Only shop owners and admins can manage availability" },
+        { status: 403 },
       );
     }
 

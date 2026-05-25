@@ -7,7 +7,6 @@ import {
   Building2,
   KeyRound,
   LogIn,
-  MessageSquareText,
   ShieldCheck,
   UserRound,
 } from "lucide-react";
@@ -17,10 +16,13 @@ import { useLocale } from "@/components/providers/locale-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { ApiResponse } from "@/lib/api-response";
+import { authClient } from "@/lib/auth-client";
+import { getRoleHomePath } from "@/lib/auth-role-model";
 import { getCategoryTranslation, getCityTranslation } from "@/lib/i18n";
 import { categories, cities } from "@/lib/taxonomy";
 import type { AuthDeliveryChannel, AuthSession } from "@/lib/auth-types";
 import type { CategorySlug } from "@/lib/types";
+import { validateEmail, validatePassword, validatePhone } from "@/lib/validation";
 
 type VerificationChallengePayload = {
   challengeId: string;
@@ -36,12 +38,37 @@ type AuthApiPayload = {
   challenge?: VerificationChallengePayload | null;
 };
 
+type SignUpEmailInput = Parameters<typeof authClient.signUp.email>[0];
+
 function isSafeInternalPath(value: string | null) {
   return Boolean(value && value.startsWith("/") && !value.startsWith("//"));
 }
 
 function looksLikeEmailIdentifier(value: string) {
   return value.includes("@");
+}
+
+function normalizePhoneForClient(value: string) {
+  return value.replace(/\D/g, "");
+}
+
+function getSessionRedirectPath(session: AuthSession) {
+  return getRoleHomePath(session.user.role);
+}
+
+async function loadCurrentSession() {
+  const response = await fetch("/api/auth/session", {
+    method: "GET",
+    cache: "no-store",
+    credentials: "include",
+  });
+  const data = (await response.json()) as ApiResponse<{ session: AuthSession | null }>;
+
+  if (!response.ok || !data.ok || !data.data?.session) {
+    return null;
+  }
+
+  return data.data.session;
 }
 
 function AuthShell({
@@ -164,14 +191,10 @@ export function LoginPage() {
   const roleHint = searchParams.get("role");
   const { setSession } = useAuth();
   const [form, setForm] = useState({
-    identifier: "",
+    email: "",
     password: "",
-    code: "",
-    deliveryChannel: "sms" as AuthDeliveryChannel,
   });
-  const [challenge, setChallenge] = useState<VerificationChallengePayload | null>(null);
   const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const registerHref = useMemo(() => {
@@ -192,81 +215,54 @@ export function LoginPage() {
   const resetPasswordHref = useMemo(() => {
     const params = new URLSearchParams();
 
-    if (form.identifier.trim()) {
-      params.set("identifier", form.identifier.trim());
+    if (form.email.trim()) {
+      params.set("identifier", form.email.trim());
     }
 
     const query = params.toString();
     return query ? `/reset-password?${query}` : "/reset-password";
-  }, [form.identifier]);
+  }, [form.email]);
 
-  async function requestLoginCode() {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     setSubmitting(true);
     setError("");
-    setMessage("");
 
-    try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          identifier: form.identifier,
-          password: form.password,
-          deliveryChannel: form.deliveryChannel,
-        }),
-      });
+    const email = form.email.trim().toLowerCase();
+    const password = form.password;
 
-      const data = (await response.json()) as ApiResponse<AuthApiPayload>;
-      const challengePayload = data.data?.challenge;
-
-      if (!response.ok || !data.ok || !challengePayload) {
-        setError(data.message || messages.auth.loginFailed);
-        return;
-      }
-
-      setChallenge(challengePayload);
-      setForm((current) => ({ ...current, code: "" }));
-      setMessage(data.message ?? messages.auth.loginFailed);
-    } catch {
-      setError(messages.auth.loginFailed);
-    } finally {
+    if (!validateEmail(email)) {
+      setError("Enter a valid email address.");
       setSubmitting(false);
-    }
-  }
-
-  async function verifyLoginCode() {
-    if (!challenge) {
       return;
     }
 
-    setSubmitting(true);
-    setError("");
-    setMessage("");
+    if (!password) {
+      setError("Password is required.");
+      setSubmitting(false);
+      return;
+    }
 
     try {
-      const response = await fetch("/api/auth/login/verify", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          challengeId: challenge.challengeId,
-          code: form.code,
-        }),
+      const result = await authClient.signIn.email({
+        email,
+        password,
       });
 
-      const data = (await response.json()) as ApiResponse<AuthApiPayload>;
-      const sessionPayload = data.data?.session;
+      if (result.error) {
+        setError(result.error.message || messages.auth.loginFailed);
+        return;
+      }
 
-      if (!response.ok || !data.ok || !sessionPayload) {
-        setError(data.message || messages.auth.loginFailed);
+      const sessionPayload = await loadCurrentSession();
+
+      if (!sessionPayload) {
+        setError("Login succeeded, but the session could not be loaded.");
         return;
       }
 
       setSession(sessionPayload);
-      let destination = data.data?.redirectTo ?? "/";
+      let destination = getSessionRedirectPath(sessionPayload);
 
       if (isSafeInternalPath(next) && next) {
         destination = next;
@@ -279,13 +275,6 @@ export function LoginPage() {
     } finally {
       setSubmitting(false);
     }
-  }
-
-  function resetChallenge() {
-    setChallenge(null);
-    setForm((current) => ({ ...current, code: "" }));
-    setMessage("");
-    setError("");
   }
 
   return (
@@ -322,119 +311,49 @@ export function LoginPage() {
           </p>
         </div>
 
-        {!challenge ? (
-          <form
-            className="space-y-4"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void requestLoginCode();
-            }}
+        <form className="space-y-4" onSubmit={handleSubmit}>
+          <label className="block space-y-2 text-sm">
+            <span className="text-[var(--color-secondary)]">{messages.auth.email}</span>
+            <input
+              className="input-field"
+              type="email"
+              value={form.email}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  email: event.target.value,
+                }))
+              }
+              placeholder="you@example.com"
+              autoComplete="username"
+            />
+          </label>
+
+          <label className="block space-y-2 text-sm">
+            <span className="text-[var(--color-secondary)]">{messages.auth.password}</span>
+            <input
+              className="input-field"
+              type="password"
+              value={form.password}
+              onChange={(event) =>
+                setForm((current) => ({ ...current, password: event.target.value }))
+              }
+              placeholder={messages.auth.minPassword}
+              autoComplete="current-password"
+            />
+          </label>
+
+          {error ? <Notice tone="error">{error}</Notice> : null}
+
+          <Button
+            type="submit"
+            fullWidth
+            icon={<LogIn className="h-4 w-4" />}
+            disabled={submitting}
           >
-            <label className="block space-y-2 text-sm">
-              <span className="text-[var(--color-secondary)]">
-                {messages.auth.phoneOrEmail}
-              </span>
-              <input
-                className="input-field"
-                type="text"
-                value={form.identifier}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    identifier: event.target.value,
-                  }))
-                }
-                placeholder={messages.auth.phoneOrEmailPlaceholder}
-                autoComplete="username"
-              />
-            </label>
-
-            <label className="block space-y-2 text-sm">
-              <span className="text-[var(--color-secondary)]">{messages.auth.password}</span>
-              <input
-                className="input-field"
-                type="password"
-                value={form.password}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, password: event.target.value }))
-                }
-                placeholder={messages.auth.minPassword}
-                autoComplete="current-password"
-              />
-            </label>
-
-            <div className="space-y-2 text-sm">
-              <span className="text-[var(--color-secondary)]">
-                {messages.auth.deliveryChannel}
-              </span>
-              <DeliveryChannelPicker
-                value={form.deliveryChannel}
-                onChange={(value) =>
-                  setForm((current) => ({ ...current, deliveryChannel: value }))
-                }
-                emailLabel={messages.auth.emailCode}
-                smsLabel={messages.auth.smsCode}
-              />
-            </div>
-
-            {message ? <Notice tone="success">{message}</Notice> : null}
-            {error ? <Notice tone="error">{error}</Notice> : null}
-
-            <Button
-              type="submit"
-              fullWidth
-              icon={<MessageSquareText className="h-4 w-4" />}
-              disabled={submitting}
-            >
-              {submitting ? messages.auth.sendingCode : messages.auth.sendLoginCode}
-            </Button>
-          </form>
-        ) : (
-          <div className="space-y-4">
-            <Notice tone="neutral">
-              {messages.auth.verificationStep.replace("{destination}", challenge.destinationHint)}
-            </Notice>
-
-            <label className="block space-y-2 text-sm">
-              <span className="text-[var(--color-secondary)]">
-                {messages.manageBooking.verificationCode}
-              </span>
-              <input
-                className="input-field"
-                value={form.code}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, code: event.target.value }))
-                }
-                placeholder={messages.manageBooking.verificationCodePlaceholder}
-                inputMode="numeric"
-                autoComplete="one-time-code"
-              />
-            </label>
-
-            {message ? <Notice tone="success">{message}</Notice> : null}
-            {error ? <Notice tone="error">{error}</Notice> : null}
-
-            <div className="flex flex-wrap gap-3">
-              <Button
-                icon={<LogIn className="h-4 w-4" />}
-                disabled={!form.code.trim() || submitting}
-                onClick={() => void verifyLoginCode()}
-              >
-                {submitting ? messages.auth.verifyingCode : messages.auth.verifyAndSignIn}
-              </Button>
-              <Button
-                variant="secondary"
-                disabled={submitting}
-                onClick={() => void requestLoginCode()}
-              >
-                {messages.auth.resendCode}
-              </Button>
-              <Button variant="ghost" disabled={submitting} onClick={resetChallenge}>
-                {messages.auth.useDifferentCredentials}
-              </Button>
-            </div>
-          </div>
-        )}
+            {submitting ? messages.auth.verifyingCode : messages.auth.signIn}
+          </Button>
+        </form>
 
         <p className="text-xs leading-6 text-[var(--color-muted)]">
           {messages.auth.adminNote}
@@ -491,10 +410,62 @@ export function RegisterPage() {
     setSubmitting(true);
     setError("");
 
+    const name = form.name.trim();
+    const email = form.email.trim().toLowerCase();
+    const phone = form.phone.trim();
+    const passwordValidation = validatePassword(form.password);
+
+    if (name.length < 2) {
+      setError(role === "shop" ? "Owner name is required." : "Name is required.");
+      setSubmitting(false);
+      return;
+    }
+
+    if (!validateEmail(email)) {
+      setError("Enter a valid email address.");
+      setSubmitting(false);
+      return;
+    }
+
+    if (!validatePhone(phone)) {
+      setError("Enter a valid phone number.");
+      setSubmitting(false);
+      return;
+    }
+
+    if (!passwordValidation.valid) {
+      setError(
+        passwordValidation.errors[0]?.message ??
+          "Password does not meet security requirements.",
+      );
+      setSubmitting(false);
+      return;
+    }
+
     if (form.password !== form.confirmPassword) {
       setError(messages.auth.passwordMismatch);
       setSubmitting(false);
       return;
+    }
+
+    if (role === "shop") {
+      if (!form.businessName.trim()) {
+        setError("Business name is required.");
+        setSubmitting(false);
+        return;
+      }
+
+      if (!form.citySlug.trim()) {
+        setError("City is required.");
+        setSubmitting(false);
+        return;
+      }
+
+      if (!form.area.trim()) {
+        setError("Area is required.");
+        setSubmitting(false);
+        return;
+      }
     }
 
     try {
@@ -502,41 +473,41 @@ export function RegisterPage() {
         role === "shop"
           ? {
               role,
-              name: form.name,
-              email: form.email,
-              phone: form.phone,
+              name,
+              email,
+              phone,
+              phoneNormalized: normalizePhoneForClient(phone),
               password: form.password,
-              businessName: form.businessName,
+              businessName: form.businessName.trim(),
               categorySlug: form.categorySlug,
               citySlug: form.citySlug,
-              area: form.area,
+              area: form.area.trim(),
             }
           : {
               role,
-              name: form.name,
-              email: form.email,
-              phone: form.phone,
+              name,
+              email,
+              phone,
+              phoneNormalized: normalizePhoneForClient(phone),
               password: form.password,
             };
 
-      const response = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
+      const result = await authClient.signUp.email(payload as SignUpEmailInput);
 
-      const data = (await response.json()) as ApiResponse<AuthApiPayload>;
-      const sessionPayload = data.data?.session;
+      if (result.error) {
+        setError(result.error.message || messages.auth.registerFailed);
+        return;
+      }
 
-      if (!response.ok || !data.ok || !sessionPayload) {
-        setError(data.message || messages.auth.registerFailed);
+      const sessionPayload = await loadCurrentSession();
+
+      if (!sessionPayload) {
+        setError("The account was created, but the session could not be loaded.");
         return;
       }
 
       setSession(sessionPayload);
-      let destination = data.data?.redirectTo ?? "/";
+      let destination = getSessionRedirectPath(sessionPayload);
 
       if (isSafeInternalPath(next) && next) {
         destination = next;
@@ -759,7 +730,6 @@ export function ResetPasswordPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { messages } = useLocale();
-  const { setSession } = useAuth();
   const [form, setForm] = useState({
     identifier: searchParams.get("identifier") ?? "",
     code: "",
@@ -837,15 +807,13 @@ export function ResetPasswordPage() {
       });
 
       const data = (await response.json()) as ApiResponse<AuthApiPayload>;
-      const sessionPayload = data.data?.session;
 
-      if (!response.ok || !data.ok || !sessionPayload) {
+      if (!response.ok || !data.ok) {
         setError(data.message || messages.auth.resetFailed);
         return;
       }
 
-      setSession(sessionPayload);
-      router.push(data.data?.redirectTo ?? "/account");
+      router.push(data.data?.redirectTo ?? "/login");
       router.refresh();
     } catch {
       setError(messages.auth.resetFailed);

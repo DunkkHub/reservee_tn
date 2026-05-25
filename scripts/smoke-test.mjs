@@ -109,35 +109,34 @@ async function patchJson(pathname, body, cookie = "") {
   });
 }
 
-async function completeLogin({ identifier, password, deliveryChannel }) {
-  const challenge = await postJson("/api/auth/login", {
-    identifier,
+async function completeLogin({ email, password }) {
+  const signIn = await postJson("/api/auth/sign-in/email", {
+    email,
     password,
-    deliveryChannel,
   });
-  const challengePayload = challenge.payload?.data?.challenge;
+  const cookie = getCookieHeader(signIn.response);
 
-  if (!challenge.response.ok || !challengePayload?.challengeId) {
+  if (!signIn.response.ok || !cookie) {
     return {
       ok: false,
-      challenge,
-      verify: null,
+      signIn,
       cookie: "",
       session: null,
     };
   }
 
-  const verify = await postJson("/api/auth/login/verify", {
-    challengeId: challengePayload.challengeId,
-    code: challengePayload.developmentCodePreview,
+  const sessionLookup = await fetchJson("/api/auth/session", {
+    headers: {
+      Cookie: cookie,
+    },
   });
-  const sessionPayload = verify.payload?.data?.session;
+  const sessionPayload = sessionLookup.payload?.data?.session;
 
   return {
-    ok: Boolean(verify.response.ok && sessionPayload),
-    challenge,
-    verify,
-    cookie: getCookieHeader(verify.response),
+    ok: Boolean(sessionLookup.response.ok && sessionPayload),
+    signIn,
+    sessionLookup,
+    cookie,
     session: sessionPayload ?? null,
   };
 }
@@ -236,48 +235,42 @@ async function run() {
     }
 
     const customerLogin = await completeLogin({
-      identifier: "customer@reservee.tn",
+      email: "customer@reservee.tn",
       password: seedPasswords.customer,
-      deliveryChannel: "email",
     });
-    hasFailure ||= !formatResult(customerLogin.ok, "customer login with OTP");
+    hasFailure ||= !formatResult(customerLogin.ok, "customer login with Better Auth");
 
     if (!customerLogin.ok) {
       reportFailure("customer login", {
-        challenge: customerLogin.challenge.payload,
-        verify: customerLogin.verify?.payload ?? null,
+        signIn: customerLogin.signIn.payload,
       });
       process.exitCode = 1;
       return;
     }
 
     const ownerLogin = await completeLogin({
-      identifier: "atlas@reservee.tn",
+      email: "atlas@reservee.tn",
       password: seedPasswords.owner,
-      deliveryChannel: "email",
     });
-    hasFailure ||= !formatResult(ownerLogin.ok, "owner login with OTP");
+    hasFailure ||= !formatResult(ownerLogin.ok, "owner login with Better Auth");
 
     if (!ownerLogin.ok) {
       reportFailure("owner login", {
-        challenge: ownerLogin.challenge.payload,
-        verify: ownerLogin.verify?.payload ?? null,
+        signIn: ownerLogin.signIn.payload,
       });
       process.exitCode = 1;
       return;
     }
 
     const adminLogin = await completeLogin({
-      identifier: "admin@reservee.tn",
+      email: "admin@reservee.tn",
       password: seedPasswords.admin,
-      deliveryChannel: "email",
     });
-    hasFailure ||= !formatResult(adminLogin.ok, "admin login with OTP");
+    hasFailure ||= !formatResult(adminLogin.ok, "admin login with Better Auth");
 
     if (!adminLogin.ok) {
       reportFailure("admin login", {
-        challenge: adminLogin.challenge.payload,
-        verify: adminLogin.verify?.payload ?? null,
+        signIn: adminLogin.signIn.payload,
       });
       process.exitCode = 1;
       return;

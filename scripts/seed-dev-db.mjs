@@ -1,7 +1,8 @@
-import { randomBytes, scryptSync } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { hashPassword } from "better-auth/crypto";
 import { addDays, addHours, addMinutes } from "date-fns";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import mysql from "mysql2/promise";
@@ -12,17 +13,10 @@ import { getDatabaseConfigFromEnv } from "./lib/mysql-config.mjs";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, "..");
 const DEFAULT_TIMEZONE = "Africa/Tunis";
-const KEY_LENGTH = 64;
 const SLOT_LOCK_STEP_MINUTES = 5;
 
 await loadEnvFiles(projectRoot);
 await import("./db-migrate.mjs");
-
-function hashPassword(password) {
-  const salt = randomBytes(16).toString("hex");
-  const derivedKey = scryptSync(password, salt, KEY_LENGTH).toString("hex");
-  return `${salt}:${derivedKey}`;
-}
 
 function toDbDateTime(value) {
   return formatInTimeZone(value, "UTC", "yyyy-MM-dd HH:mm:ss");
@@ -74,7 +68,7 @@ const seedUsers = [
     name: "Reservee Admin",
     email: "admin@reservee.tn",
     phone: "+216 20 000 001",
-    passwordHash: hashPassword(adminPassword),
+    passwordHash: await hashPassword(adminPassword),
   },
   {
     id: "seed-user-atlas",
@@ -82,7 +76,7 @@ const seedUsers = [
     name: "Atlas Owner",
     email: "atlas@reservee.tn",
     phone: "+216 20 111 111",
-    passwordHash: hashPassword(ownerPassword),
+    passwordHash: await hashPassword(ownerPassword),
   },
   {
     id: "seed-user-nude",
@@ -90,7 +84,7 @@ const seedUsers = [
     name: "Nude Owner",
     email: "nude@reservee.tn",
     phone: "+216 20 222 222",
-    passwordHash: hashPassword(ownerPassword),
+    passwordHash: await hashPassword(ownerPassword),
   },
   {
     id: "seed-user-hammam",
@@ -98,7 +92,7 @@ const seedUsers = [
     name: "Hayat Owner",
     email: "hayat@reservee.tn",
     phone: "+216 20 333 333",
-    passwordHash: hashPassword(ownerPassword),
+    passwordHash: await hashPassword(ownerPassword),
   },
   {
     id: "seed-user-customer",
@@ -106,7 +100,7 @@ const seedUsers = [
     name: "Salma Ben Youssef",
     email: "customer@reservee.tn",
     phone: "+216 21 555 777",
-    passwordHash: hashPassword(customerPassword),
+    passwordHash: await hashPassword(customerPassword),
   },
 ];
 
@@ -297,6 +291,14 @@ try {
   await connection.beginTransaction();
 
   await connection.execute(
+    `DELETE FROM \`session\` WHERE userId IN (${cleanupUserIds.map(() => "?").join(", ")})`,
+    cleanupUserIds,
+  );
+  await connection.execute(
+    `DELETE FROM \`account\` WHERE userId IN (${cleanupUserIds.map(() => "?").join(", ")})`,
+    cleanupUserIds,
+  );
+  await connection.execute(
     `DELETE FROM sessions WHERE user_id IN (${cleanupUserIds.map(() => "?").join(", ")})`,
     cleanupUserIds,
   );
@@ -330,12 +332,13 @@ try {
           role,
           name,
           email,
+          email_verified,
           phone,
           phone_normalized,
           password_hash,
           password_updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
+        VALUES (?, ?, ?, ?, TRUE, ?, ?, NULL, NOW())
       `,
       [
         user.id,
@@ -344,8 +347,23 @@ try {
         user.email.toLowerCase(),
         user.phone,
         user.phone.replace(/\D/g, ""),
-        user.passwordHash,
       ],
+    );
+
+    await connection.execute(
+      `
+        INSERT INTO \`account\` (
+          id,
+          accountId,
+          providerId,
+          userId,
+          password,
+          createdAt,
+          updatedAt
+        )
+        VALUES (?, ?, 'credential', ?, ?, CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3))
+      `,
+      [`${user.id}-credential`, user.id, user.id, user.passwordHash],
     );
   }
 

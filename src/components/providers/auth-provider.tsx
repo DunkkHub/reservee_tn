@@ -11,6 +11,7 @@ import {
 import { useRouter } from "next/navigation";
 
 import type { ApiResponse } from "@/lib/api-response";
+import { authClient } from "@/lib/auth-client";
 import type { AuthSession, AuthSessionUser } from "@/lib/auth-types";
 
 interface AuthContextValue {
@@ -48,13 +49,18 @@ export function AuthProvider({
   }, []);
 
   const logout = useCallback(async () => {
-    await fetch("/api/auth/logout", {
-      method: "POST",
-      credentials: "include",
-    });
+    await authClient.signOut();
 
+    window.localStorage.removeItem("reservee_session");
+    window.localStorage.removeItem("reservee_auth");
+    window.localStorage.removeItem("currentUser");
+    window.localStorage.removeItem("authUser");
+    window.localStorage.removeItem("user");
+    window.localStorage.removeItem("auth");
+    window.localStorage.removeItem("session");
+    window.localStorage.removeItem("role");
     setSession(null);
-    router.push("/");
+    router.push("/login");
     router.refresh();
   }, [router]);
 

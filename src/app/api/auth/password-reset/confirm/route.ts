@@ -1,19 +1,13 @@
-import { NextResponse } from "next/server";
-
 import {
   errorResponse,
   rateLimitResponse,
+  successResponse,
   validationErrorResponse,
 } from "@/lib/api-response";
 import { handleRouteError } from "@/lib/api-route-helpers";
 import { verifyAuthChallenge } from "@/lib/auth-challenges";
-import { findSessionUserById, updateUserPassword } from "@/lib/auth-repository";
-import {
-  applySessionCookie,
-  buildRedirectPath,
-  createSession,
-  revokeSessionsForUser,
-} from "@/lib/auth-session";
+import { updateUserPassword } from "@/lib/auth-repository";
+import { revokeSessionsForUser } from "@/lib/auth-session";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { assertAllowedOrigin, getClientIp } from "@/lib/security";
 import {
@@ -60,31 +54,13 @@ export async function POST(request: Request) {
     await updateUserPassword(result.userId, parsed.data.password);
     await revokeSessionsForUser(result.userId);
 
-    const user = await findSessionUserById(result.userId);
-
-    if (!user) {
-      return errorResponse(
-        "The password was updated, but the account could not be loaded.",
-        404,
-        "not_found",
-      );
-    }
-
-    const { token, session } = await createSession(user, request);
-    const response = NextResponse.json(
+    return successResponse(
       {
-        ok: true,
-        message: "Password reset successful.",
-        data: {
-          session,
-          redirectTo: buildRedirectPath(user.role),
-        },
+        session: null,
+        redirectTo: "/login",
       },
-      { status: 200 },
+      "Password reset successful. Please sign in with your new password.",
     );
-
-    applySessionCookie(response, token, session.expiresAt);
-    return response;
   } catch (error) {
     return handleRouteError(error, "Unable to complete the password reset.");
   }

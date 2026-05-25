@@ -2,13 +2,12 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 
+import { hashPassword } from "better-auth/crypto";
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 
 import type {
   AuthDeliveryChannel,
   AuthSessionUser,
-  LoginInput,
-  RegistrationInput,
   UserRole,
 } from "@/lib/auth-types";
 import {
@@ -16,13 +15,12 @@ import {
   normalizeEmail,
   normalizePhone,
 } from "@/lib/contact-utils";
-import { fromDatabaseDateTime } from "@/lib/datetime";
-import type { BusinessStatus } from "@/lib/types";
 import { getDbPool } from "@/lib/db";
-import { hashPassword, verifyPassword } from "@/lib/password";
+import { fromDatabaseDateTime } from "@/lib/datetime";
+import type { BusinessStatus, CategorySlug } from "@/lib/types";
 import { categories, cities } from "@/lib/taxonomy";
 import { toSlug } from "@/lib/utils";
-import { validateEmail, validatePassword, validatePhone } from "@/lib/validation";
+import { validatePhone } from "@/lib/validation";
 
 type UserRow = RowDataPacket & {
   id: string;
@@ -30,7 +28,6 @@ type UserRow = RowDataPacket & {
   name: string;
   email: string;
   phone: string;
-  passwordHash: string;
   businessProfileId: string | null;
   businessName: string | null;
   businessStatus: BusinessStatus | null;
@@ -47,7 +44,6 @@ const baseUserQuery = `
     u.name,
     u.email,
     u.phone,
-    u.password_hash AS passwordHash,
     bp.id AS businessProfileId,
     bp.business_name AS businessName,
     bp.status AS businessStatus,
@@ -121,37 +117,24 @@ export function resolveUserDeliveryDestination(
   return user.phone?.trim() || "";
 }
 
-function validateCommonRegistration(input: RegistrationInput) {
-  if (!input.name.trim()) {
-    return "Name is required.";
+export function resolveReserveeRole(value: unknown): UserRole {
+  if (value === "customer" || value === "shop") {
+    return value;
   }
 
-  if (!input.email.trim()) {
-    return "Email is required.";
+  if (value === "business") {
+    return "shop";
   }
 
-  if (!validateEmail(input.email)) {
-    return "Enter a valid email address.";
-  }
-
-  if (!input.phone.trim()) {
-    return "Phone is required.";
-  }
-
-  if (!validatePhone(input.phone)) {
-    return "Enter a valid phone number.";
-  }
-
-  const passwordValidation = validatePassword(input.password);
-
-  if (!passwordValidation.valid) {
-    return passwordValidation.errors[0]?.message ?? "Password does not meet security requirements.";
-  }
-
-  return null;
+  return "customer";
 }
 
-function validateShopRegistration(input: Extract<RegistrationInput, { role: "shop" }>) {
+export function buildBusinessRegistrationError(input: {
+  businessName: string;
+  categorySlug: string;
+  citySlug: string;
+  area: string;
+}) {
   if (!input.businessName.trim()) {
     return "Business name is required for shop accounts.";
   }
@@ -171,177 +154,133 @@ function validateShopRegistration(input: Extract<RegistrationInput, { role: "sho
   return null;
 }
 
-export async function registerUser(input: RegistrationInput) {
-  const commonError = validateCommonRegistration(input);
-
-  if (commonError) {
-    return {
-      ok: false as const,
-      status: 400,
-      message: commonError,
-    };
+export async function createBusinessProfileForAuthUser(input: {
+  userId: string;
+  businessName: string;
+  categorySlug: CategorySlug;
+  citySlug: string;
+  area: string;
+  phone: string;
+}) {
+  if (!validatePhone(input.phone)) {
+    throw new Error("Enter a valid phone number.");
   }
 
-  if (input.role === "shop") {
-    const shopError = validateShopRegistration(input);
+  const businessError = buildBusinessRegistrationError(input);
 
-    if (shopError) {
-      return {
-        ok: false as const,
-        status: 400,
-        message: shopError,
-      };
-    }
-  }
-
-  const existingUser = await findUserByEmail(input.email);
-
-  if (existingUser) {
-    return {
-      ok: false as const,
-      status: 409,
-      message: "An account with this email already exists.",
-    };
-  }
-
-  const existingPhoneUser = await findUserByPhone(input.phone);
-
-  if (existingPhoneUser) {
-    return {
-      ok: false as const,
-      status: 409,
-      message: "An account with this phone number already exists.",
-    };
+  if (businessError) {
+    throw new Error(businessError);
   }
 
   const pool = getDbPool();
-  const connection = await pool.getConnection();
+  const [existingRows] = await pool.query<(RowDataPacket & { id: string })[]>(
+    "SELECT id FROM business_profiles WHERE owner_user_id = ? LIMIT 1",
+    [input.userId],
+  );
 
-  try {
-    await connection.beginTransaction();
-
-    const userId = randomUUID();
-    const passwordHash = hashPassword(input.password);
-
-    await connection.execute<ResultSetHeader>(
-      `
-        INSERT INTO app_users (id, role, name, email, phone, phone_normalized, password_hash)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `,
-      [
-        userId,
-        input.role,
-        input.name.trim(),
-        normalizeEmail(input.email),
-        input.phone.trim(),
-        normalizePhone(input.phone),
-        passwordHash,
-      ],
-    );
-
-    if (input.role === "shop") {
-      const slugBase = toSlug(input.businessName.trim()) || "business";
-
-      await connection.execute<ResultSetHeader>(
-        `
-          INSERT INTO business_profiles (
-            id,
-            owner_user_id,
-            business_name,
-            category_slug,
-            city_slug,
-            area,
-            address,
-            phone,
-            whatsapp,
-            slug,
-            no_show_rule,
-            status
-          )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `,
-        [
-          randomUUID(),
-          userId,
-          input.businessName.trim(),
-          input.categorySlug,
-          input.citySlug,
-          input.area.trim(),
-          `${input.area.trim()}, ${
-            cities.find((city) => city.slug === input.citySlug)?.name ?? "Tunisia"
-          }`,
-          input.phone.trim(),
-          input.phone.trim(),
-          `${slugBase}-${userId.slice(-6).toLowerCase()}`,
-          "Les absences non annoncees peuvent limiter les prochaines demandes.",
-          "draft",
-        ],
-      );
-    }
-
-    await connection.commit();
-
-    const user = await findUserByEmail(input.email);
-
-    if (!user) {
-      return {
-        ok: false as const,
-        status: 500,
-        message: "Account created, but the session could not be prepared.",
-      };
-    }
-
-    return {
-      ok: true as const,
-      status: 201,
-      user: mapRowToSessionUser(user),
-      message:
-        input.role === "shop"
-          ? "Shop account created. Complete your dashboard setup next."
-          : "Customer account created successfully.",
-    };
-  } finally {
-    connection.release();
+  if (existingRows[0]) {
+    return existingRows[0].id;
   }
+
+  const businessId = randomUUID();
+  const slugBase = toSlug(input.businessName.trim()) || "business";
+  const cityName =
+    cities.find((city) => city.slug === input.citySlug)?.name ?? "Tunisia";
+
+  await pool.execute<ResultSetHeader>(
+    `
+      INSERT INTO business_profiles (
+        id,
+        owner_user_id,
+        business_name,
+        category_slug,
+        city_slug,
+        area,
+        address,
+        phone,
+        whatsapp,
+        slug,
+        no_show_rule,
+        status
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    [
+      businessId,
+      input.userId,
+      input.businessName.trim(),
+      input.categorySlug,
+      input.citySlug,
+      input.area.trim(),
+      `${input.area.trim()}, ${cityName}`,
+      input.phone.trim(),
+      input.phone.trim(),
+      `${slugBase}-${input.userId.slice(-6).toLowerCase()}`,
+      "Les absences non annoncees peuvent limiter les prochaines demandes.",
+      "draft",
+    ],
+  );
+
+  return businessId;
 }
 
-export async function loginUser(input: LoginInput) {
-  if (!input.identifier.trim() || !input.password.trim()) {
-    return {
-      ok: false as const,
-      status: 400,
-      message: "Email or phone number and password are required.",
-    };
-  }
-
-  const user = await findUserByIdentifier(input.identifier);
-
-  if (!user || !verifyPassword(input.password, user.passwordHash)) {
-    return {
-      ok: false as const,
-      status: 401,
-      message: "Invalid email or phone number, or password.",
-    };
-  }
-
-  return {
-    ok: true as const,
-    status: 200,
-    user: mapRowToSessionUser(user),
-    message: "Login successful.",
-  };
+export async function deleteAuthUserById(userId: string) {
+  const pool = getDbPool();
+  await pool.execute<ResultSetHeader>("DELETE FROM app_users WHERE id = ? LIMIT 1", [
+    userId,
+  ]);
 }
 
 export async function updateUserPassword(userId: string, password: string) {
   const pool = getDbPool();
+  const passwordHash = await hashPassword(password);
+  const [rows] = await pool.query<(RowDataPacket & { id: string })[]>(
+    `
+      SELECT id
+      FROM \`account\`
+      WHERE userId = ?
+        AND providerId = 'credential'
+      LIMIT 1
+    `,
+    [userId],
+  );
+  const accountId = rows[0]?.id;
+
+  if (accountId) {
+    await pool.execute<ResultSetHeader>(
+      `
+        UPDATE \`account\`
+        SET password = ?, updatedAt = CURRENT_TIMESTAMP(3)
+        WHERE id = ?
+        LIMIT 1
+      `,
+      [passwordHash, accountId],
+    );
+  } else {
+    await pool.execute<ResultSetHeader>(
+      `
+        INSERT INTO \`account\` (
+          id,
+          accountId,
+          providerId,
+          userId,
+          password,
+          createdAt,
+          updatedAt
+        )
+        VALUES (?, ?, 'credential', ?, ?, CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3))
+      `,
+      [randomUUID(), userId, userId, passwordHash],
+    );
+  }
 
   await pool.execute<ResultSetHeader>(
     `
       UPDATE app_users
-      SET password_hash = ?, password_updated_at = UTC_TIMESTAMP()
+      SET password_updated_at = UTC_TIMESTAMP()
       WHERE id = ?
       LIMIT 1
     `,
-    [hashPassword(password), userId],
+    [userId],
   );
 }
