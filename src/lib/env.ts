@@ -32,6 +32,8 @@ const envSchema = z.object({
   DB_USER: z.string().default("root"),
   DB_PASSWORD: z.string().default(""),
   DB_NAME: z.string().default("reservee_tn"),
+  DB_SSL: booleanLike,
+  DB_SSL_CA: z.string().optional(),
   VERIFICATION_CODE_DEV_PREVIEW: booleanLike,
   BOOKING_OTP_DEV_PREVIEW: booleanLike,
   NOTIFICATION_EMAIL_PROVIDER: z.enum(["console", "resend"]).default("console"),
@@ -81,6 +83,13 @@ if (parsed.NODE_ENV === "production") {
 
   if (betterAuthUrlValue.protocol !== "https:" && !isLocalBetterAuthUrl) {
     throw new Error("BETTER_AUTH_URL must use HTTPS in production.");
+  }
+
+  if (
+    process.env.VERCEL_ENV === "production" &&
+    betterAuthUrl !== "https://reserveetn.app"
+  ) {
+    throw new Error("BETTER_AUTH_URL must be https://reserveetn.app in Vercel production.");
   }
 }
 

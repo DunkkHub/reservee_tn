@@ -1,5 +1,3 @@
-USE reservee_tn;
-
 ALTER TABLE app_users
   ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT FALSE AFTER email,
   ADD COLUMN IF NOT EXISTS image VARCHAR(500) NULL AFTER email_verified,

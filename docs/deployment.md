@@ -6,6 +6,7 @@
 - MySQL 8+
 - Production `BETTER_AUTH_SECRET` with at least 32 random characters
 - Environment variables from [.env.example](/D:/barber/.env.example)
+- Aiven MySQL for production; XAMPP is local-only
 
 ## Build and start
 
@@ -21,13 +22,16 @@ npm run start
 - `APP_URL`
 - `BETTER_AUTH_URL`
 - `BETTER_AUTH_SECRET`
-- database credentials
+- Aiven database credentials
+- `DB_SSL=true` and `DB_SSL_CA` when required by the Aiven service
 
 Optional provider configuration:
 
 - Resend for email
 - Twilio for SMS
 - external media storage provider env vars when implemented
+
+For the current production target, use [Vercel deployment](/D:/barber/docs/VERCEL_DEPLOYMENT.md) and [Aiven MySQL](/D:/barber/docs/AIVEN_MYSQL.md) as the detailed runbooks.
 
 ## Health checks
 

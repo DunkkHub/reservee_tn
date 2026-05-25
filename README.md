@@ -74,6 +74,7 @@ The full reference is in [.env.example](/D:/barber/.env.example), but the minimu
 - `DB_USER`
 - `DB_PASSWORD`
 - `DB_NAME`
+- `DB_SSL` / `DB_SSL_CA` when using a hosted MySQL provider that requires SSL
 
 Optional provider configuration:
 
@@ -109,6 +110,14 @@ Useful extras:
 
 ## Production deployment
 
+Production stack:
+
+- Domain: `reserveetn.app` from Name.com, with `www.reserveetn.app` supported
+- Hosting: Vercel Hobby
+- Database: Aiven MySQL free tier
+- Auth: Better Auth
+- Optional future media storage: Supabase Storage or Vercel Blob
+
 High-level deployment flow:
 
 1. Provision MySQL 8 and backups.
@@ -125,13 +134,16 @@ High-level deployment flow:
 - [Architecture](/D:/barber/docs/architecture.md)
 - [Testing](/D:/barber/docs/testing.md)
 - [Database](/D:/barber/docs/database.md)
+- [Vercel deployment](/D:/barber/docs/VERCEL_DEPLOYMENT.md)
+- [Aiven MySQL](/D:/barber/docs/AIVEN_MYSQL.md)
 - [Deployment](/D:/barber/docs/deployment.md)
 - [Security](/D:/barber/docs/security.md)
 - [Authentication](/D:/barber/docs/AUTH.md)
 - [Production readiness](/D:/barber/docs/PRODUCTION.md)
+- [Production checklist](/D:/barber/docs/production-checklist.md)
+- [Media storage](/D:/barber/docs/MEDIA_STORAGE.md)
 - [Admin workflows](/D:/barber/docs/admin-workflows.md)
 - [Media](/D:/barber/docs/media.md)
-- [Production checklist](/D:/barber/docs/production-checklist.md)
 - [Technical review](/D:/barber/TECHNICAL_REVIEW.md)
 
 ## Known limitations

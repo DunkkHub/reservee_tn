@@ -286,8 +286,8 @@ Trust modules currently include:
 
 ### Implementation notes
 
-- Authentication is persisted in MySQL through XAMPP/phpMyAdmin.
-- Session cookies separate customer, shop, and admin access.
+- Authentication is Better Auth-backed and persisted in MySQL.
+- Better Auth session cookies plus server-side role guards separate customer, shop, and admin access.
 - New shop accounts can enter a dedicated dashboard workspace immediately.
-- Marketplace, bookings, services, moderation, and gallery edits are still persisted in local browser storage.
-- Seeded data still gives the app realistic marketplace, dashboard, and moderation behavior while the rest of the backend is being migrated.
+- Marketplace, bookings, services, moderation, and gallery edits are persisted through MySQL-backed API routes.
+- Seeded data still gives the app realistic marketplace, dashboard, and moderation behavior for local/staging validation.

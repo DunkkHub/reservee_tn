@@ -2,6 +2,14 @@
 
 This project is production-closer after the Better Auth integration, but deployment still depends on real infrastructure, provider credentials, monitoring, and operational ownership.
 
+Target production stack:
+
+- Domain: `reserveetn.app` from Name.com, with `www.reserveetn.app` supported.
+- Hosting: Vercel Hobby.
+- Database: Aiven MySQL free tier.
+- Auth: Better Auth.
+- Optional future media storage: Supabase Storage or Vercel Blob.
+
 ## Deployment Checklist
 
 - Provision MySQL 8 with automated backups and restricted network access.
@@ -21,7 +29,9 @@ This project is production-closer after the Better Auth integration, but deploym
 - `NEXT_PUBLIC_APP_URL=https://reserveetn.app`
 - `BETTER_AUTH_URL=https://reserveetn.app`
 - `BETTER_AUTH_SECRET=<strong stable secret>`
-- `DATABASE_URL=mysql://user:password@host:3306/reservee_tn` or `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`
+- `DATABASE_URL=mysql://user:password@host:port/database` or `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`
+- `DB_SSL=true` for Aiven if SSL is required or recommended
+- `DB_SSL_CA=<Aiven CA certificate text or local path when running scripts locally>` if Aiven provides a CA certificate
 
 `https://www.reserveetn.app` is also a trusted origin, but the non-`www` URL should be the canonical `APP_URL`, `NEXT_PUBLIC_APP_URL`, and `BETTER_AUTH_URL` unless the deployment deliberately switches canonical domains.
 
@@ -35,7 +45,9 @@ Optional production providers:
 
 - The app reuses one MySQL pool through `src/lib/db.ts`.
 - Better Auth uses `app_users` as the auth user model and stores credential hashes in `account.password`.
+- Aiven MySQL is the production database target; XAMPP is local-only and cannot be reached from Vercel.
 - Run migrations before deploying code that expects Better Auth tables.
+- Migration SQL does not hardcode `USE reservee_tn`; it runs against the database selected by `DATABASE_URL` or `DB_NAME`.
 - Backups should include `app_users`, `account`, `session`, `verification`, bookings, business profiles, media metadata, and audit/activity tables.
 - Do not log database URLs or credentials.
 
@@ -61,6 +73,7 @@ API route classification:
 - Public admin creation is blocked; use `npm run auth:create-admin`.
 - Auth/register/profile inputs are validated with Zod or Better Auth hooks.
 - Passwords are never stored in plaintext.
+- Do not reuse any Better Auth secret that was pasted into chat or shared outside the deployment platform.
 - Legacy auth localStorage keys are cleared on logout.
 - Sensitive custom endpoints use origin checks and rate limiting.
 - Security headers are configured in `next.config.ts`: `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, and `Permissions-Policy`.
@@ -111,6 +124,12 @@ Build:
 - `npm run test`
 - `npm run build`
 - `npm audit`
+
+Deployment docs:
+
+- Vercel deployment: [docs/VERCEL_DEPLOYMENT.md](/D:/barber/docs/VERCEL_DEPLOYMENT.md)
+- Aiven MySQL: [docs/AIVEN_MYSQL.md](/D:/barber/docs/AIVEN_MYSQL.md)
+- Media storage options: [docs/MEDIA_STORAGE.md](/D:/barber/docs/MEDIA_STORAGE.md)
 
 ## Known Limitations
 

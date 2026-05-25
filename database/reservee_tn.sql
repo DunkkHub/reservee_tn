@@ -1,9 +1,3 @@
-CREATE DATABASE IF NOT EXISTS reservee_tn
-  CHARACTER SET utf8mb4
-  COLLATE utf8mb4_unicode_ci;
-
-USE reservee_tn;
-
 CREATE TABLE IF NOT EXISTS app_users (
   id VARCHAR(36) NOT NULL PRIMARY KEY,
   role ENUM('customer', 'shop', 'admin') NOT NULL,

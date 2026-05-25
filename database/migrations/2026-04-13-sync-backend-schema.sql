@@ -1,5 +1,3 @@
-USE reservee_tn;
-
 ALTER TABLE business_profiles
   ADD COLUMN IF NOT EXISTS phone VARCHAR(32) NOT NULL DEFAULT '' AFTER address,
   ADD COLUMN IF NOT EXISTS whatsapp VARCHAR(32) NOT NULL DEFAULT '' AFTER phone,

@@ -10,6 +10,7 @@ Required locally and in production:
 - `BETTER_AUTH_SECRET`: Strong random secret with at least 32 characters. Never commit the real value.
 - `DATABASE_URL`: Optional MySQL connection URL.
 - `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`: Existing MySQL variables used when `DATABASE_URL` is empty.
+- `DB_SSL`, `DB_SSL_CA`: Optional Aiven/hosted MySQL SSL settings.
 - `APP_URL` and `NEXT_PUBLIC_APP_URL`: Existing app URL values used by the app and allowed-origin checks.
 
 No secret uses a `NEXT_PUBLIC_` prefix. Client components import only `src/lib/auth-client.ts`, not server env validation.
@@ -86,5 +87,6 @@ Logout uses Better Auth `signOut()` and clears old localStorage auth keys from e
 - Set `BETTER_AUTH_URL` to the final HTTPS origin exactly.
 - The production origins are `https://reserveetn.app` and `https://www.reserveetn.app`; use the canonical domain for `BETTER_AUTH_URL`.
 - Generate `BETTER_AUTH_SECRET` with a secure random source and keep it stable across deploys.
+- Do not reuse the previously exposed Better Auth secret; rotate it before production.
 - Use HTTPS in production so Better Auth can use secure cookies.
 - Run `npm run db:migrate` before deploying code that depends on Better Auth tables.

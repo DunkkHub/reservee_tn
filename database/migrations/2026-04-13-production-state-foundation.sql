@@ -1,5 +1,3 @@
-USE reservee_tn;
-
 ALTER TABLE business_profiles
   ADD COLUMN IF NOT EXISTS phone_verified BOOLEAN NOT NULL DEFAULT FALSE AFTER response_window,
   ADD COLUMN IF NOT EXISTS address_verified BOOLEAN NOT NULL DEFAULT FALSE AFTER phone_verified,

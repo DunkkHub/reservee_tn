@@ -1,5 +1,3 @@
-USE reservee_tn;
-
 ALTER TABLE app_users
   ADD COLUMN IF NOT EXISTS phone_normalized VARCHAR(32) NULL AFTER phone,
   ADD COLUMN IF NOT EXISTS password_updated_at DATETIME NULL AFTER password_hash,

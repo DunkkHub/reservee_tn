@@ -1,6 +1,8 @@
 import "server-only";
 
-import mysql, { type Pool } from "mysql2/promise";
+import fs from "node:fs";
+
+import mysql, { type Pool, type PoolOptions } from "mysql2/promise";
 
 import { env } from "@/lib/env";
 
@@ -8,9 +10,56 @@ declare global {
   var reserveeDbPool: Pool | undefined;
 }
 
-function getDatabaseConfig() {
+function isSslRequested(databaseUrl: URL) {
+  const sslValue =
+    databaseUrl.searchParams.get("ssl") ??
+    databaseUrl.searchParams.get("sslmode") ??
+    databaseUrl.searchParams.get("ssl-mode");
+
+  return ["1", "true", "required", "require", "verify-ca", "verify_identity"].includes(
+    sslValue?.toLowerCase() ?? "",
+  );
+}
+
+function readCertificateAuthority(value: string) {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return undefined;
+  }
+
+  if (trimmed.includes("BEGIN CERTIFICATE")) {
+    return trimmed.replace(/\\n/g, "\n");
+  }
+
+  if (fs.existsSync(trimmed)) {
+    return fs.readFileSync(trimmed, "utf8");
+  }
+
+  return trimmed.replace(/\\n/g, "\n");
+}
+
+function getSslConfig(enabled: boolean): PoolOptions["ssl"] | undefined {
+  if (!enabled) {
+    return undefined;
+  }
+
+  const ca = env.DB_SSL_CA ? readCertificateAuthority(env.DB_SSL_CA) : undefined;
+
+  return ca
+    ? {
+        ca,
+        rejectUnauthorized: true,
+      }
+    : {
+        rejectUnauthorized: true,
+      };
+}
+
+function getDatabaseConfig(): PoolOptions {
   if (env.DATABASE_URL) {
     const databaseUrl = new URL(env.DATABASE_URL);
+    const ssl = getSslConfig(env.DB_SSL || isSslRequested(databaseUrl));
 
     return {
       host: databaseUrl.hostname,
@@ -18,8 +67,11 @@ function getDatabaseConfig() {
       user: decodeURIComponent(databaseUrl.username),
       password: decodeURIComponent(databaseUrl.password),
       database: databaseUrl.pathname.replace(/^\/+/, ""),
+      ...(ssl ? { ssl } : {}),
     };
   }
+
+  const ssl = getSslConfig(env.DB_SSL);
 
   return {
     host: env.DB_HOST,
@@ -27,6 +79,7 @@ function getDatabaseConfig() {
     user: env.DB_USER,
     password: env.DB_PASSWORD,
     database: env.DB_NAME,
+    ...(ssl ? { ssl } : {}),
   };
 }
 

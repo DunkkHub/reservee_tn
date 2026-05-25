@@ -1,5 +1,41 @@
 # Production Checklist
 
+## Target stack
+
+- Domain: `reserveetn.app` from Name.com, with `www.reserveetn.app` supported.
+- Hosting: Vercel Hobby.
+- Database: Aiven MySQL free tier.
+- Auth: Better Auth.
+- Optional future media storage: Supabase Storage or Vercel Blob.
+
+## Before deploy
+
+- Aiven MySQL service is created and reachable from your local machine.
+- Vercel project is imported from `DunkkHub/reservee_tn` on `main`.
+- Vercel environment variables are added for Better Auth, app URLs, Aiven MySQL, and first-admin creation.
+- A new `BETTER_AUTH_SECRET` is generated; do not reuse any secret previously pasted into chat.
+- `reserveetn.app` and `www.reserveetn.app` are added to the Vercel project.
+- Name.com DNS records are configured exactly as Vercel shows.
+- Migrations have been run against Aiven with `npm run db:migrate`.
+- The first admin has been created with `npm run auth:create-admin`.
+- `npm run build` passes.
+
+## After deploy
+
+- `https://reserveetn.app` opens.
+- `https://www.reserveetn.app` opens or redirects according to the Vercel domain configuration.
+- `/login` works.
+- `/register` works.
+- Logout works.
+- Admin login works.
+- Customer users cannot access `/admin`.
+- Customer users cannot access `/dashboard`.
+- Business/shop users can access `/dashboard`.
+- Booking flow works.
+- Smoke test passes against the production-intended database before real customer data exists, or against a staging clone. The smoke script seeds data and should not run against a live database with real bookings.
+- No secrets are visible in the browser bundle.
+- `.env.local` is not committed.
+
 ## Code quality
 
 - Done: `lint`, `typecheck`, `test`, `build`, and seeded smoke commands exist and pass locally.
