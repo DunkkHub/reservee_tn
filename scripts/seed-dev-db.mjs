@@ -66,7 +66,7 @@ const seedUsers = [
     id: "seed-user-admin",
     role: "admin",
     name: "Reservee Admin",
-    email: "admin@reservee.tn",
+    email: "admin@reserveetn.app",
     phone: "+216 20 000 001",
     passwordHash: await hashPassword(adminPassword),
   },
@@ -74,7 +74,7 @@ const seedUsers = [
     id: "seed-user-atlas",
     role: "shop",
     name: "Atlas Owner",
-    email: "atlas@reservee.tn",
+    email: "atlas@reserveetn.app",
     phone: "+216 20 111 111",
     passwordHash: await hashPassword(ownerPassword),
   },
@@ -82,7 +82,7 @@ const seedUsers = [
     id: "seed-user-nude",
     role: "shop",
     name: "Nude Owner",
-    email: "nude@reservee.tn",
+    email: "nude@reserveetn.app",
     phone: "+216 20 222 222",
     passwordHash: await hashPassword(ownerPassword),
   },
@@ -90,7 +90,7 @@ const seedUsers = [
     id: "seed-user-hammam",
     role: "shop",
     name: "Hayat Owner",
-    email: "hayat@reservee.tn",
+    email: "hayat@reserveetn.app",
     phone: "+216 20 333 333",
     passwordHash: await hashPassword(ownerPassword),
   },
@@ -98,7 +98,7 @@ const seedUsers = [
     id: "seed-user-customer",
     role: "customer",
     name: "Salma Ben Youssef",
-    email: "customer@reservee.tn",
+    email: "customer@reserveetn.app",
     phone: "+216 21 555 777",
     passwordHash: await hashPassword(customerPassword),
   },
@@ -656,9 +656,9 @@ try {
   console.log("Development database seeded.");
   console.log("");
   console.log("Local development accounts");
-  console.log(`Admin: admin@reservee.tn / ${adminPassword}`);
-  console.log(`Business owner: atlas@reservee.tn / ${ownerPassword}`);
-  console.log(`Customer: customer@reservee.tn / ${customerPassword}`);
+  console.log(`Admin: admin@reserveetn.app / ${adminPassword}`);
+  console.log(`Business owner: atlas@reserveetn.app / ${ownerPassword}`);
+  console.log(`Customer: customer@reserveetn.app / ${customerPassword}`);
 } catch (error) {
   await connection.rollback();
   console.error(error);

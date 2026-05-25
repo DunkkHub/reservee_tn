@@ -17,12 +17,13 @@ This project is production-closer after the Better Auth integration, but deploym
 ## Required Environment
 
 - `NODE_ENV=production`
-- `APP_URL=https://your-real-domain.com`
-- `NEXT_PUBLIC_APP_URL=https://your-real-domain.com`
-- `BETTER_AUTH_URL=https://your-real-domain.com`
+- `APP_URL=https://reserveetn.app`
+- `NEXT_PUBLIC_APP_URL=https://reserveetn.app`
+- `BETTER_AUTH_URL=https://reserveetn.app`
 - `BETTER_AUTH_SECRET=<strong stable secret>`
 - `DATABASE_URL=mysql://user:password@host:3306/reservee_tn` or `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`
-- `AUTH_SECRET=<strong stable secret while legacy helpers remain>`
+
+`https://www.reserveetn.app` is also a trusted origin, but the non-`www` URL should be the canonical `APP_URL`, `NEXT_PUBLIC_APP_URL`, and `BETTER_AUTH_URL` unless the deployment deliberately switches canonical domains.
 
 Optional production providers:
 

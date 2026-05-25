@@ -18,6 +18,18 @@ import { env } from "@/lib/env";
 import type { CategorySlug } from "@/lib/types";
 import { validatePassword, validatePhone } from "@/lib/validation";
 
+const trustedOrigins = Array.from(
+  new Set(
+    [
+      "http://localhost:3000",
+      "https://reserveetn.app",
+      "https://www.reserveetn.app",
+      env.APP_URL,
+      env.BETTER_AUTH_URL,
+    ].filter(Boolean),
+  ),
+);
+
 function asRecord(value: unknown) {
   return typeof value === "object" && value !== null
     ? (value as Record<string, unknown>)
@@ -138,9 +150,7 @@ export const auth = betterAuth({
   appName: "Reservee TN",
   baseURL: env.BETTER_AUTH_URL,
   secret: env.BETTER_AUTH_SECRET,
-  trustedOrigins: Array.from(
-    new Set([env.APP_URL, env.BETTER_AUTH_URL].filter(Boolean)),
-  ),
+  trustedOrigins,
   database: getDbPool(),
   user: {
     modelName: "app_users",

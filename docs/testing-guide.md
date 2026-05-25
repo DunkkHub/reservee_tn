@@ -38,7 +38,7 @@
 
 1. Open `/login`.
 2. Sign in with:
-   - email: `admin@reservee.tn`
+   - email: `admin@reserveetn.app`
    - password: `admin12345`
 3. Confirm you land on `/admin`.
 

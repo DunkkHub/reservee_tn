@@ -4,7 +4,7 @@
 
 - Node.js 22+
 - MySQL 8+
-- Production `AUTH_SECRET` with at least 32 random characters
+- Production `BETTER_AUTH_SECRET` with at least 32 random characters
 - Environment variables from [.env.example](/D:/barber/.env.example)
 
 ## Build and start
@@ -19,8 +19,9 @@ npm run start
 ## Required runtime configuration
 
 - `APP_URL`
+- `BETTER_AUTH_URL`
+- `BETTER_AUTH_SECRET`
 - database credentials
-- `AUTH_SECRET`
 
 Optional provider configuration:
 
@@ -40,7 +41,7 @@ Use readiness for deployment gates because it checks database connectivity.
 1. Verify `/api/health`
 2. Verify `/api/ready`
 3. Open home, explore, a business profile, and the booking page
-4. Complete OTP login in the configured environment
+4. Sign in with a seeded or admin-created Better Auth account
 5. Create and cancel a booking
 6. Verify admin/business dashboards still load
 

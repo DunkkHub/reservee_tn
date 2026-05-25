@@ -20,17 +20,18 @@ const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   APP_URL: z.string().url().optional(),
   NEXT_PUBLIC_APP_URL: z.string().url().optional(),
-  BETTER_AUTH_URL: z.string().url().optional(),
-  BETTER_AUTH_SECRET: z.string().optional(),
+  BETTER_AUTH_URL: z
+    .string({ error: "BETTER_AUTH_URL is required." })
+    .url("BETTER_AUTH_URL must be a valid URL."),
+  BETTER_AUTH_SECRET: z
+    .string({ error: "BETTER_AUTH_SECRET is required." })
+    .min(32, "BETTER_AUTH_SECRET must be at least 32 characters."),
   DATABASE_URL: z.string().min(1).optional(),
   DB_HOST: z.string().default("127.0.0.1"),
   DB_PORT: z.coerce.number().int().positive().default(3306),
   DB_USER: z.string().default("root"),
   DB_PASSWORD: z.string().default(""),
   DB_NAME: z.string().default("reservee_tn"),
-  AUTH_SECRET: z.string().default("dev-auth-secret-change-me"),
-  SESSION_COOKIE_NAME: z.string().default("reservee_session"),
-  SESSION_TTL_HOURS: z.coerce.number().int().min(1).max(24 * 30).default(24 * 7),
   VERIFICATION_CODE_DEV_PREVIEW: booleanLike,
   BOOKING_OTP_DEV_PREVIEW: booleanLike,
   NOTIFICATION_EMAIL_PROVIDER: z.enum(["console", "resend"]).default("console"),
@@ -49,31 +50,27 @@ const envSchema = z.object({
   RESEND_FROM_EMAIL: z.string().optional(),
 });
 
-const parsed = envSchema.parse(process.env);
+const parsedResult = envSchema.safeParse(process.env);
+
+if (!parsedResult.success) {
+  const message = parsedResult.error.issues
+    .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+    .join("; ");
+
+  throw new Error(`Invalid server environment: ${message}`);
+}
+
+const parsed = parsedResult.data;
 const appUrl =
   parsed.APP_URL ??
   parsed.NEXT_PUBLIC_APP_URL ??
-  parsed.BETTER_AUTH_URL ??
-  "http://localhost:3000";
-const betterAuthUrl = parsed.BETTER_AUTH_URL ?? appUrl;
-const betterAuthSecret = parsed.BETTER_AUTH_SECRET ?? parsed.AUTH_SECRET;
+  parsed.BETTER_AUTH_URL;
+const betterAuthUrl = parsed.BETTER_AUTH_URL;
+const betterAuthSecret = parsed.BETTER_AUTH_SECRET;
 
 if (parsed.NODE_ENV === "production") {
   if (!appUrl) {
     throw new Error("APP_URL is required in production.");
-  }
-
-  if (
-    !parsed.AUTH_SECRET ||
-    parsed.AUTH_SECRET === "change-this-secret-for-production" ||
-    parsed.AUTH_SECRET === "dev-auth-secret-change-me" ||
-    parsed.AUTH_SECRET.length < 32
-  ) {
-    throw new Error("AUTH_SECRET must be set to a strong production secret.");
-  }
-
-  if (!betterAuthSecret || betterAuthSecret.length < 32) {
-    throw new Error("BETTER_AUTH_SECRET must be set to a strong production secret.");
   }
 
   const betterAuthUrlValue = new URL(betterAuthUrl);

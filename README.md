@@ -2,7 +2,7 @@
 
 Reservee TN is a Tunisia-focused beauty booking platform built for barbers, hair salons, beauty centers, nail studios, and spas.
 
-This repository is no longer just a visual demo. It now includes a stricter booking lifecycle, signed sessions, role-aware dashboard protections, structured notification/media abstractions, repeatable database seeding, smoke checks, and CI.
+This repository is no longer just a visual demo. It now includes a stricter booking lifecycle, Better Auth sessions, role-aware dashboard protections, structured notification/media abstractions, repeatable database seeding, smoke checks, and CI.
 
 ## Current status
 
@@ -69,7 +69,6 @@ The full reference is in [.env.example](/D:/barber/.env.example), but the minimu
 - `APP_URL`
 - `BETTER_AUTH_URL`
 - `BETTER_AUTH_SECRET`
-- `AUTH_SECRET`
 - `DB_HOST`
 - `DB_PORT`
 - `DB_USER`

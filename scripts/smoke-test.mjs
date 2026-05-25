@@ -235,7 +235,7 @@ async function run() {
     }
 
     const customerLogin = await completeLogin({
-      email: "customer@reservee.tn",
+      email: "customer@reserveetn.app",
       password: seedPasswords.customer,
     });
     hasFailure ||= !formatResult(customerLogin.ok, "customer login with Better Auth");
@@ -249,7 +249,7 @@ async function run() {
     }
 
     const ownerLogin = await completeLogin({
-      email: "atlas@reservee.tn",
+      email: "atlas@reserveetn.app",
       password: seedPasswords.owner,
     });
     hasFailure ||= !formatResult(ownerLogin.ok, "owner login with Better Auth");
@@ -263,7 +263,7 @@ async function run() {
     }
 
     const adminLogin = await completeLogin({
-      email: "admin@reservee.tn",
+      email: "admin@reserveetn.app",
       password: seedPasswords.admin,
     });
     hasFailure ||= !formatResult(adminLogin.ok, "admin login with Better Auth");

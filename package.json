@@ -17,8 +17,6 @@
     "db:seed-dev": "node scripts/seed-dev-db.mjs",
     "db:reset-dev": "node scripts/db-reset-dev.mjs",
     "db:studio": "node scripts/db-studio.mjs",
-    "auth:generate": "npx auth@latest generate --config ./src/lib/auth.ts",
-    "auth:migrate": "npx auth@latest migrate --config ./src/lib/auth.ts",
     "auth:create-admin": "node scripts/create-admin.mjs"
   },
   "dependencies": {

@@ -6,13 +6,11 @@ Reservee TN uses Better Auth for email/password authentication and keeps the exi
 
 Required locally and in production:
 
-- `BETTER_AUTH_URL`: Canonical app URL, for example `http://localhost:3000` locally or `https://reservee.tn` in production.
+- `BETTER_AUTH_URL`: Canonical app URL, for example `http://localhost:3000` locally or `https://reserveetn.app` in production.
 - `BETTER_AUTH_SECRET`: Strong random secret with at least 32 characters. Never commit the real value.
 - `DATABASE_URL`: Optional MySQL connection URL.
 - `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`: Existing MySQL variables used when `DATABASE_URL` is empty.
 - `APP_URL` and `NEXT_PUBLIC_APP_URL`: Existing app URL values used by the app and allowed-origin checks.
-
-`AUTH_SECRET` remains in `.env.example` for older local helper compatibility. The app can fall back to a strong `AUTH_SECRET` during migration, but production deployments should set `BETTER_AUTH_SECRET` explicitly.
 
 No secret uses a `NEXT_PUBLIC_` prefix. Client components import only `src/lib/auth-client.ts`, not server env validation.
 
@@ -32,14 +30,7 @@ The Better Auth migration adds:
 
 No existing Reservee TN marketplace, booking, dashboard, or moderation tables are dropped.
 
-Better Auth's current CLI is available through:
-
-```bash
-npm run auth:generate
-npm run auth:migrate
-```
-
-Reservee TN keeps SQL migrations in `database/migrations`, so generated SQL should be reviewed and committed as a project migration instead of running unreviewed schema changes in production.
+Reservee TN keeps reviewed SQL migrations in `database/migrations` as the canonical schema source. Better Auth CLI migrations are not exposed as npm scripts because the current CLI dependency adds avoidable audit risk for this app; use committed SQL migrations for production changes.
 
 ## Role Model
 
@@ -93,6 +84,7 @@ Logout uses Better Auth `signOut()` and clears old localStorage auth keys from e
 ## Production Notes
 
 - Set `BETTER_AUTH_URL` to the final HTTPS origin exactly.
+- The production origins are `https://reserveetn.app` and `https://www.reserveetn.app`; use the canonical domain for `BETTER_AUTH_URL`.
 - Generate `BETTER_AUTH_SECRET` with a secure random source and keep it stable across deploys.
 - Use HTTPS in production so Better Auth can use secure cookies.
 - Run `npm run db:migrate` before deploying code that depends on Better Auth tables.

@@ -79,7 +79,7 @@ That command:
 
 ## Default admin login
 
-- email: `admin@reservee.tn`
+- email: `admin@reserveetn.app`
 - password: `admin12345`
 
 Change that password immediately in any real deployment.

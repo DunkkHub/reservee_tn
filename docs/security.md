@@ -2,10 +2,10 @@
 
 ## Current protections
 
-- Password hashing with `scrypt`
-- Signed session cookies
-- Server-side session storage and revocation
-- OTP verification for login, password reset, and public booking-reference access
+- Better Auth email/password credential hashing
+- Better Auth HTTP-only session cookies
+- MySQL-backed Better Auth session storage and revocation
+- OTP verification for password reset and public booking-reference access
 - Role checks on customer, business, and admin surfaces
 - Business ownership checks before dashboard mutations
 - Origin validation on state-changing requests
@@ -31,7 +31,7 @@
 
 ## Production checklist
 
-- Set a strong unique `AUTH_SECRET`
+- Set a strong unique `BETTER_AUTH_SECRET`
 - Disable dev OTP previews
 - Configure real email/SMS providers or accept no-op console mode
 - Run behind HTTPS only
