@@ -91,7 +91,7 @@ CREATE TABLE IF NOT EXISTS business_profiles (
   whatsapp VARCHAR(32) NOT NULL DEFAULT '',
   instagram VARCHAR(120) NOT NULL DEFAULT '',
   tagline VARCHAR(160) NOT NULL DEFAULT '',
-  description TEXT NOT NULL DEFAULT '',
+  description TEXT NOT NULL,
   logo_text VARCHAR(50) NOT NULL DEFAULT '',
   cover_url VARCHAR(500) NOT NULL DEFAULT '',
   slug VARCHAR(190) NOT NULL,
@@ -141,6 +141,18 @@ CREATE TABLE IF NOT EXISTS business_profiles (
     ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS customer_profiles (
+  id VARCHAR(36) NOT NULL PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_customer_profiles_user (user_id),
+  CONSTRAINT fk_customer_profiles_user
+    FOREIGN KEY (user_id)
+    REFERENCES app_users (id)
+    ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE OR REPLACE VIEW businesses AS
 SELECT
   id,
@@ -177,7 +189,7 @@ CREATE TABLE IF NOT EXISTS services (
   id VARCHAR(36) NOT NULL PRIMARY KEY,
   business_id VARCHAR(36) NOT NULL,
   title VARCHAR(120) NOT NULL,
-  description TEXT NOT NULL DEFAULT '',
+  description TEXT NOT NULL,
   price DECIMAL(10, 2) NOT NULL,
   duration_minutes INT NOT NULL,
   active BOOLEAN NOT NULL DEFAULT TRUE,
@@ -386,8 +398,8 @@ CREATE TABLE IF NOT EXISTS moderation_history (
     'suspended',
     'archived'
   ) NOT NULL,
-  internal_note TEXT NOT NULL DEFAULT '',
-  business_message TEXT NOT NULL DEFAULT '',
+  internal_note TEXT NOT NULL,
+  business_message TEXT NOT NULL,
   changed_at DATETIME NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_moderation_history_business

@@ -80,7 +80,7 @@ ALTER TABLE bookings
     'no_show',
     'expired'
   ) NOT NULL DEFAULT 'pending',
-  ADD KEY IF NOT EXISTS idx_bookings_business_status_start_at (business_id, status, start_at);
+  ADD KEY idx_bookings_business_status_start_at (business_id, status, start_at);
 
 ALTER TABLE booking_events
   MODIFY COLUMN previous_status ENUM(
@@ -103,11 +103,11 @@ ALTER TABLE booking_events
   ) NULL;
 
 ALTER TABLE media_items
-  ADD COLUMN IF NOT EXISTS storage_provider VARCHAR(32) NOT NULL DEFAULT 'external_url' AFTER alt,
-  ADD COLUMN IF NOT EXISTS storage_key VARCHAR(255) NULL AFTER storage_provider,
-  ADD COLUMN IF NOT EXISTS mime_type VARCHAR(120) NULL AFTER storage_key,
-  ADD COLUMN IF NOT EXISTS file_size_bytes BIGINT NULL AFTER mime_type,
-  ADD KEY IF NOT EXISTS idx_media_items_business_type_sort (business_id, type, sort_order);
+  ADD COLUMN storage_provider VARCHAR(32) NOT NULL DEFAULT 'external_url' AFTER alt,
+  ADD COLUMN storage_key VARCHAR(255) NULL AFTER storage_provider,
+  ADD COLUMN mime_type VARCHAR(120) NULL AFTER storage_key,
+  ADD COLUMN file_size_bytes BIGINT NULL AFTER mime_type,
+  ADD KEY idx_media_items_business_type_sort (business_id, type, sort_order);
 
 UPDATE media_items
 SET storage_provider = CASE

@@ -1,13 +1,13 @@
 ALTER TABLE app_users
-  ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT FALSE AFTER email,
-  ADD COLUMN IF NOT EXISTS image VARCHAR(500) NULL AFTER email_verified,
+  ADD COLUMN email_verified BOOLEAN NOT NULL DEFAULT FALSE AFTER email,
+  ADD COLUMN image VARCHAR(500) NULL AFTER email_verified,
   MODIFY COLUMN password_hash VARCHAR(255) NULL;
 
 UPDATE app_users
 SET email_verified = TRUE
 WHERE email_verified IS NULL;
 
-CREATE TABLE IF NOT EXISTS `session` (
+CREATE TABLE `session` (
   id VARCHAR(36) NOT NULL PRIMARY KEY,
   expiresAt TIMESTAMP(3) NOT NULL,
   token VARCHAR(255) NOT NULL,
@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS `session` (
   KEY idx_better_auth_session_user_id (userId)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `account` (
+CREATE TABLE `account` (
   id VARCHAR(36) NOT NULL PRIMARY KEY,
   accountId VARCHAR(255) NOT NULL,
   providerId VARCHAR(255) NOT NULL,
@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS `account` (
   KEY idx_better_auth_account_provider_account (providerId, accountId)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS verification (
+CREATE TABLE verification (
   id VARCHAR(36) NOT NULL PRIMARY KEY,
   identifier VARCHAR(255) NOT NULL,
   value TEXT NOT NULL,

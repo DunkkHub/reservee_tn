@@ -1,22 +1,22 @@
 ALTER TABLE business_profiles
-  ADD COLUMN IF NOT EXISTS phone VARCHAR(32) NOT NULL DEFAULT '' AFTER address,
-  ADD COLUMN IF NOT EXISTS whatsapp VARCHAR(32) NOT NULL DEFAULT '' AFTER phone,
-  ADD COLUMN IF NOT EXISTS instagram VARCHAR(120) NOT NULL DEFAULT '' AFTER whatsapp,
-  ADD COLUMN IF NOT EXISTS tagline VARCHAR(160) NOT NULL DEFAULT '' AFTER instagram,
-  ADD COLUMN IF NOT EXISTS description TEXT NOT NULL AFTER tagline,
-  ADD COLUMN IF NOT EXISTS logo_text VARCHAR(50) NOT NULL DEFAULT '' AFTER description,
-  ADD COLUMN IF NOT EXISTS cover_url VARCHAR(500) NOT NULL DEFAULT '' AFTER logo_text,
-  ADD COLUMN IF NOT EXISTS slug VARCHAR(190) NOT NULL DEFAULT '' AFTER cover_url,
-  ADD COLUMN IF NOT EXISTS audience ENUM('women', 'men', 'unisex') NOT NULL DEFAULT 'unisex' AFTER slug,
-  ADD COLUMN IF NOT EXISTS years_in_business INT NOT NULL DEFAULT 1 AFTER audience,
-  ADD COLUMN IF NOT EXISTS booking_mode ENUM('instant', 'approval_required') NOT NULL DEFAULT 'approval_required' AFTER years_in_business,
-  ADD COLUMN IF NOT EXISTS operating_mode ENUM('appointment_only', 'walk_ins', 'both') NOT NULL DEFAULT 'appointment_only' AFTER booking_mode,
-  ADD COLUMN IF NOT EXISTS response_window VARCHAR(120) NOT NULL DEFAULT 'moins de 1h' AFTER operating_mode,
-  ADD COLUMN IF NOT EXISTS featured_until DATETIME NULL AFTER response_window,
-  ADD COLUMN IF NOT EXISTS featured_rank INT NULL AFTER featured_until,
-  ADD COLUMN IF NOT EXISTS featured_city_slug VARCHAR(80) NULL AFTER featured_rank,
-  ADD COLUMN IF NOT EXISTS featured_category_slug VARCHAR(80) NULL AFTER featured_city_slug,
-  ADD COLUMN IF NOT EXISTS featured_copy TEXT NULL AFTER featured_category_slug;
+  ADD COLUMN phone VARCHAR(32) NOT NULL DEFAULT '' AFTER address,
+  ADD COLUMN whatsapp VARCHAR(32) NOT NULL DEFAULT '' AFTER phone,
+  ADD COLUMN instagram VARCHAR(120) NOT NULL DEFAULT '' AFTER whatsapp,
+  ADD COLUMN tagline VARCHAR(160) NOT NULL DEFAULT '' AFTER instagram,
+  ADD COLUMN description TEXT NOT NULL AFTER tagline,
+  ADD COLUMN logo_text VARCHAR(50) NOT NULL DEFAULT '' AFTER description,
+  ADD COLUMN cover_url VARCHAR(500) NOT NULL DEFAULT '' AFTER logo_text,
+  ADD COLUMN slug VARCHAR(190) NOT NULL DEFAULT '' AFTER cover_url,
+  ADD COLUMN audience ENUM('women', 'men', 'unisex') NOT NULL DEFAULT 'unisex' AFTER slug,
+  ADD COLUMN years_in_business INT NOT NULL DEFAULT 1 AFTER audience,
+  ADD COLUMN booking_mode ENUM('instant', 'approval_required') NOT NULL DEFAULT 'approval_required' AFTER years_in_business,
+  ADD COLUMN operating_mode ENUM('appointment_only', 'walk_ins', 'both') NOT NULL DEFAULT 'appointment_only' AFTER booking_mode,
+  ADD COLUMN response_window VARCHAR(120) NOT NULL DEFAULT 'moins de 1h' AFTER operating_mode,
+  ADD COLUMN featured_until DATETIME NULL AFTER response_window,
+  ADD COLUMN featured_rank INT NULL AFTER featured_until,
+  ADD COLUMN featured_city_slug VARCHAR(80) NULL AFTER featured_rank,
+  ADD COLUMN featured_category_slug VARCHAR(80) NULL AFTER featured_city_slug,
+  ADD COLUMN featured_copy TEXT NULL AFTER featured_category_slug;
 
 UPDATE business_profiles
 SET slug = CONCAT(
@@ -26,7 +26,7 @@ SET slug = CONCAT(
 )
 WHERE slug = '';
 
-CREATE TABLE IF NOT EXISTS services (
+CREATE TABLE services (
   id VARCHAR(36) NOT NULL PRIMARY KEY,
   business_id VARCHAR(36) NOT NULL,
   title VARCHAR(120) NOT NULL,
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS services (
     ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS business_hours (
+CREATE TABLE business_hours (
   id VARCHAR(36) NOT NULL PRIMARY KEY,
   business_id VARCHAR(36) NOT NULL,
   day_of_week INT NOT NULL,
@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS business_hours (
   UNIQUE KEY uq_business_hours_business_day (business_id, day_of_week)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS bookings (
+CREATE TABLE bookings (
   id VARCHAR(36) NOT NULL PRIMARY KEY,
   reference_code VARCHAR(12) NOT NULL UNIQUE,
   business_id VARCHAR(36) NOT NULL,
@@ -98,7 +98,7 @@ CREATE TABLE IF NOT EXISTS bookings (
     ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS blocked_slots (
+CREATE TABLE blocked_slots (
   id VARCHAR(36) NOT NULL PRIMARY KEY,
   business_id VARCHAR(36) NOT NULL,
   start_at DATETIME NOT NULL,
@@ -112,7 +112,7 @@ CREATE TABLE IF NOT EXISTS blocked_slots (
     ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS media_items (
+CREATE TABLE media_items (
   id VARCHAR(36) NOT NULL PRIMARY KEY,
   business_id VARCHAR(36) NOT NULL,
   type ENUM('cover', 'gallery') NOT NULL,
@@ -126,7 +126,7 @@ CREATE TABLE IF NOT EXISTS media_items (
     ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS moderation_history (
+CREATE TABLE moderation_history (
   id VARCHAR(36) NOT NULL PRIMARY KEY,
   business_id VARCHAR(36) NOT NULL,
   status ENUM(
@@ -148,7 +148,7 @@ CREATE TABLE IF NOT EXISTS moderation_history (
     ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS waitlist_requests (
+CREATE TABLE waitlist_requests (
   id VARCHAR(36) NOT NULL PRIMARY KEY,
   business_id VARCHAR(36) NOT NULL,
   service_id VARCHAR(36) NOT NULL,

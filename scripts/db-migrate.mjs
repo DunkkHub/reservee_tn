@@ -58,21 +58,33 @@ async function createTargetConnection() {
 const connection = await createTargetConnection();
 
 try {
-  const [tableRows] = await connection.query(
-    `
-      SELECT COUNT(*) AS count
-      FROM information_schema.tables
-      WHERE table_schema = ?
-    `,
+  // List of required core tables
+  const requiredTables = [
+    'app_users',
+    'account',
+    'session',
+    'verification',
+    'business_profiles',
+    'customer_profiles',
+    'services',
+    'bookings',
+  ];
+
+  // Query to check for required tables
+  const [existingTablesRows] = await connection.query(
+    `SELECT table_name FROM information_schema.tables WHERE table_schema = ?`,
     [targetDatabase],
   );
-  const existingTableCount = Number(tableRows[0]?.count ?? 0);
+  const existingTables = new Set(existingTablesRows.map(row => row.TABLE_NAME || row.table_name));
 
-  if (existingTableCount === 0) {
+  const missingTables = requiredTables.filter(t => !existingTables.has(t));
+
+  if (missingTables.length > 0) {
+    console.log(`Missing required tables: ${missingTables.join(', ')}. Bootstrapping base schema...`);
     const schemaSql = await fs.readFile(schemaFile, "utf8");
     await connection.query(schemaSql);
   } else {
-    console.log(`Existing schema detected in ${targetDatabase}; skipping base schema bootstrap.`);
+    console.log(`All required core tables exist in ${targetDatabase}; skipping base schema bootstrap.`);
   }
 
   const migrationFiles = (await fs.readdir(migrationsDir))
@@ -81,8 +93,16 @@ try {
 
   for (const filename of migrationFiles) {
     const migrationSql = await fs.readFile(path.join(migrationsDir, filename), "utf8");
-    await connection.query(migrationSql);
-    console.log(`Applied migration: ${filename}`);
+    try {
+      await connection.query(migrationSql);
+      console.log(`Applied migration: ${filename}`);
+    } catch (e) {
+      if (e.code === 'ER_DUP_FIELDNAME' || e.code === 'ER_DUP_KEYNAME') {
+        console.log(`Skipped migration: ${filename} (columns/keys already exist)`);
+      } else {
+        throw e;
+      }
+    }
   }
 
   console.log("Database schema is up to date.");
