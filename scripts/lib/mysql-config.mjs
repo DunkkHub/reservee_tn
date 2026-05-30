@@ -47,7 +47,7 @@ function getSslConfig(enabled) {
         rejectUnauthorized: true,
       }
     : {
-        rejectUnauthorized: true,
+        rejectUnauthorized: false,
       };
 }
 

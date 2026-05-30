@@ -13,6 +13,7 @@
     "test:smoke": "node scripts/smoke-test.mjs",
     "smoke": "node scripts/smoke-test.mjs",
     "bookings:expire-pending": "node scripts/expire-pending-bookings.mjs",
+    "db:check": "node scripts/db-check.mjs",
     "db:migrate": "node scripts/db-migrate.mjs",
     "db:seed-dev": "node scripts/seed-dev-db.mjs",
     "db:reset-dev": "node scripts/db-reset-dev.mjs",

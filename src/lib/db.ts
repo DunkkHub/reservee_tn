@@ -52,7 +52,7 @@ function getSslConfig(enabled: boolean): PoolOptions["ssl"] | undefined {
         rejectUnauthorized: true,
       }
     : {
-        rejectUnauthorized: true,
+        rejectUnauthorized: false,
       };
 }
 

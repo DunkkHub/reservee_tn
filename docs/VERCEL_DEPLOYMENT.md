@@ -23,7 +23,7 @@ In Vercel, create a new project:
 
 ## 2. Add Environment Variables
 
-Add these in Vercel Project Settings > Environment Variables. Use a newly generated production secret; do not reuse any secret that was pasted into chat or committed anywhere.
+Add these in Vercel Project Settings > Environment Variables, in the **Production** environment. Use a newly generated production secret; do not reuse any secret that was pasted into chat or committed anywhere.
 
 ```env
 BETTER_AUTH_URL=https://reserveetn.app
@@ -36,7 +36,7 @@ DB_PORT=your-aiven-mysql-port
 DB_USER=your-aiven-mysql-user
 DB_PASSWORD=your-aiven-mysql-password
 DB_NAME=your-aiven-mysql-database
-DATABASE_URL=mysql://your-aiven-mysql-user:your-aiven-mysql-password@your-aiven-mysql-host:your-aiven-mysql-port/your-aiven-mysql-database
+DATABASE_URL=mysql://your-aiven-mysql-user:your-aiven-mysql-password@your-aiven-mysql-host:your-aiven-mysql-port/your-aiven-mysql-database?ssl-mode=REQUIRED
 DB_SSL=true
 DB_SSL_CA=
 
@@ -46,7 +46,9 @@ ADMIN_NAME=Reservee Admin
 ADMIN_PHONE=+21600000000
 ```
 
-If your Aiven password contains special URL characters, URL-encode it in `DATABASE_URL`. Keep `SUPABASE_SERVICE_ROLE_KEY` out of Vercel client-exposed variables if future media storage is added.
+**Important:** Include `?ssl-mode=REQUIRED` in the DATABASE_URL. Aiven MySQL requires SSL.
+
+If your Aiven password contains special URL characters, URL-encode it in `DATABASE_URL`. Never expose database passwords in logs or error messages.
 
 ## 3. Add Domains On Vercel
 
@@ -70,14 +72,50 @@ Vercel's current domain setup docs say the general-purpose values are `76.76.21.
 
 ## 5. Run Database Setup
 
-After Aiven MySQL is created and env vars are available locally or in a secure shell:
+Aiven must be initialized **before** deploying to Vercel. Do this from your local machine or a secure shell with network access to Aiven:
+
+1. Create `.env.local` with Aiven credentials (do not commit this file)
+2. Test the connection:
+
+```bash
+npm run db:check
+```
+
+Expected: Shows database host, port, name, and SSL status.
+
+3. Run migrations:
 
 ```bash
 npm run db:migrate
+```
+
+4. Verify migrations created tables:
+
+```bash
+npm run db:check
+```
+
+Expected: All required tables are listed.
+
+5. Create admin user:
+
+```bash
 npm run auth:create-admin
 ```
 
-If running from your local machine against Aiven, temporarily put the Aiven values in `.env.local`, run the commands, then restore `.env.local` to XAMPP/local values if you still need local development.
+6. Restore `.env.local` to XAMPP/local values if you still use local development
+
+After local setup is complete, deploy to Vercel:
+
+1. Verify all Aiven environment variables are set in Vercel Production settings
+2. Redeploy Vercel (push to main or click Redeploy)
+3. Test the API:
+
+```bash
+curl https://reserveetn.app/api/businesses?scope=public&limit=1
+```
+
+Expected: JSON response, NOT "The MySQL backend is not ready yet."
 
 ## 6. Redeploy
 
