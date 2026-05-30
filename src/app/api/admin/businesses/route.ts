@@ -1,10 +1,17 @@
 import { NextResponse } from "next/server";
 
 import { recordActivity } from "@/lib/activity-log-repository";
+import { paginatedResponse } from "@/lib/api-response";
 import { getApiSession } from "@/lib/auth-session";
-import { findBusinesses, findBusinessById, moderateBusiness } from "@/lib/business-repository";
+import {
+  countBusinesses,
+  findBusinesses,
+  findBusinessById,
+  moderateBusiness,
+} from "@/lib/business-repository";
 import { getDatabaseErrorMessage } from "@/lib/db";
 import { getDbPool } from "@/lib/db";
+import { createPaginationMetadata, parsePagination } from "@/lib/pagination";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { assertAllowedOrigin, HttpRequestError } from "@/lib/security";
 import type { CategorySlug, BusinessStatus } from "@/lib/types";
@@ -26,19 +33,25 @@ export async function GET(request: Request) {
     const status = searchParams.get("status");
     const city = searchParams.get("city");
     const category = searchParams.get("category");
-    const limit = parseInt(searchParams.get("limit") ?? "100", 10);
+    const pagination = parsePagination(searchParams);
 
-    const businesses = await findBusinesses({
+    const filters = {
       citySlug: city ?? undefined,
       categorySlug: (category as CategorySlug | null) ?? undefined,
       statuses: status ? [status as BusinessStatus] : undefined,
-      limit,
-    });
+    };
+    const [businesses, total] = await Promise.all([
+      findBusinesses({
+        ...filters,
+        ...pagination,
+      }),
+      countBusinesses(filters),
+    ]);
 
-    return NextResponse.json({
-      ok: true,
-      data: businesses,
-    });
+    return paginatedResponse(
+      businesses,
+      createPaginationMetadata(total, pagination),
+    );
   } catch (error) {
     return NextResponse.json(
       {

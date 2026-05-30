@@ -30,6 +30,7 @@ Target production stack:
 - `BETTER_AUTH_URL=https://reserveetn.app`
 - `BETTER_AUTH_SECRET=<strong stable secret>`
 - `DATABASE_URL=mysql://user:password@host:port/database` or `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`
+- `DB_CONNECTION_LIMIT=5` as a conservative Vercel/serverless starting point; tune against the MySQL plan's max connections and expected concurrent instances. Local development defaults to `10`.
 - `DB_SSL=true` for Aiven if SSL is required or recommended
 - `DB_SSL_CA=<Aiven CA certificate text or local path when running scripts locally>` if Aiven provides a CA certificate
 
@@ -44,6 +45,7 @@ Optional production providers:
 ## Database Notes
 
 - The app reuses one MySQL pool through `src/lib/db.ts`.
+- `DB_CONNECTION_LIMIT` controls that pool size. Keep it below the database plan's connection cap after multiplying by possible concurrent serverless instances.
 - Better Auth uses `app_users` as the auth user model and stores credential hashes in `account.password`.
 - Aiven MySQL is the production database target; XAMPP is local-only and cannot be reached from Vercel.
 - Run migrations before deploying code that expects Better Auth tables.

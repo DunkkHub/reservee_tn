@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { getDbPool } from "@/lib/db";
 import { fromDatabaseDateTime, toDatabaseDateTime } from "@/lib/datetime";
+import type { PaginationOptions } from "@/lib/pagination";
 import type { BlockedSlot } from "@/lib/types";
 
 type BlockedSlotRow = RowDataPacket & {
@@ -15,6 +16,21 @@ type BlockedSlotRow = RowDataPacket & {
   created_at: string;
 };
 
+type BlockedSlotListOptions = Partial<Pick<PaginationOptions, "limit" | "offset">>;
+
+function normalizeBlockedSlotListOptions(options: BlockedSlotListOptions = {}) {
+  const limit =
+    typeof options.limit === "number" && Number.isFinite(options.limit)
+      ? Math.min(Math.max(1, Math.floor(options.limit)), 100)
+      : 50;
+  const offset =
+    typeof options.offset === "number" && Number.isFinite(options.offset)
+      ? Math.max(0, Math.floor(options.offset))
+      : 0;
+
+  return { limit, offset };
+}
+
 function mapRowToBlockedSlot(row: BlockedSlotRow): BlockedSlot {
   return {
     id: row.id,
@@ -25,19 +41,41 @@ function mapRowToBlockedSlot(row: BlockedSlotRow): BlockedSlot {
   };
 }
 
-export async function findBlockedSlots(businessId: string) {
+export async function findBlockedSlots(
+  businessId: string,
+  options: BlockedSlotListOptions = {},
+) {
   const pool = getDbPool();
+  const { limit, offset } = normalizeBlockedSlotListOptions(options);
   const [rows] = await pool.query<BlockedSlotRow[]>(
     `
       SELECT id, business_id, start_at, end_at, reason
       FROM availability_exceptions
       WHERE business_id = ?
+        AND exception_type = 'blocked'
       ORDER BY start_at DESC
+      LIMIT ?
+      OFFSET ?
+    `,
+    [businessId, limit, offset],
+  );
+
+  return rows.map(mapRowToBlockedSlot);
+}
+
+export async function countBlockedSlots(businessId: string) {
+  const pool = getDbPool();
+  const [rows] = await pool.query<(RowDataPacket & { count: number })[]>(
+    `
+      SELECT COUNT(*) AS count
+      FROM availability_exceptions
+      WHERE business_id = ?
+        AND exception_type = 'blocked'
     `,
     [businessId],
   );
 
-  return rows.map(mapRowToBlockedSlot);
+  return Number(rows[0]?.count ?? 0);
 }
 
 export async function findBlockedSlotsByDate(businessId: string, date: string) {
@@ -47,6 +85,7 @@ export async function findBlockedSlotsByDate(businessId: string, date: string) {
       SELECT id, business_id, start_at, end_at, reason
       FROM availability_exceptions
       WHERE business_id = ?
+        AND exception_type = 'blocked'
         AND DATE(start_at) = ?
       ORDER BY start_at ASC
     `,
@@ -109,7 +148,7 @@ export async function checkBlockedSlotOverlap(input: {
   const pool = getDbPool();
 
   let query =
-    "SELECT COUNT(*) as count FROM availability_exceptions WHERE business_id = ? AND start_at < ? AND end_at > ?";
+    "SELECT COUNT(*) as count FROM availability_exceptions WHERE business_id = ? AND exception_type = 'blocked' AND start_at < ? AND end_at > ?";
   const params: unknown[] = [
     input.businessId,
     toDatabaseDateTime(input.endAt),

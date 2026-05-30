@@ -3,6 +3,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { getDbPool } from "@/lib/db";
+import type { PaginationOptions } from "@/lib/pagination";
 import type { Service } from "@/lib/types";
 
 type ServiceRow = RowDataPacket & {
@@ -19,6 +20,21 @@ type ServiceRow = RowDataPacket & {
   created_at: string;
   updated_at: string;
 };
+
+type ServiceListOptions = Partial<Pick<PaginationOptions, "limit" | "offset">>;
+
+function normalizeServiceListOptions(options: ServiceListOptions = {}) {
+  const limit =
+    typeof options.limit === "number" && Number.isFinite(options.limit)
+      ? Math.min(Math.max(1, Math.floor(options.limit)), 100)
+      : 100;
+  const offset =
+    typeof options.offset === "number" && Number.isFinite(options.offset)
+      ? Math.max(0, Math.floor(options.offset))
+      : 0;
+
+  return { limit, offset };
+}
 
 function mapRowToService(row: ServiceRow): Service {
   return {
@@ -43,17 +59,32 @@ export async function findServiceById(id: string) {
   return rows[0] ? mapRowToService(rows[0]) : null;
 }
 
-export async function findServicesByBusiness(businessId: string) {
+export async function findServicesByBusiness(
+  businessId: string,
+  options: ServiceListOptions = {},
+) {
   const pool = getDbPool();
+  const { limit, offset } = normalizeServiceListOptions(options);
   const [rows] = await pool.query<ServiceRow[]>(
     `
       SELECT * FROM services
       WHERE business_id = ?
       ORDER BY sort_order ASC, created_at ASC
+      LIMIT ?
+      OFFSET ?
     `,
-    [businessId],
+    [businessId, limit, offset],
   );
   return rows.map(mapRowToService);
+}
+
+export async function countServicesByBusiness(businessId: string) {
+  const pool = getDbPool();
+  const [rows] = await pool.query<(RowDataPacket & { count: number })[]>(
+    "SELECT COUNT(*) AS count FROM services WHERE business_id = ?",
+    [businessId],
+  );
+  return Number(rows[0]?.count ?? 0);
 }
 
 export async function createService(input: {

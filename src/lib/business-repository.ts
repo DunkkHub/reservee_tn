@@ -1,12 +1,12 @@
 import "server-only";
 
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
-import { endOfWeek, startOfWeek } from "date-fns";
+import { addDays, endOfWeek, startOfDay, startOfWeek } from "date-fns";
 
 import { findNextAvailableSlot, generateAvailableSlots } from "@/lib/availability";
 import { ensureBusinessHoursExist } from "@/lib/business-hours-repository";
 import { getDbPool } from "@/lib/db";
-import { fromDatabaseDateTime } from "@/lib/datetime";
+import { fromDatabaseDateTime, toDatabaseDateTime } from "@/lib/datetime";
 import { normalizeBusiness } from "@/lib/platform-rules";
 import type {
   ActivityType,
@@ -127,6 +127,23 @@ type BookingAggregateRow = RowDataPacket & {
   created_at: string;
 };
 
+type BusinessCountRow = RowDataPacket & {
+  business_id: string;
+  count: number;
+};
+
+type BusinessMostBookedServiceRow = RowDataPacket & {
+  business_id: string;
+  service_id: string;
+  count: number;
+};
+
+type BusinessBusyDayRow = RowDataPacket & {
+  business_id: string;
+  day_of_week: number;
+  count: number;
+};
+
 type BusinessQueryOptions = {
   ids?: string[];
   slug?: string;
@@ -136,7 +153,10 @@ type BusinessQueryOptions = {
   statuses?: BusinessStatus[];
   limit?: number;
   offset?: number;
+  sort?: "created_desc" | "public_listing";
 };
+
+type BusinessCountOptions = Omit<BusinessQueryOptions, "limit" | "offset" | "sort">;
 
 const weekdayLabels = [
   "Dimanche",
@@ -263,63 +283,13 @@ function mapBookingAggregateRow(row: BookingAggregateRow): Booking {
   };
 }
 
-function buildMetrics(
-  row: BusinessRow,
-  bookings: ReturnType<typeof mapBookingAggregateRow>[],
-): BusinessMetrics {
-  const now = new Date();
-  const weekStart = startOfWeek(now, { weekStartsOn: 1 });
-  const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
-  const serviceCounts = new Map<string, number>();
-  const weekdayCounts = new Map<number, number>();
-  let bookingsThisWeek = 0;
-  let missedBookings = 0;
-
-  for (const booking of bookings) {
-    const startAt = new Date(booking.startAt);
-    const isCountable =
-      booking.status === "pending" ||
-      booking.status === "confirmed" ||
-      booking.status === "completed" ||
-      booking.status === "no_show";
-
-    if (
-      isCountable &&
-      startAt.getTime() >= weekStart.getTime() &&
-      startAt.getTime() <= weekEnd.getTime()
-    ) {
-      bookingsThisWeek += 1;
-    }
-
-    if (booking.status === "no_show") {
-      missedBookings += 1;
-    }
-
-    if (booking.status === "confirmed" || booking.status === "completed") {
-      serviceCounts.set(
-        booking.serviceId,
-        (serviceCounts.get(booking.serviceId) ?? 0) + 1,
-      );
-      weekdayCounts.set(
-        startAt.getDay(),
-        (weekdayCounts.get(startAt.getDay()) ?? 0) + 1,
-      );
-    }
-  }
-
-  const mostBookedServiceId =
-    [...serviceCounts.entries()].sort((left, right) => right[1] - left[1])[0]?.[0] ?? "";
-  const busyDays = [...weekdayCounts.entries()]
-    .sort((left, right) => right[1] - left[1])
-    .slice(0, 3)
-    .map(([day]) => weekdayLabels[day] ?? "");
-
+function buildMetrics(row: BusinessRow, metrics?: BusinessMetrics): BusinessMetrics {
   return {
     profileViews: row.profile_views ?? 0,
-    bookingsThisWeek,
-    missedBookings,
-    busyDays,
-    mostBookedServiceId,
+    bookingsThisWeek: metrics?.bookingsThisWeek ?? 0,
+    missedBookings: metrics?.missedBookings ?? 0,
+    busyDays: metrics?.busyDays ?? [],
+    mostBookedServiceId: metrics?.mostBookedServiceId ?? "",
   };
 }
 
@@ -332,6 +302,7 @@ function buildBusinessFromRow(
     media: Business["media"];
     moderationHistory: Business["moderationHistory"];
     bookingRows: ReturnType<typeof mapBookingAggregateRow>[];
+    metrics?: BusinessMetrics;
   },
 ) {
   const draftBusiness = normalizeBusiness({
@@ -372,7 +343,7 @@ function buildBusinessFromRow(
     blockedSlots: related.blockedSlots,
     media: related.media,
     moderationHistory: related.moderationHistory,
-    metrics: buildMetrics(row, related.bookingRows),
+    metrics: buildMetrics(row, related.metrics),
     createdAt: fromDatabaseDateTime(row.created_at) ?? new Date(0).toISOString(),
   });
 
@@ -397,8 +368,7 @@ function buildBusinessFromRow(
   };
 }
 
-async function findBusinessRows(options: BusinessQueryOptions = {}) {
-  const pool = getDbPool();
+function buildBusinessWhere(options: BusinessCountOptions = {}) {
   const whereClauses: string[] = [];
   const params: Array<string | number> = [];
 
@@ -432,13 +402,29 @@ async function findBusinessRows(options: BusinessQueryOptions = {}) {
     params.push(...options.statuses);
   }
 
-  let query = "SELECT * FROM business_profiles";
+  return {
+    whereSql: whereClauses.length > 0 ? ` WHERE ${whereClauses.join(" AND ")}` : "",
+    params,
+  };
+}
 
-  if (whereClauses.length > 0) {
-    query += ` WHERE ${whereClauses.join(" AND ")}`;
+function getBusinessOrderBy(sort: BusinessQueryOptions["sort"]) {
+  if (sort === "public_listing") {
+    return `
+      ORDER BY
+        CASE WHEN status = 'featured' THEN 0 ELSE 1 END ASC,
+        COALESCE(featured_rank, 999999) ASC,
+        created_at DESC
+    `;
   }
 
-  query += " ORDER BY created_at DESC";
+  return " ORDER BY created_at DESC";
+}
+
+async function findBusinessRows(options: BusinessQueryOptions = {}) {
+  const pool = getDbPool();
+  const { whereSql, params } = buildBusinessWhere(options);
+  let query = `SELECT * FROM business_profiles${whereSql}${getBusinessOrderBy(options.sort)}`;
 
   if (options.limit !== undefined) {
     query += " LIMIT ?";
@@ -454,6 +440,17 @@ async function findBusinessRows(options: BusinessQueryOptions = {}) {
   return rows;
 }
 
+export async function countBusinesses(options: BusinessCountOptions = {}) {
+  const pool = getDbPool();
+  const { whereSql, params } = buildBusinessWhere(options);
+  const [rows] = await pool.query<(RowDataPacket & { count: number })[]>(
+    `SELECT COUNT(*) AS count FROM business_profiles${whereSql}`,
+    params,
+  );
+
+  return Number(rows[0]?.count ?? 0);
+}
+
 async function hydrateBusinesses(rows: BusinessRow[], ensureHours = false) {
   if (rows.length === 0) {
     return [];
@@ -462,71 +459,231 @@ async function hydrateBusinesses(rows: BusinessRow[], ensureHours = false) {
   const pool = getDbPool();
   const businessIds = rows.map((row) => row.id);
   const businessIdClause = buildInClause(businessIds);
+  const now = new Date();
+  const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
+  const availabilityStart = startOfDay(now);
+  const availabilityEnd = addDays(availabilityStart, 15);
 
   if (ensureHours) {
     await Promise.all(businessIds.map((businessId) => ensureBusinessHoursExist(businessId)));
   }
 
-  const [serviceRows, hoursRows, blockedSlotRows, mediaRows, moderationRows, bookingRows] =
-    await Promise.all([
-      pool.query<ServiceRow[]>(
-        `
-          SELECT * FROM services
+  const [
+    serviceRows,
+    hoursRows,
+    blockedSlotRows,
+    mediaRows,
+    moderationRows,
+    availabilityBookingRows,
+    bookingsThisWeekRows,
+    missedBookingRows,
+    mostBookedServiceRows,
+    busyDayRows,
+  ] = await Promise.all([
+    pool.query<ServiceRow[]>(
+      `
+        SELECT
+          id,
+          business_id,
+          title,
+          description,
+          price,
+          duration_minutes,
+          active,
+          featured,
+          gender_target,
+          sort_order
+        FROM (
+          SELECT
+            id,
+            business_id,
+            title,
+            description,
+            price,
+            duration_minutes,
+            active,
+            featured,
+            gender_target,
+            sort_order,
+            created_at,
+            ROW_NUMBER() OVER (
+              PARTITION BY business_id
+              ORDER BY sort_order ASC, created_at ASC
+            ) AS row_num
+          FROM services
           WHERE business_id IN (${businessIdClause})
-          ORDER BY business_id ASC, sort_order ASC, created_at ASC
-        `,
-        businessIds,
-      ),
-      pool.query<BusinessHoursRow[]>(
-        `
-          SELECT * FROM business_hours
-          WHERE business_id IN (${businessIdClause})
-          ORDER BY business_id ASC, day_of_week ASC
-        `,
-        businessIds,
-      ),
-      pool.query<BlockedSlotRow[]>(
-        `
-          SELECT id, business_id, start_at, end_at, reason
+        ) ranked_services
+        WHERE row_num <= 100
+        ORDER BY business_id ASC, sort_order ASC, created_at ASC
+      `,
+      businessIds,
+    ),
+    pool.query<BusinessHoursRow[]>(
+      `
+        SELECT * FROM business_hours
+        WHERE business_id IN (${businessIdClause})
+        ORDER BY business_id ASC, day_of_week ASC
+      `,
+      businessIds,
+    ),
+    pool.query<BlockedSlotRow[]>(
+      `
+        SELECT id, business_id, start_at, end_at, reason
+        FROM (
+          SELECT
+            id,
+            business_id,
+            start_at,
+            end_at,
+            reason,
+            ROW_NUMBER() OVER (
+              PARTITION BY business_id
+              ORDER BY start_at ASC
+            ) AS row_num
           FROM availability_exceptions
           WHERE business_id IN (${businessIdClause})
             AND exception_type = 'blocked'
-          ORDER BY business_id ASC, start_at DESC
-        `,
-        businessIds,
-      ),
-      pool.query<MediaRow[]>(
-        `
-          SELECT * FROM media_items
+            AND end_at >= ?
+        ) ranked_blocked_slots
+        WHERE row_num <= 100
+        ORDER BY business_id ASC, start_at ASC
+      `,
+      [...businessIds, toDatabaseDateTime(availabilityStart)],
+    ),
+    pool.query<MediaRow[]>(
+      `
+        SELECT id, business_id, type, url, alt, sort_order
+        FROM (
+          SELECT
+            id,
+            business_id,
+            type,
+            url,
+            alt,
+            sort_order,
+            created_at,
+            ROW_NUMBER() OVER (
+              PARTITION BY business_id
+              ORDER BY type ASC, sort_order ASC, created_at ASC
+            ) AS row_num
+          FROM media_items
           WHERE business_id IN (${businessIdClause})
-          ORDER BY business_id ASC, type ASC, sort_order ASC, created_at ASC
-        `,
-        businessIds,
-      ),
-      pool.query<ModerationRow[]>(
-        `
-          SELECT * FROM moderation_history
+        ) ranked_media
+        WHERE row_num <= 50
+        ORDER BY business_id ASC, type ASC, sort_order ASC, created_at ASC
+      `,
+      businessIds,
+    ),
+    pool.query<ModerationRow[]>(
+      `
+        SELECT id, business_id, status, internal_note, business_message, changed_at
+        FROM (
+          SELECT
+            id,
+            business_id,
+            status,
+            internal_note,
+            business_message,
+            changed_at,
+            created_at,
+            ROW_NUMBER() OVER (
+              PARTITION BY business_id
+              ORDER BY changed_at DESC, created_at DESC
+            ) AS row_num
+          FROM moderation_history
           WHERE business_id IN (${businessIdClause})
-          ORDER BY business_id ASC, changed_at DESC, created_at DESC
-        `,
-        businessIds,
-      ),
-      pool.query<BookingAggregateRow[]>(
-        `
-          SELECT id, business_id, service_id, status, start_at, end_at, created_at
-          FROM bookings
-          WHERE business_id IN (${businessIdClause})
-        `,
-        businessIds,
-      ),
-    ]);
+        ) ranked_moderation
+        WHERE row_num <= 20
+        ORDER BY business_id ASC, changed_at DESC, created_at DESC
+      `,
+      businessIds,
+    ),
+    pool.query<BookingAggregateRow[]>(
+      `
+        SELECT id, business_id, service_id, status, start_at, end_at, created_at
+        FROM bookings
+        WHERE business_id IN (${businessIdClause})
+          AND status IN ('pending', 'confirmed')
+          AND start_at < ?
+          AND end_at > ?
+      `,
+      [
+        ...businessIds,
+        toDatabaseDateTime(availabilityEnd),
+        toDatabaseDateTime(availabilityStart),
+      ],
+    ),
+    pool.query<BusinessCountRow[]>(
+      `
+        SELECT business_id, COUNT(*) AS count
+        FROM bookings
+        WHERE business_id IN (${businessIdClause})
+          AND status IN ('pending', 'confirmed', 'completed', 'no_show')
+          AND start_at >= ?
+          AND start_at <= ?
+        GROUP BY business_id
+      `,
+      [
+        ...businessIds,
+        toDatabaseDateTime(weekStart),
+        toDatabaseDateTime(weekEnd),
+      ],
+    ),
+    pool.query<BusinessCountRow[]>(
+      `
+        SELECT business_id, COUNT(*) AS count
+        FROM bookings
+        WHERE business_id IN (${businessIdClause})
+          AND status = 'no_show'
+        GROUP BY business_id
+      `,
+      businessIds,
+    ),
+    pool.query<BusinessMostBookedServiceRow[]>(
+      `
+        SELECT business_id, service_id, COUNT(*) AS count
+        FROM bookings
+        WHERE business_id IN (${businessIdClause})
+          AND status IN ('confirmed', 'completed')
+        GROUP BY business_id, service_id
+        ORDER BY business_id ASC, count DESC
+      `,
+      businessIds,
+    ),
+    pool.query<BusinessBusyDayRow[]>(
+      `
+        SELECT business_id, DAYOFWEEK(start_at) - 1 AS day_of_week, COUNT(*) AS count
+        FROM bookings
+        WHERE business_id IN (${businessIdClause})
+          AND status IN ('confirmed', 'completed')
+        GROUP BY business_id, day_of_week
+        ORDER BY business_id ASC, count DESC
+      `,
+      businessIds,
+    ),
+  ]);
 
   const servicesByBusinessId = groupRowsByBusinessId(serviceRows[0]);
   const hoursByBusinessId = groupRowsByBusinessId(hoursRows[0]);
   const blockedByBusinessId = groupRowsByBusinessId(blockedSlotRows[0]);
   const mediaByBusinessId = groupRowsByBusinessId(mediaRows[0]);
   const moderationByBusinessId = groupRowsByBusinessId(moderationRows[0]);
-  const bookingsByBusinessId = groupRowsByBusinessId(bookingRows[0]);
+  const bookingsByBusinessId = groupRowsByBusinessId(availabilityBookingRows[0]);
+  const busyDaysByBusinessId = groupRowsByBusinessId(busyDayRows[0]);
+  const bookingsThisWeekByBusinessId = new Map(
+    bookingsThisWeekRows[0].map((row) => [row.business_id, Number(row.count)]),
+  );
+  const missedBookingsByBusinessId = new Map(
+    missedBookingRows[0].map((row) => [row.business_id, Number(row.count)]),
+  );
+  const mostBookedServiceByBusinessId = new Map<string, string>();
+
+  for (const row of mostBookedServiceRows[0]) {
+    if (!mostBookedServiceByBusinessId.has(row.business_id)) {
+      mostBookedServiceByBusinessId.set(row.business_id, row.service_id);
+    }
+  }
 
   return rows.map((row) =>
     buildBusinessFromRow(row, {
@@ -536,6 +693,16 @@ async function hydrateBusinesses(rows: BusinessRow[], ensureHours = false) {
       media: (mediaByBusinessId[row.id] ?? []).map(mapMediaRow),
       moderationHistory: (moderationByBusinessId[row.id] ?? []).map(mapModerationRow),
       bookingRows: (bookingsByBusinessId[row.id] ?? []).map(mapBookingAggregateRow),
+      metrics: {
+        profileViews: row.profile_views ?? 0,
+        bookingsThisWeek: bookingsThisWeekByBusinessId.get(row.id) ?? 0,
+        missedBookings: missedBookingsByBusinessId.get(row.id) ?? 0,
+        busyDays: (busyDaysByBusinessId[row.id] ?? [])
+          .sort((left, right) => Number(right.count) - Number(left.count))
+          .slice(0, 3)
+          .map((busyDay) => weekdayLabels[Number(busyDay.day_of_week)] ?? ""),
+        mostBookedServiceId: mostBookedServiceByBusinessId.get(row.id) ?? "",
+      },
     }),
   );
 }
@@ -560,25 +727,57 @@ export async function findBusinessByOwner(ownerUserId: string) {
 export async function findFeaturedBusinesses() {
   return await findBusinesses({
     statuses: ["featured"],
+    sort: "public_listing",
+    limit: 100,
+    offset: 0,
   });
 }
 
-export async function findBusinessesByCity(citySlug: string) {
+export async function findBusinessesByCity(
+  citySlug: string,
+  options: Pick<BusinessQueryOptions, "limit" | "offset"> = {},
+) {
   return await findBusinesses({
     citySlug,
     statuses: ["approved", "featured"],
+    sort: "public_listing",
+    limit: options.limit ?? 100,
+    offset: options.offset ?? 0,
   });
 }
 
-export async function findBusinessesByCategory(categorySlug: string) {
+export async function findBusinessesByCategory(
+  categorySlug: string,
+  options: Pick<BusinessQueryOptions, "limit" | "offset"> = {},
+) {
   return await findBusinesses({
     categorySlug: categorySlug as CategorySlug,
     statuses: ["approved", "featured"],
+    sort: "public_listing",
+    limit: options.limit ?? 100,
+    offset: options.offset ?? 0,
   });
 }
 
-export async function findPublicBusinesses(filters: Pick<BusinessQueryOptions, "citySlug" | "categorySlug"> = {}) {
+export async function findPublicBusinesses(
+  filters: Pick<
+    BusinessQueryOptions,
+    "citySlug" | "categorySlug" | "limit" | "offset"
+  > = {},
+) {
   return await findBusinesses({
+    ...filters,
+    statuses: ["approved", "featured"],
+    sort: "public_listing",
+    limit: filters.limit ?? 100,
+    offset: filters.offset ?? 0,
+  });
+}
+
+export async function countPublicBusinesses(
+  filters: Pick<BusinessQueryOptions, "citySlug" | "categorySlug"> = {},
+) {
+  return await countBusinesses({
     ...filters,
     statuses: ["approved", "featured"],
   });

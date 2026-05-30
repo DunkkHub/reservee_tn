@@ -74,6 +74,7 @@ The full reference is in [.env.example](/D:/barber/.env.example), but the minimu
 - `DB_USER`
 - `DB_PASSWORD`
 - `DB_NAME`
+- `DB_CONNECTION_LIMIT` (`10` locally, start around `5` on Vercel-style serverless deployments)
 - `DB_SSL` / `DB_SSL_CA` when using a hosted MySQL provider that requires SSL
 
 Optional provider configuration:

@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 
 import { recordActivity } from "@/lib/activity-log-repository";
+import { paginatedResponse } from "@/lib/api-response";
 import { getApiSession } from "@/lib/auth-session";
 import {
+  countBusinesses,
+  countPublicBusinesses,
   findBusinesses,
   findBusinessById,
   findBusinessByOwner,
@@ -11,6 +14,7 @@ import {
   updateBusinessProfile,
 } from "@/lib/business-repository";
 import { getDatabaseErrorMessage } from "@/lib/db";
+import { createPaginationMetadata, parsePagination } from "@/lib/pagination";
 import { assertAllowedOrigin, HttpRequestError } from "@/lib/security";
 import type {
   BookingMode,
@@ -40,7 +44,7 @@ export async function GET(request: Request) {
     const city = searchParams.get("city");
     const category = searchParams.get("category");
     const status = searchParams.getAll("status") as BusinessStatus[];
-    const limit = Number(searchParams.get("limit") ?? "100");
+    const pagination = parsePagination(searchParams);
     const incrementView = searchParams.get("incrementView") === "1";
 
     if (scope === "owner") {
@@ -77,20 +81,40 @@ export async function GET(request: Request) {
         );
       }
 
-      const businesses = await findBusinesses({
+      const businessFilters = {
         ids: id ? [id] : undefined,
         slug: slug ?? undefined,
         ownerUserId: ownerId ?? undefined,
         citySlug: city ?? undefined,
         categorySlug: (category as CategorySlug | null) ?? undefined,
         statuses: status.length > 0 ? status : undefined,
-        limit,
-      });
+      };
+      const isSingleLookup = Boolean(id || slug || ownerId);
 
-      return NextResponse.json({
-        ok: true,
-        data: id || slug || ownerId ? businesses[0] ?? null : businesses,
-      });
+      if (isSingleLookup) {
+        const businesses = await findBusinesses({
+          ...businessFilters,
+          limit: 1,
+          offset: 0,
+        });
+
+        return NextResponse.json({
+          ok: true,
+          data: businesses[0] ?? null,
+        });
+      }
+
+      const [businesses, total] = await Promise.all([
+        findBusinesses({
+          ...businessFilters,
+          ...pagination,
+        }),
+        countBusinesses(businessFilters),
+      ]);
+      return paginatedResponse(
+        businesses,
+        createPaginationMetadata(total, pagination),
+      );
     }
 
     if (id) {
@@ -133,15 +157,22 @@ export async function GET(request: Request) {
       });
     }
 
-    const businesses = await findPublicBusinesses({
+    const publicFilters = {
       citySlug: city ?? undefined,
       categorySlug: (category as CategorySlug | null) ?? undefined,
-    });
+    };
+    const [businesses, total] = await Promise.all([
+      findPublicBusinesses({
+        ...publicFilters,
+        ...pagination,
+      }),
+      countPublicBusinesses(publicFilters),
+    ]);
 
-    return NextResponse.json({
-      ok: true,
-      data: businesses.slice(0, limit),
-    });
+    return paginatedResponse(
+      businesses,
+      createPaginationMetadata(total, pagination),
+    );
   } catch (error) {
     return NextResponse.json(
       {

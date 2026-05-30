@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { ZodError } from "zod";
 
 import { logError } from "@/lib/logger";
+import type { PaginationMetadata } from "@/lib/pagination";
 import { toValidationErrors, type ValidationError } from "@/lib/validation";
 
 export type ApiErrorCode =
@@ -18,6 +19,7 @@ export interface ApiResponse<T = unknown> {
   ok: true | false;
   message?: string;
   data?: T;
+  pagination?: PaginationMetadata;
   error?: {
     code: ApiErrorCode;
     message: string;
@@ -64,6 +66,24 @@ export function createdResponse<T>(
   message: string = "Resource created successfully",
 ) {
   return successResponse(data, message, 201);
+}
+
+export function paginatedResponse<T>(
+  data: T,
+  pagination: PaginationMetadata,
+  message: string = "Success",
+  status: number = 200,
+  headers?: HeadersInit,
+) {
+  return NextResponse.json(
+    {
+      ok: true,
+      message,
+      data,
+      pagination,
+    },
+    { status, headers },
+  );
 }
 
 export function errorResponse(

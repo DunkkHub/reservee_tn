@@ -1,6 +1,7 @@
 import {
   errorResponse,
   forbiddenResponse,
+  paginatedResponse,
   successResponse,
   unauthorizedResponse,
   validationErrorResponse,
@@ -11,12 +12,14 @@ import { canManageBusinessProfile } from "@/lib/access-control";
 import { getApiSession } from "@/lib/auth-session";
 import { findBusinessById } from "@/lib/business-repository";
 import {
+  countMediaByBusiness,
   createMediaItem,
   deleteMediaItem,
   findMediaByBusiness,
   reorderMediaItem,
   setCoverMediaItem,
 } from "@/lib/media-repository";
+import { createPaginationMetadata, parsePagination } from "@/lib/pagination";
 import { assertAllowedOrigin } from "@/lib/security";
 import {
   mediaCreateSchema,
@@ -51,7 +54,16 @@ export async function GET(request: Request) {
       return errorResponse("Business ID is required.", 400, "invalid_input");
     }
 
-    return successResponse(await findMediaByBusiness(businessId));
+    const pagination = parsePagination(searchParams);
+    const [media, total] = await Promise.all([
+      findMediaByBusiness(businessId, pagination),
+      countMediaByBusiness(businessId),
+    ]);
+
+    return paginatedResponse(
+      media,
+      createPaginationMetadata(total, pagination),
+    );
   } catch (error) {
     return handleRouteError(error, "Unable to load media.");
   }

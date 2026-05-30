@@ -163,6 +163,55 @@ export function generateAvailableSlots(
   return slots;
 }
 
+export function isSlotWithinBusinessAvailability(
+  business: Business,
+  service: Service,
+  startAtInput: Date | string,
+) {
+  const startAt = startAtInput instanceof Date ? startAtInput : new Date(startAtInput);
+
+  if (Number.isNaN(startAt.getTime()) || service.durationMinutes <= 0) {
+    return false;
+  }
+
+  const timeZone = getBusinessTimeZone(business);
+  const selectedDateKey = formatDateKey(startAt, timeZone);
+  const hours = getHoursForDateKey(business, selectedDateKey);
+
+  if (!hours || hours.isClosed) {
+    return false;
+  }
+
+  const openingTime = timeToDate(selectedDateKey, hours.openTime, timeZone);
+  const closingTime = timeToDate(selectedDateKey, hours.closeTime, timeZone);
+  const endAt = addMinutes(startAt, service.durationMinutes);
+
+  if (startAt < openingTime || endAt > closingTime) {
+    return false;
+  }
+
+  if (
+    (startAt.getTime() - openingTime.getTime()) %
+      (SLOT_STEP_MINUTES * 60 * 1000) !==
+    0
+  ) {
+    return false;
+  }
+
+  const now = new Date();
+  const todayKey = formatDateKey(now, timeZone);
+  const earliestSameDayStart = addMinutes(now, SAME_DAY_BOOKING_LEAD_MINUTES);
+
+  if (
+    selectedDateKey === todayKey &&
+    startAt.getTime() < earliestSameDayStart.getTime()
+  ) {
+    return false;
+  }
+
+  return !overlapsBreaks(startAt, endAt, selectedDateKey, timeZone, hours.breaks);
+}
+
 export function findNextAvailableSlot(
   business: Business,
   service: Service,

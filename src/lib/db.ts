@@ -90,7 +90,7 @@ export function getDbPool() {
     globalThis.reserveeDbPool = mysql.createPool({
       ...databaseConfig,
       waitForConnections: true,
-      connectionLimit: 10,
+      connectionLimit: env.DB_CONNECTION_LIMIT,
       namedPlaceholders: true,
       decimalNumbers: true,
       dateStrings: true,

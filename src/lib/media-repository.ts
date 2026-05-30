@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 
 import { getDbPool } from "@/lib/db";
+import type { PaginationOptions } from "@/lib/pagination";
 import type { MediaItem, MediaType } from "@/lib/types";
 
 type MediaRow = RowDataPacket & {
@@ -19,6 +20,21 @@ type MediaRow = RowDataPacket & {
   sort_order: number;
   created_at: string;
 };
+
+type MediaListOptions = Partial<Pick<PaginationOptions, "limit" | "offset">>;
+
+function normalizeMediaListOptions(options: MediaListOptions = {}) {
+  const limit =
+    typeof options.limit === "number" && Number.isFinite(options.limit)
+      ? Math.min(Math.max(1, Math.floor(options.limit)), 100)
+      : 50;
+  const offset =
+    typeof options.offset === "number" && Number.isFinite(options.offset)
+      ? Math.max(0, Math.floor(options.offset))
+      : 0;
+
+  return { limit, offset };
+}
 
 function mapRowToMedia(row: MediaRow): MediaItem {
   return {
@@ -58,18 +74,42 @@ async function normalizeSortOrder(
   return rows;
 }
 
-export async function findMediaByBusiness(businessId: string) {
+export async function findMediaByBusiness(
+  businessId: string,
+  options: MediaListOptions = {},
+) {
   const pool = getDbPool();
+  const { limit, offset } = normalizeMediaListOptions(options);
   const [rows] = await pool.query<MediaRow[]>(
     `
       SELECT * FROM media_items
       WHERE business_id = ?
       ORDER BY type ASC, sort_order ASC, created_at ASC
+      LIMIT ?
+      OFFSET ?
     `,
-    [businessId],
+    [businessId, limit, offset],
   );
 
   return rows.map(mapRowToMedia);
+}
+
+export async function countMediaByBusiness(businessId: string) {
+  const pool = getDbPool();
+  const [rows] = await pool.query<(RowDataPacket & { count: number })[]>(
+    "SELECT COUNT(*) AS count FROM media_items WHERE business_id = ?",
+    [businessId],
+  );
+  return Number(rows[0]?.count ?? 0);
+}
+
+async function findMediaItemByBusiness(businessId: string, mediaId: string) {
+  const pool = getDbPool();
+  const [rows] = await pool.query<MediaRow[]>(
+    "SELECT * FROM media_items WHERE business_id = ? AND id = ? LIMIT 1",
+    [businessId, mediaId],
+  );
+  return rows[0] ? mapRowToMedia(rows[0]) : null;
 }
 
 export async function createMediaItem(input: {
@@ -147,7 +187,7 @@ export async function createMediaItem(input: {
     connection.release();
   }
 
-  return (await findMediaByBusiness(input.businessId)).find((item) => item.id === mediaId) ?? null;
+  return await findMediaItemByBusiness(input.businessId, mediaId);
 }
 
 export async function deleteMediaItem(businessId: string, mediaId: string) {

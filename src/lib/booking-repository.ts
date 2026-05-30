@@ -19,10 +19,13 @@ import {
   fromDatabaseDateTime,
   toDatabaseDateTime,
 } from "@/lib/datetime";
+import type { PaginationOptions } from "@/lib/pagination";
 import { normalizePhone } from "@/lib/contact-utils";
 import type { Booking, BookingStatus } from "@/lib/types";
 
 const SLOT_LOCK_STEP_MINUTES = 5;
+const DEFAULT_BOOKING_LIST_LIMIT = 50;
+const MAX_BOOKING_LIST_LIMIT = 100;
 
 type BookingRow = RowDataPacket & {
   id: string;
@@ -43,6 +46,8 @@ type BookingRow = RowDataPacket & {
   status_updated_at: string | null;
   created_at: string;
 };
+
+type BookingListOptions = Partial<Pick<PaginationOptions, "limit" | "offset">>;
 
 function mapRowToBooking(row: BookingRow): Booking {
   return {
@@ -72,6 +77,35 @@ function isDuplicateEntryError(error: unknown) {
     "code" in error &&
     error.code === "ER_DUP_ENTRY"
   );
+}
+
+function getDuplicateEntryKey(error: unknown) {
+  if (!isDuplicateEntryError(error)) {
+    return "";
+  }
+
+  const sqlMessage =
+    typeof error === "object" &&
+    error !== null &&
+    "sqlMessage" in error &&
+    typeof error.sqlMessage === "string"
+      ? error.sqlMessage
+      : "";
+  const match = sqlMessage.match(/for key '([^']+)'/);
+  return match?.[1] ?? "";
+}
+
+function normalizeBookingListOptions(options: BookingListOptions = {}) {
+  const limit =
+    typeof options.limit === "number" && Number.isFinite(options.limit)
+      ? Math.min(Math.max(1, Math.floor(options.limit)), MAX_BOOKING_LIST_LIMIT)
+      : DEFAULT_BOOKING_LIST_LIMIT;
+  const offset =
+    typeof options.offset === "number" && Number.isFinite(options.offset)
+      ? Math.max(0, Math.floor(options.offset))
+      : 0;
+
+  return { limit, offset };
 }
 
 function buildSlotLockStarts(startAt: Date, endAt: Date) {
@@ -167,8 +201,28 @@ async function createSlotLocks(
   }
 }
 
-export async function expireOldBookings(connection?: PoolConnection) {
+export async function expireOldBookings(
+  connection?: PoolConnection,
+  options: {
+    businessId?: string;
+    limit?: number;
+  } = {},
+) {
   const executor = connection ?? getDbPool();
+  const limit =
+    typeof options.limit === "number" && Number.isFinite(options.limit)
+      ? Math.min(Math.max(1, Math.floor(options.limit)), 500)
+      : 200;
+  const params: Array<string | number> = [];
+  let businessClause = "";
+
+  if (options.businessId) {
+    businessClause = " AND business_id = ?";
+    params.push(options.businessId);
+  }
+
+  params.push(limit);
+
   const [rows] = await executor.query<RowDataPacket[]>(
     `
       SELECT id, business_id
@@ -176,7 +230,11 @@ export async function expireOldBookings(connection?: PoolConnection) {
       WHERE status = 'pending'
         AND expires_at IS NOT NULL
         AND expires_at <= UTC_TIMESTAMP()
+        ${businessClause}
+      ORDER BY expires_at ASC
+      LIMIT ?
     `,
+    params,
   );
 
   for (const row of rows) {
@@ -239,7 +297,7 @@ export async function createBooking(input: {
 
     try {
       await connection.beginTransaction();
-      await expireOldBookings(connection);
+      await expireOldBookings(connection, { businessId: input.businessId, limit: 100 });
 
       const [conflicts] = await connection.query<RowDataPacket[]>(
         `
@@ -272,6 +330,7 @@ export async function createBooking(input: {
           SELECT id
           FROM availability_exceptions
           WHERE business_id = ?
+            AND exception_type IN ('blocked', 'closed')
             AND start_at < ?
             AND end_at > ?
           FOR UPDATE
@@ -363,6 +422,16 @@ export async function createBooking(input: {
       await connection.rollback();
 
       if (isDuplicateEntryError(error)) {
+        const duplicateKey = getDuplicateEntryKey(error);
+
+        if (duplicateKey.includes("uq_booking_slot_locks_business_slot")) {
+          return {
+            ok: false as const,
+            status: 409,
+            error: "This time slot is no longer available.",
+          };
+        }
+
         if (attempt === maxAttempts - 1) {
           return {
             ok: false as const,
@@ -405,45 +474,109 @@ export async function findBookingByReference(referenceCode: string) {
   return rows[0] ? mapRowToBooking(rows[0]) : null;
 }
 
-export async function findBookingsByBusiness(businessId: string) {
+export async function findBookingsByBusiness(
+  businessId: string,
+  options: BookingListOptions = {},
+) {
   const pool = getDbPool();
-  await expireOldBookings();
+  const { limit, offset } = normalizeBookingListOptions(options);
+  await expireOldBookings(undefined, { businessId, limit: 200 });
   const [rows] = await pool.query<BookingRow[]>(
     `
       SELECT * FROM bookings
       WHERE business_id = ?
       ORDER BY start_at DESC
+      LIMIT ?
+      OFFSET ?
     `,
-    [businessId],
+    [businessId, limit, offset],
   );
   return rows.map(mapRowToBooking);
 }
 
-export async function findBookingsByPhone(customerPhone: string) {
+export async function countBookingsByBusiness(businessId: string) {
   const pool = getDbPool();
-  await expireOldBookings();
+  const [rows] = await pool.query<(RowDataPacket & { count: number })[]>(
+    "SELECT COUNT(*) AS count FROM bookings WHERE business_id = ?",
+    [businessId],
+  );
+  return Number(rows[0]?.count ?? 0);
+}
+
+export async function findBookingsByPhone(
+  customerPhone: string,
+  options: BookingListOptions = {},
+) {
+  const pool = getDbPool();
+  const { limit, offset } = normalizeBookingListOptions(options);
+  await expireOldBookings(undefined, { limit: 200 });
   const [rows] = await pool.query<BookingRow[]>(
     `
       SELECT * FROM bookings
       WHERE customer_phone_normalized = ?
       ORDER BY start_at DESC
-      LIMIT 50
+      LIMIT ?
+      OFFSET ?
     `,
-    [normalizePhone(customerPhone)],
+    [normalizePhone(customerPhone), limit, offset],
   );
   return rows.map(mapRowToBooking);
 }
 
-export async function findAllBookings(limit = 200) {
+export async function countBookingsByPhone(customerPhone: string) {
   const pool = getDbPool();
-  await expireOldBookings();
+  const [rows] = await pool.query<(RowDataPacket & { count: number })[]>(
+    "SELECT COUNT(*) AS count FROM bookings WHERE customer_phone_normalized = ?",
+    [normalizePhone(customerPhone)],
+  );
+  return Number(rows[0]?.count ?? 0);
+}
+
+export async function findAllBookings(options: BookingListOptions = {}) {
+  const pool = getDbPool();
+  const { limit, offset } = normalizeBookingListOptions(options);
+  await expireOldBookings(undefined, { limit: 200 });
   const [rows] = await pool.query<BookingRow[]>(
     `
       SELECT * FROM bookings
       ORDER BY start_at DESC
       LIMIT ?
+      OFFSET ?
     `,
-    [limit],
+    [limit, offset],
+  );
+  return rows.map(mapRowToBooking);
+}
+
+export async function countAllBookings() {
+  const pool = getDbPool();
+  const [rows] = await pool.query<(RowDataPacket & { count: number })[]>(
+    "SELECT COUNT(*) AS count FROM bookings",
+  );
+  return Number(rows[0]?.count ?? 0);
+}
+
+export async function findBookingsForAvailability(input: {
+  businessId: string;
+  startAt: string | Date;
+  endAt: string | Date;
+}) {
+  const pool = getDbPool();
+  await expireOldBookings(undefined, { businessId: input.businessId, limit: 200 });
+  const [rows] = await pool.query<BookingRow[]>(
+    `
+      SELECT * FROM bookings
+      WHERE business_id = ?
+        AND status IN ('pending', 'confirmed')
+        AND start_at < ?
+        AND end_at > ?
+      ORDER BY start_at ASC
+    `,
+    [
+      input.businessId,
+      toDatabaseDateTime(input.endAt),
+      toDatabaseDateTime(input.startAt),
+    ],
   );
   return rows.map(mapRowToBooking);
 }
@@ -607,7 +740,7 @@ export async function checkSlotAvailability(input: {
   endAt: string;
 }) {
   const pool = getDbPool();
-  await expireOldBookings();
+  await expireOldBookings(undefined, { businessId: input.businessId, limit: 200 });
   const [bookings] = await pool.query<RowDataPacket[]>(
     `
       SELECT COUNT(*) AS count
@@ -629,6 +762,7 @@ export async function checkSlotAvailability(input: {
       SELECT COUNT(*) AS count
       FROM availability_exceptions
       WHERE business_id = ?
+        AND exception_type IN ('blocked', 'closed')
         AND start_at < ?
         AND end_at > ?
     `,

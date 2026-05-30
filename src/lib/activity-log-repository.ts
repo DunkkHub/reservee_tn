@@ -32,9 +32,17 @@ function mapRowToActivityLog(row: ActivityLogRow): ActivityLogEntry {
 export async function findActivityLogs(options: {
   businessId?: string;
   limit?: number;
+  offset?: number;
 } = {}) {
   const pool = getDbPool();
-  const limit = options.limit ?? 80;
+  const limit =
+    typeof options.limit === "number" && Number.isFinite(options.limit)
+      ? Math.min(Math.max(1, Math.floor(options.limit)), 100)
+      : 80;
+  const offset =
+    typeof options.offset === "number" && Number.isFinite(options.offset)
+      ? Math.max(0, Math.floor(options.offset))
+      : 0;
 
   if (options.businessId) {
     const [rows] = await pool.query<ActivityLogRow[]>(
@@ -43,8 +51,9 @@ export async function findActivityLogs(options: {
         WHERE business_id = ?
         ORDER BY created_at DESC
         LIMIT ?
+        OFFSET ?
       `,
-      [options.businessId, limit],
+      [options.businessId, limit, offset],
     );
 
     return rows.map(mapRowToActivityLog);
@@ -55,11 +64,31 @@ export async function findActivityLogs(options: {
       SELECT * FROM activity_logs
       ORDER BY created_at DESC
       LIMIT ?
+      OFFSET ?
     `,
-    [limit],
+    [limit, offset],
   );
 
   return rows.map(mapRowToActivityLog);
+}
+
+export async function countActivityLogs(options: {
+  businessId?: string;
+} = {}) {
+  const pool = getDbPool();
+
+  if (options.businessId) {
+    const [rows] = await pool.query<(RowDataPacket & { count: number })[]>(
+      "SELECT COUNT(*) AS count FROM activity_logs WHERE business_id = ?",
+      [options.businessId],
+    );
+    return Number(rows[0]?.count ?? 0);
+  }
+
+  const [rows] = await pool.query<(RowDataPacket & { count: number })[]>(
+    "SELECT COUNT(*) AS count FROM activity_logs",
+  );
+  return Number(rows[0]?.count ?? 0);
 }
 
 export async function recordActivity(input: {

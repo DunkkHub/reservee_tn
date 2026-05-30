@@ -4,6 +4,7 @@ import {
   conflictResponse,
   errorResponse,
   forbiddenResponse,
+  paginatedResponse,
   rateLimitResponse,
   successResponse,
   unauthorizedResponse,
@@ -12,6 +13,10 @@ import {
 import { handleRouteError } from "@/lib/api-route-helpers";
 import { getApiSession } from "@/lib/auth-session";
 import {
+  checkSlotAvailability,
+  countAllBookings,
+  countBookingsByBusiness,
+  countBookingsByPhone,
   createBooking,
   expireOldBookings,
   findAllBookings,
@@ -20,7 +25,7 @@ import {
 } from "@/lib/booking-repository";
 import { recordActivity } from "@/lib/activity-log-repository";
 import {
-  generateAvailableSlots,
+  isSlotWithinBusinessAvailability,
   SAME_DAY_BOOKING_LEAD_MINUTES,
 } from "@/lib/availability";
 import { findBusinessById, findBusinessByOwner } from "@/lib/business-repository";
@@ -30,6 +35,7 @@ import { consumeRateLimit } from "@/lib/rate-limit";
 import { assertAllowedOrigin, getClientIp } from "@/lib/security";
 import { findServiceById } from "@/lib/service-repository";
 import type { BookingStatus } from "@/lib/types";
+import { createPaginationMetadata, parsePagination } from "@/lib/pagination";
 import {
   bookingCreateSchema,
   safeParseWithSchema,
@@ -48,10 +54,17 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const businessId = searchParams.get("businessId");
     const customerPhone = searchParams.get("customerPhone");
+    const pagination = parsePagination(searchParams);
 
     if (session.user.role === "customer") {
-      const bookings = await findBookingsByPhone(session.user.phone);
-      return successResponse(bookings);
+      const [bookings, total] = await Promise.all([
+        findBookingsByPhone(session.user.phone, pagination),
+        countBookingsByPhone(session.user.phone),
+      ]);
+      return paginatedResponse(
+        bookings,
+        createPaginationMetadata(total, pagination),
+      );
     }
 
     if (session.user.role === "shop") {
@@ -72,20 +85,47 @@ export async function GET(request: Request) {
         return forbiddenResponse("You do not have permission to view those bookings.");
       }
 
-      const bookings = await findBookingsByBusiness(ownedBusiness.id);
-      return successResponse(bookings);
+      const [bookings, total] = await Promise.all([
+        findBookingsByBusiness(ownedBusiness.id, pagination),
+        countBookingsByBusiness(ownedBusiness.id),
+      ]);
+      return paginatedResponse(
+        bookings,
+        createPaginationMetadata(total, pagination),
+      );
     }
 
     if (session.user.role === "admin") {
       if (businessId) {
-        return successResponse(await findBookingsByBusiness(businessId));
+        const [bookings, total] = await Promise.all([
+          findBookingsByBusiness(businessId, pagination),
+          countBookingsByBusiness(businessId),
+        ]);
+        return paginatedResponse(
+          bookings,
+          createPaginationMetadata(total, pagination),
+        );
       }
 
       if (customerPhone) {
-        return successResponse(await findBookingsByPhone(customerPhone));
+        const [bookings, total] = await Promise.all([
+          findBookingsByPhone(customerPhone, pagination),
+          countBookingsByPhone(customerPhone),
+        ]);
+        return paginatedResponse(
+          bookings,
+          createPaginationMetadata(total, pagination),
+        );
       }
 
-      return successResponse(await findAllBookings());
+      const [bookings, total] = await Promise.all([
+        findAllBookings(pagination),
+        countAllBookings(),
+      ]);
+      return paginatedResponse(
+        bookings,
+        createPaginationMetadata(total, pagination),
+      );
     }
 
     return errorResponse(
@@ -147,10 +187,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const [service, existingBookings] = await Promise.all([
-      findServiceById(parsed.data.serviceId),
-      findBookingsByBusiness(parsed.data.businessId),
-    ]);
+    const service = await findServiceById(parsed.data.serviceId);
 
     if (!service) {
       return errorResponse("Service not found.", 404, "not_found");
@@ -180,12 +217,13 @@ export async function POST(request: Request) {
     }
 
     const endAt = addMinutes(startAtDate, service.durationMinutes).toISOString();
-    const isRequestedSlotAvailable = generateAvailableSlots(
-      business,
-      service,
-      existingBookings,
-      startAtDate,
-    ).some((slot) => slot.getTime() === startAtDate.getTime());
+    const isRequestedSlotAvailable =
+      isSlotWithinBusinessAvailability(business, service, startAtDate) &&
+      (await checkSlotAvailability({
+        businessId: parsed.data.businessId,
+        startAt: startAtDate.toISOString(),
+        endAt,
+      }));
 
     if (!isRequestedSlotAvailable) {
       return conflictResponse("This time slot is no longer available.");

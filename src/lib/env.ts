@@ -32,6 +32,7 @@ const envSchema = z.object({
   DB_USER: z.string().default("root"),
   DB_PASSWORD: z.string().default(""),
   DB_NAME: z.string().default("reservee_tn"),
+  DB_CONNECTION_LIMIT: z.coerce.number().int().positive().default(10),
   DB_SSL: booleanLike,
   DB_SSL_CA: z.string().optional(),
   VERIFICATION_CODE_DEV_PREVIEW: booleanLike,

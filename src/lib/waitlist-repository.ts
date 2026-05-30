@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 
 import { getDbPool } from "@/lib/db";
+import type { PaginationOptions } from "@/lib/pagination";
 import type { WaitlistRequest } from "@/lib/types";
 
 type WaitlistRow = RowDataPacket & {
@@ -17,6 +18,21 @@ type WaitlistRow = RowDataPacket & {
   preferred_time: string;
   created_at: string;
 };
+
+type WaitlistListOptions = Partial<Pick<PaginationOptions, "limit" | "offset">>;
+
+function normalizeWaitlistListOptions(options: WaitlistListOptions = {}) {
+  const limit =
+    typeof options.limit === "number" && Number.isFinite(options.limit)
+      ? Math.min(Math.max(1, Math.floor(options.limit)), 100)
+      : 50;
+  const offset =
+    typeof options.offset === "number" && Number.isFinite(options.offset)
+      ? Math.max(0, Math.floor(options.offset))
+      : 0;
+
+  return { limit, offset };
+}
 
 function mapRowToWaitlistRequest(row: WaitlistRow): WaitlistRequest {
   return {
@@ -32,19 +48,39 @@ function mapRowToWaitlistRequest(row: WaitlistRow): WaitlistRequest {
   };
 }
 
-export async function findWaitlistRequestsByBusiness(businessId: string) {
+export async function findWaitlistRequestsByBusiness(
+  businessId: string,
+  options: WaitlistListOptions = {},
+) {
   const pool = getDbPool();
+  const { limit, offset } = normalizeWaitlistListOptions(options);
   const [rows] = await pool.query<WaitlistRow[]>(
     `
       SELECT id, business_id, service_id, customer_name, customer_phone, customer_note, preferred_date, preferred_time, created_at
       FROM waitlist_requests
       WHERE business_id = ? AND status = 'active'
       ORDER BY created_at DESC
+      LIMIT ?
+      OFFSET ?
+    `,
+    [businessId, limit, offset],
+  );
+
+  return rows.map(mapRowToWaitlistRequest);
+}
+
+export async function countWaitlistRequestsByBusiness(businessId: string) {
+  const pool = getDbPool();
+  const [rows] = await pool.query<(RowDataPacket & { count: number })[]>(
+    `
+      SELECT COUNT(*) AS count
+      FROM waitlist_requests
+      WHERE business_id = ? AND status = 'active'
     `,
     [businessId],
   );
 
-  return rows.map(mapRowToWaitlistRequest);
+  return Number(rows[0]?.count ?? 0);
 }
 
 export async function createWaitlistRequest(input: {

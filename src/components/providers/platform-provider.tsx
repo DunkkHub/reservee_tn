@@ -134,7 +134,7 @@ async function fetchPublicBusinessesWithRetry() {
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      return await fetchApi<Business[]>("/api/businesses?scope=public&limit=200");
+      return await fetchApi<Business[]>("/api/businesses?scope=public&limit=100");
     } catch (error) {
       lastError = error;
 
@@ -218,7 +218,7 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
       }
 
       const [adminBusinesses, adminBookings, adminActivity] = await Promise.all([
-        fetchApi<Business[]>("/api/admin/businesses?limit=200"),
+        fetchApi<Business[]>("/api/admin/businesses?limit=100"),
         fetchApi<Booking[]>("/api/bookings"),
         fetchApi<ActivityLogEntry[]>("/api/activity?limit=120"),
       ]);

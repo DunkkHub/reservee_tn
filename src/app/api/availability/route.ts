@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { addDays } from "date-fns";
 import {
   findBusinessHours,
   updateBusinessHours,
@@ -6,6 +7,7 @@ import {
 } from "@/lib/business-hours-repository";
 import {
   findBlockedSlots,
+  countBlockedSlots,
   createBlockedSlot,
   deleteBlockedSlot,
 } from "@/lib/blocked-slots-repository";
@@ -15,12 +17,15 @@ import {
   generateAvailableSlots,
   parseDateKey,
 } from "@/lib/availability";
-import { findBookingsByBusiness } from "@/lib/booking-repository";
+import { findBookingsForAvailability } from "@/lib/booking-repository";
 import { findBusinessById } from "@/lib/business-repository";
 import { getDatabaseErrorMessage } from "@/lib/db";
+import { combineDateKeyAndTime } from "@/lib/datetime";
 import { getApiSession } from "@/lib/auth-session";
 import { assertAllowedOrigin, HttpRequestError } from "@/lib/security";
 import { findServiceById } from "@/lib/service-repository";
+import { createPaginationMetadata, parsePagination } from "@/lib/pagination";
+import { paginatedResponse } from "@/lib/api-response";
 import type { BreakWindow } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -48,10 +53,9 @@ export async function GET(request: Request) {
         );
       }
 
-      const [business, service, bookings] = await Promise.all([
+      const [business, service] = await Promise.all([
         findBusinessById(businessId),
         findServiceById(serviceId),
-        findBookingsByBusiness(businessId),
       ]);
 
       if (!business || !service || service.businessId !== businessId) {
@@ -69,6 +73,12 @@ export async function GET(request: Request) {
       }
 
       if (type === "next") {
+        const now = new Date();
+        const bookings = await findBookingsForAvailability({
+          businessId,
+          startAt: now,
+          endAt: addDays(now, 15),
+        });
         const nextSlot = findNextAvailableSlot(business, service, bookings, 14);
         return NextResponse.json({
           ok: true,
@@ -92,6 +102,16 @@ export async function GET(request: Request) {
         );
       }
 
+      const dayStart = combineDateKeyAndTime(
+        date,
+        "00:00",
+        business.timezone,
+      );
+      const bookings = await findBookingsForAvailability({
+        businessId,
+        startAt: dayStart,
+        endAt: addDays(dayStart, 1),
+      });
       const slots = generateAvailableSlots(business, service, bookings, selectedDate).map((slot) =>
         slot.toISOString(),
       );
@@ -112,23 +132,34 @@ export async function GET(request: Request) {
     }
 
     if (type === "blocked") {
-      const blocked = await findBlockedSlots(businessId);
-      return NextResponse.json({
-        ok: true,
-        data: blocked,
-      });
+      const pagination = parsePagination(searchParams);
+      const [blocked, total] = await Promise.all([
+        findBlockedSlots(businessId, pagination),
+        countBlockedSlots(businessId),
+      ]);
+      return paginatedResponse(
+        blocked,
+        createPaginationMetadata(total, pagination),
+      );
     }
 
     // Default: return both
+    const pagination = parsePagination(searchParams);
     await ensureBusinessHoursExist(businessId);
-    const hours = await findBusinessHours(businessId);
-    const blocked = await findBlockedSlots(businessId);
+    const [hours, blocked, blockedTotal] = await Promise.all([
+      findBusinessHours(businessId),
+      findBlockedSlots(businessId, pagination),
+      countBlockedSlots(businessId),
+    ]);
 
     return NextResponse.json({
       ok: true,
       data: {
         hours,
         blocked,
+      },
+      pagination: {
+        blocked: createPaginationMetadata(blockedTotal, pagination),
       },
     });
   } catch (error) {

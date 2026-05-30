@@ -87,5 +87,6 @@ Minimum production backup posture:
 - Enforce TLS if the database is remote
 - For Aiven, set `DB_SSL=true` and provide `DB_SSL_CA` if your service exposes a CA certificate
 - Restrict network access to application hosts only
+- Set `DB_CONNECTION_LIMIT=10` locally. On Vercel-style serverless deployments, start around `5` per instance and raise only after checking the MySQL provider's max connection budget.
 - Monitor slow queries and connection pool saturation
 - Schedule `npm run bookings:expire-pending`

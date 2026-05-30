@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import {
+  countServicesByBusiness,
   findServicesByBusiness,
   findServiceById,
   createService,
@@ -9,11 +10,13 @@ import {
   reorderService,
   deleteService,
 } from "@/lib/service-repository";
+import { paginatedResponse } from "@/lib/api-response";
 import { recordActivity } from "@/lib/activity-log-repository";
 import { findBusinessById } from "@/lib/business-repository";
 import { getDatabaseErrorMessage } from "@/lib/db";
 import { getApiSession } from "@/lib/auth-session";
 import { assertAllowedOrigin, HttpRequestError } from "@/lib/security";
+import { createPaginationMetadata, parsePagination } from "@/lib/pagination";
 import type { Audience } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -30,12 +33,16 @@ export async function GET(request: Request) {
       );
     }
 
-    const services = await findServicesByBusiness(businessId);
+    const pagination = parsePagination(searchParams, { defaultLimit: 100 });
+    const [services, total] = await Promise.all([
+      findServicesByBusiness(businessId, pagination),
+      countServicesByBusiness(businessId),
+    ]);
 
-    return NextResponse.json({
-      ok: true,
-      data: services,
-    });
+    return paginatedResponse(
+      services,
+      createPaginationMetadata(total, pagination),
+    );
   } catch (error) {
     return NextResponse.json(
       {

@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 
-import { findActivityLogs } from "@/lib/activity-log-repository";
+import { countActivityLogs, findActivityLogs } from "@/lib/activity-log-repository";
 import { getApiSession } from "@/lib/auth-session";
 import { findBusinessById, findBusinessByOwner } from "@/lib/business-repository";
 import { getDatabaseErrorMessage } from "@/lib/db";
+import { paginatedResponse } from "@/lib/api-response";
+import { createPaginationMetadata, parsePagination } from "@/lib/pagination";
 
 export const runtime = "nodejs";
 
@@ -27,7 +29,7 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const businessId = searchParams.get("businessId");
-    const limit = Number(searchParams.get("limit") ?? "80");
+    const pagination = parsePagination(searchParams, { defaultLimit: 80 });
 
     if (session.user.role === "shop") {
       const ownedBusiness =
@@ -49,26 +51,32 @@ export async function GET(request: Request) {
         );
       }
 
-      const activity = await findActivityLogs({
-        businessId: ownedBusiness.id,
-        limit,
-      });
+      const [activity, total] = await Promise.all([
+        findActivityLogs({
+          businessId: ownedBusiness.id,
+          ...pagination,
+        }),
+        countActivityLogs({ businessId: ownedBusiness.id }),
+      ]);
 
-      return NextResponse.json({
-        ok: true,
-        data: activity,
-      });
+      return paginatedResponse(
+        activity,
+        createPaginationMetadata(total, pagination),
+      );
     }
 
-    const activity = await findActivityLogs({
-      businessId: businessId ?? undefined,
-      limit,
-    });
+    const [activity, total] = await Promise.all([
+      findActivityLogs({
+        businessId: businessId ?? undefined,
+        ...pagination,
+      }),
+      countActivityLogs({ businessId: businessId ?? undefined }),
+    ]);
 
-    return NextResponse.json({
-      ok: true,
-      data: activity,
-    });
+    return paginatedResponse(
+      activity,
+      createPaginationMetadata(total, pagination),
+    );
   } catch (error) {
     return NextResponse.json(
       {

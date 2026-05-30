@@ -6,9 +6,21 @@ import { siteUrl } from "@/lib/site";
 import { categories, cities } from "@/lib/taxonomy";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const liveBusinesses = await findPublicBusinesses()
-    .then((businesses) => businesses.filter((business) => isBusinessLive(business.status)))
-    .catch(() => []);
+  const liveBusinesses = await (async () => {
+    const pageSize = 100;
+    const businesses: Awaited<ReturnType<typeof findPublicBusinesses>> = [];
+
+    for (let offset = 0; ; offset += pageSize) {
+      const page = await findPublicBusinesses({ limit: pageSize, offset });
+      businesses.push(...page.filter((business) => isBusinessLive(business.status)));
+
+      if (page.length < pageSize) {
+        break;
+      }
+    }
+
+    return businesses;
+  })().catch(() => []);
 
   return [
     {

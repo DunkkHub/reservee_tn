@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 
+import { paginatedResponse } from "@/lib/api-response";
 import { recordActivity } from "@/lib/activity-log-repository";
 import { getApiSession } from "@/lib/auth-session";
 import { findBusinessById, findBusinessByOwner } from "@/lib/business-repository";
 import { getDatabaseErrorMessage } from "@/lib/db";
+import { createPaginationMetadata, parsePagination } from "@/lib/pagination";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import {
   assertAllowedOrigin,
@@ -12,6 +14,7 @@ import {
 } from "@/lib/security";
 import { findServiceById } from "@/lib/service-repository";
 import {
+  countWaitlistRequestsByBusiness,
   createWaitlistRequest,
   findWaitlistRequestsByBusiness,
 } from "@/lib/waitlist-repository";
@@ -38,6 +41,7 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const businessId = searchParams.get("businessId");
+    const pagination = parsePagination(searchParams);
 
     if (session.user.role === "shop") {
       const ownedBusiness =
@@ -59,11 +63,14 @@ export async function GET(request: Request) {
         );
       }
 
-      const waitlist = await findWaitlistRequestsByBusiness(ownedBusiness.id);
-      return NextResponse.json({
-        ok: true,
-        data: waitlist,
-      });
+      const [waitlist, total] = await Promise.all([
+        findWaitlistRequestsByBusiness(ownedBusiness.id, pagination),
+        countWaitlistRequestsByBusiness(ownedBusiness.id),
+      ]);
+      return paginatedResponse(
+        waitlist,
+        createPaginationMetadata(total, pagination),
+      );
     }
 
     if (!businessId) {
@@ -73,11 +80,14 @@ export async function GET(request: Request) {
       );
     }
 
-    const waitlist = await findWaitlistRequestsByBusiness(businessId);
-    return NextResponse.json({
-      ok: true,
-      data: waitlist,
-    });
+    const [waitlist, total] = await Promise.all([
+      findWaitlistRequestsByBusiness(businessId, pagination),
+      countWaitlistRequestsByBusiness(businessId),
+    ]);
+    return paginatedResponse(
+      waitlist,
+      createPaginationMetadata(total, pagination),
+    );
   } catch (error) {
     return NextResponse.json(
       {

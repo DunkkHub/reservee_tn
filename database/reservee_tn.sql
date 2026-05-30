@@ -133,6 +133,7 @@ CREATE TABLE IF NOT EXISTS business_profiles (
   KEY idx_business_profiles_status (status),
   KEY idx_business_profiles_city_slug (city_slug),
   KEY idx_business_profiles_category_slug (category_slug),
+  KEY idx_business_profiles_status_city_category (status, city_slug, category_slug),
   KEY idx_business_profiles_featured_rank (featured_rank),
   CONSTRAINT fk_business_profiles_owner
     FOREIGN KEY (owner_user_id)
@@ -191,6 +192,7 @@ CREATE TABLE IF NOT EXISTS services (
     ON DELETE CASCADE,
   KEY idx_services_business_id (business_id),
   KEY idx_services_active (active),
+  KEY idx_services_business_active_sort (business_id, active, sort_order),
   KEY idx_services_sort_order (business_id, sort_order)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -276,11 +278,13 @@ CREATE TABLE IF NOT EXISTS bookings (
     ON DELETE SET NULL,
   KEY idx_bookings_business_id (business_id),
   KEY idx_bookings_customer_user_id (customer_user_id),
+  KEY idx_bookings_customer_phone_raw (customer_phone),
   KEY idx_bookings_customer_phone (customer_phone_normalized),
   KEY idx_bookings_status (status),
   KEY idx_bookings_start_at (start_at),
   KEY idx_bookings_end_at (end_at),
   KEY idx_bookings_business_window (business_id, start_at, end_at),
+  KEY idx_bookings_business_status_window (business_id, status, start_at, end_at),
   KEY idx_bookings_business_status_start_at (business_id, status, start_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -420,6 +424,7 @@ CREATE TABLE IF NOT EXISTS waitlist_requests (
     REFERENCES services (id)
     ON DELETE CASCADE,
   KEY idx_waitlist_business_id (business_id),
+  KEY idx_waitlist_business_status_created_at (business_id, status, created_at),
   KEY idx_waitlist_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -455,6 +460,7 @@ CREATE TABLE IF NOT EXISTS activity_logs (
     REFERENCES app_users (id)
     ON DELETE SET NULL,
   KEY idx_activity_logs_business_id (business_id),
+  KEY idx_activity_logs_business_created_at (business_id, created_at),
   KEY idx_activity_logs_booking_id (booking_id),
   KEY idx_activity_logs_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

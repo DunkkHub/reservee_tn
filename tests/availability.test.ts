@@ -5,6 +5,7 @@ import { addDays } from "date-fns";
 import {
   findNextAvailableSlot,
   generateAvailableSlots,
+  isSlotWithinBusinessAvailability,
   parseDateKey,
 } from "../src/lib/availability";
 import {
@@ -153,4 +154,27 @@ test("cancelled customer bookings do not block the next available slot", () => {
 
   assert.ok(nextSlot);
   assert.equal(nextSlot.toISOString(), slotAt("10:30"));
+});
+
+test("specific slot validation enforces hours, breaks, and slot cadence", () => {
+  assert.equal(
+    isSlotWithinBusinessAvailability(business, service, slotAt("10:30")),
+    true,
+  );
+  assert.equal(
+    isSlotWithinBusinessAvailability(business, service, slotAt("08:45")),
+    false,
+  );
+  assert.equal(
+    isSlotWithinBusinessAvailability(business, service, slotAt("11:30")),
+    false,
+  );
+  assert.equal(
+    isSlotWithinBusinessAvailability(
+      business,
+      service,
+      new Date(new Date(slotAt("10:30")).getTime() + 5 * 60 * 1000),
+    ),
+    false,
+  );
 });
