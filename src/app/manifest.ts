@@ -7,8 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "The modern booking platform for beauty businesses in Tunisia.",
     start_url: "/",
     display: "standalone",
-    background_color: "#0f1115",
-    theme_color: "#0f1115",
+    background_color: "#12100e",
+    theme_color: "#12100e",
     lang: "fr",
     orientation: "portrait",
     icons: [

@@ -30,14 +30,14 @@ export function AccountShell({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(200,169,107,0.1),transparent_28%)]">
+    <div className="min-h-screen bg-[linear-gradient(180deg,rgba(255,250,243,0.92),rgba(247,239,228,0.98))]">
       <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 px-4 py-4 md:px-6 md:py-6">
-        <header className="panel flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
+        <header className="panel grid-sheen flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
             <Link href="/" className="flex items-center gap-3">
               <LogoMark label="RT" />
               <div>
-                <p className="font-heading text-xl font-semibold text-white">
+                <p className="font-heading text-xl font-semibold text-[var(--color-foreground)]">
                   {user?.name ?? "Reservee TN"}
                 </p>
                 <p className="text-sm text-[var(--color-secondary)]">
@@ -57,10 +57,10 @@ export function AccountShell({ children }: { children: React.ReactNode }) {
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    "inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition",
+                    "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition",
                     active
                       ? "bg-[var(--color-accent)] text-[var(--color-ink)]"
-                      : "border border-white/10 bg-white/5 text-[var(--color-secondary)] hover:text-white",
+                      : "border border-[var(--color-border)] bg-[rgba(255,253,248,0.58)] text-[var(--color-secondary)] hover:text-[var(--color-accent)]",
                   )}
                 >
                   <Icon className="h-4 w-4" />
@@ -70,7 +70,7 @@ export function AccountShell({ children }: { children: React.ReactNode }) {
             })}
             <Link
               href="/"
-              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-[var(--color-secondary)] transition hover:text-white"
+              className="inline-flex items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[rgba(255,253,248,0.58)] px-4 py-2 text-sm font-medium text-[var(--color-secondary)] transition hover:text-[var(--color-accent)]"
             >
               <Home className="h-4 w-4" />
               {messages.account.marketplace}

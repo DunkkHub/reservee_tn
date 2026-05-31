@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   ArrowRight,
   CalendarCheck2,
+  CheckCircle2,
   Download,
   MapPinned,
   ShieldCheck,
@@ -64,28 +65,32 @@ export function MarketplaceHomePage() {
 
   return (
     <div className="space-y-14 md:space-y-20">
-      <section className="relative overflow-hidden rounded-[32px] border border-white/8 bg-[var(--color-surface)]">
+      <section className="premium-ring relative overflow-hidden rounded-xl border border-[rgba(54,43,35,0.08)] bg-[var(--color-surface)]">
         <Image
           src="https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=1600&q=80"
           alt={messages.home.heroTitle}
           fill
           preload
-          className="object-cover"
+          className="object-cover object-center"
           sizes="100vw"
         />
-        <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(15,17,21,0.92),rgba(15,17,21,0.72),rgba(15,17,21,0.48))]" />
-        <div className="relative grid gap-10 px-6 py-10 md:px-10 md:py-14 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-end">
-          <div className="max-w-3xl space-y-6">
-            <Badge tone="accent">{messages.home.heroBadge}</Badge>
+        <div className="absolute inset-0 bg-[linear-gradient(100deg,rgba(255,250,243,0.96)_0%,rgba(255,250,243,0.86)_48%,rgba(255,250,243,0.36)_100%)]" />
+        <div className="accent-ribbon float-soft right-8 top-10 hidden h-28 w-12 rotate-12 rounded-full md:block" />
+        <div className="accent-ribbon float-soft bottom-24 right-24 hidden h-20 w-32 -rotate-6 rounded-[2rem] md:block" />
+        <div className="relative flex min-h-[min(760px,calc(100dvh-7rem))] flex-col justify-end gap-8 px-5 py-8 md:px-10 md:py-12">
+          <div className="max-w-3xl space-y-7">
+            <div className="motion-fade-up">
+              <Badge tone="accent">{messages.home.heroBadge}</Badge>
+            </div>
             <div className="space-y-5">
-              <h1 className="font-heading text-4xl font-semibold tracking-tight text-white sm:text-5xl md:text-6xl">
+              <h1 className="motion-fade-up motion-delay-1 font-heading text-4xl font-semibold leading-tight text-[var(--color-foreground)] sm:text-5xl md:text-6xl">
                 {messages.home.heroTitle}
               </h1>
-              <p className="max-w-2xl text-base leading-8 text-[var(--color-secondary)] md:text-lg">
+              <p className="motion-fade-up motion-delay-2 max-w-2xl text-base leading-8 text-[var(--color-secondary)] md:text-lg">
                 {messages.home.heroDescription}
               </p>
             </div>
-            <div className="flex flex-wrap gap-3">
+            <div className="motion-fade-up motion-delay-3 flex flex-wrap gap-3">
               <Link href="/explore" className={buttonStyles({ size: "lg" })}>
                 <ArrowIcon className="h-4 w-4" />
                 {messages.home.bookNow}
@@ -107,7 +112,7 @@ export function MarketplaceHomePage() {
                 </Button>
               ) : null}
             </div>
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="motion-fade-up motion-delay-4 flex flex-wrap gap-2 text-sm text-[var(--color-secondary)]">
               {[
                 { label: messages.home.quickBooking, value: "< 60 sec" },
                 { label: messages.home.trustedBusinesses, value: `${liveBusinesses.length}` },
@@ -115,21 +120,33 @@ export function MarketplaceHomePage() {
               ].map((item) => (
                 <div
                   key={item.label}
-                  className="rounded-2xl border border-white/8 bg-white/4 p-4 backdrop-blur-sm"
+                  className="inline-flex items-center gap-2 rounded-full border border-[rgba(54,43,35,0.08)] bg-[rgba(255,253,248,0.72)] px-3 py-2 shadow-[0_10px_24px_rgba(72,49,31,0.07)] backdrop-blur-md"
                 >
-                  <p className="text-xs uppercase tracking-[0.2em] text-[var(--color-muted)]">
-                    {item.label}
-                  </p>
-                  <p className="mt-3 text-2xl font-semibold text-white">{item.value}</p>
+                  <span className="font-semibold text-[var(--color-accent)]">{item.value}</span>
+                  <span>{item.label}</span>
                 </div>
               ))}
             </div>
           </div>
-          <div className="panel relative p-5 backdrop-blur-md">
-            <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[var(--color-accent)]">
-              {messages.home.searchTitle}
-            </p>
-            <div className="mt-5 space-y-4">
+          <form
+            className="panel shine-card motion-fade-up motion-delay-4 relative w-full p-4 backdrop-blur-md md:p-5"
+            onSubmit={(event) => {
+              event.preventDefault();
+              handleSearchSubmit();
+            }}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[var(--color-accent)]">
+                  {messages.home.searchTitle}
+                </p>
+                <p className="mt-1 text-sm text-[var(--color-muted)]">
+                  {messages.home.searchHint}
+                </p>
+              </div>
+              <Badge tone="success">{messages.home.quickBooking}</Badge>
+            </div>
+            <div className="mt-5 grid gap-4 lg:grid-cols-[repeat(3,minmax(0,1fr))_auto] lg:items-end">
               <label className="space-y-2 text-sm">
                 <span className="text-[var(--color-secondary)]">{messages.home.city}</span>
                 <select
@@ -180,15 +197,15 @@ export function MarketplaceHomePage() {
                 />
               </label>
               <Button
-                fullWidth
+                type="submit"
                 size="lg"
                 icon={<ArrowIcon className="h-4 w-4" />}
-                onClick={handleSearchSubmit}
+                className="lg:min-w-48"
               >
                 {messages.home.searchNow}
               </Button>
             </div>
-          </div>
+          </form>
         </div>
       </section>
 
@@ -198,17 +215,20 @@ export function MarketplaceHomePage() {
           title={messages.home.categoriesTitle}
           description={messages.home.categoriesDescription}
         />
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-          {localizedCategories.map((category) => (
+        <div className="stagger-children grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          {localizedCategories.map((category, index) => (
             <Link
               key={category.id}
               href={`/category/${category.slug}`}
-              className="panel group p-5 transition hover:-translate-y-1"
+              className={cn(
+                "panel shine-card interactive-card group p-5 hover:border-[var(--color-border-strong)]",
+                index === 0 && "sm:col-span-2 xl:col-span-2",
+              )}
             >
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgba(200,169,107,0.14)] text-[var(--color-accent)]">
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-[rgba(22,116,102,0.12)] bg-[rgba(22,116,102,0.08)] text-[var(--color-accent)]">
                 <CategoryIcon name={category.icon} className="h-5 w-5" />
               </div>
-              <h3 className="mt-5 font-heading text-xl font-semibold text-white">
+              <h3 className="mt-5 font-heading text-xl font-semibold text-[var(--color-foreground)]">
                 {category.shortLabel}
               </h3>
               <p className="mt-3 text-sm leading-7 text-[var(--color-secondary)]">
@@ -216,7 +236,7 @@ export function MarketplaceHomePage() {
               </p>
               <div className="mt-5 inline-flex items-center gap-2 text-sm text-[var(--color-accent)]">
                 {messages.home.exploreCategory}
-                <ArrowIcon className="h-4 w-4 transition group-hover:translate-x-1" />
+                <ArrowIcon className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" />
               </div>
             </Link>
           ))}
@@ -237,7 +257,7 @@ export function MarketplaceHomePage() {
             </Link>
           }
         />
-        <div className="grid gap-5 xl:grid-cols-3">
+        <div className="stagger-children grid gap-5 xl:grid-cols-3">
           {featuredBusinesses.slice(0, 3).map((business, index) => {
             const category = categories.find((item) => item.id === business.categoryId);
             const city = cities.find((item) => item.id === business.cityId);
@@ -266,7 +286,7 @@ export function MarketplaceHomePage() {
             title={messages.home.howItWorksTitle}
             description={messages.home.howItWorksDescription}
           />
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="stagger-children grid gap-4 md:grid-cols-2">
             {[
               {
                 title: messages.home.forCustomers,
@@ -281,22 +301,20 @@ export function MarketplaceHomePage() {
             ].map((group) => {
               const Icon = group.icon;
               return (
-                <div key={group.title} className="panel p-5">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/6 text-[var(--color-accent)]">
+                <div key={group.title} className="panel shine-card interactive-card p-5">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-[rgba(22,116,102,0.12)] bg-[rgba(22,116,102,0.08)] text-[var(--color-accent)]">
                     <Icon className="h-5 w-5" />
                   </div>
-                  <h3 className="mt-5 font-heading text-2xl font-semibold text-white">
+                  <h3 className="mt-5 font-heading text-2xl font-semibold text-[var(--color-foreground)]">
                     {group.title}
                   </h3>
                   <div className="mt-5 space-y-3">
-                    {group.steps.map((step, index) => (
+                    {group.steps.map((step) => (
                       <div
                         key={step}
-                        className="flex items-start gap-3 rounded-2xl border border-white/6 bg-white/4 p-3"
+                        className="flex items-start gap-3 rounded-lg bg-[rgba(22,116,102,0.04)] p-3"
                       >
-                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[rgba(200,169,107,0.18)] text-xs font-semibold text-[var(--color-accent)]">
-                          {index + 1}
-                        </div>
+                        <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-[var(--color-accent)]" />
                         <p className="text-sm leading-7 text-[var(--color-secondary)]">
                           {step}
                         </p>
@@ -308,9 +326,9 @@ export function MarketplaceHomePage() {
             })}
           </div>
         </div>
-        <div className="panel space-y-5 p-5">
+        <div className="panel grid-sheen interactive-card space-y-5 p-5">
           <Badge tone="success">{messages.home.pwaBadge}</Badge>
-          <h3 className="font-heading text-3xl font-semibold text-white">
+          <h3 className="font-heading text-3xl font-semibold text-[var(--color-foreground)]">
             {messages.home.pwaTitle}
           </h3>
           <p className="text-sm leading-7 text-[var(--color-secondary)]">
@@ -326,7 +344,7 @@ export function MarketplaceHomePage() {
               return (
                 <div
                   key={item.text}
-                  className="rounded-2xl border border-white/8 bg-white/4 p-4 text-sm text-[var(--color-secondary)]"
+                  className="rounded-lg bg-[rgba(22,116,102,0.04)] p-4 text-sm text-[var(--color-secondary)]"
                 >
                   <div className="flex items-start gap-3">
                     <Icon className="mt-1 h-4 w-4 shrink-0 text-[var(--color-accent)]" />
@@ -351,7 +369,7 @@ export function MarketplaceHomePage() {
           title={messages.home.citiesTitle}
           description={messages.home.citiesDescription}
         />
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="stagger-children grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {localizedCities.map((city) => {
             const cityBusinesses = liveBusinesses.filter((business) => business.cityId === city.id);
 
@@ -360,13 +378,14 @@ export function MarketplaceHomePage() {
                 key={city.id}
                 href={`/city/${city.slug}`}
                 className={cn(
-                  "panel group p-5 transition hover:-translate-y-1",
+                  "panel shine-card group p-5 hover:border-[var(--color-border-strong)]",
+                  "interactive-card",
                   cityBusinesses.length === 0 && "opacity-75",
                 )}
               >
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <h3 className="font-heading text-2xl font-semibold text-white">
+                    <h3 className="font-heading text-2xl font-semibold text-[var(--color-foreground)]">
                       {city.name}
                     </h3>
                     <p className="mt-3 text-sm leading-7 text-[var(--color-secondary)]">
@@ -387,10 +406,10 @@ export function MarketplaceHomePage() {
         </div>
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_400px]">
-        <div className="panel p-6 md:p-8">
+      <section className="grid-sheen panel scroll-reveal grid gap-6 p-6 md:p-8 lg:grid-cols-[minmax(0,1fr)_400px]">
+        <div className="relative">
           <Badge tone="accent">{messages.home.joinBadge}</Badge>
-          <h2 className="mt-5 font-heading text-3xl font-semibold text-white md:text-4xl">
+          <h2 className="mt-5 font-heading text-3xl font-semibold text-[var(--color-foreground)] md:text-4xl">
             {messages.home.joinTitle}
           </h2>
           <p className="mt-4 max-w-2xl text-base leading-8 text-[var(--color-secondary)]">
@@ -409,13 +428,13 @@ export function MarketplaceHomePage() {
             </Link>
           </div>
         </div>
-        <div className="panel space-y-4 p-6">
-          <h3 className="font-heading text-2xl font-semibold text-white">
+        <div className="relative space-y-4 rounded-lg bg-[rgba(22,116,102,0.04)] p-5">
+          <h3 className="font-heading text-2xl font-semibold text-[var(--color-foreground)]">
             {messages.home.faqTitle}
           </h3>
           {messages.home.faqItems.map((item) => (
-            <div key={item.q} className="rounded-2xl border border-white/8 bg-white/4 p-4">
-              <p className="font-medium text-white">{item.q}</p>
+            <div key={item.q} className="rounded-lg bg-[rgba(255,253,248,0.72)] p-4 shadow-[0_10px_24px_rgba(72,49,31,0.06)]">
+              <p className="font-medium text-[var(--color-foreground)]">{item.q}</p>
               <p className="mt-2 text-sm leading-7 text-[var(--color-secondary)]">
                 {item.a}
               </p>

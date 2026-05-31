@@ -20,18 +20,18 @@ export function SectionHeading({
   return (
     <div
       className={cn(
-        "flex flex-col gap-4 md:flex-row md:items-end md:justify-between",
+        "scroll-reveal flex flex-col gap-4 md:flex-row md:items-end md:justify-between",
         className,
       )}
     >
       <div className="max-w-2xl space-y-3">
         {eyebrow ? (
-          <p className="text-xs font-semibold uppercase tracking-[0.26em] text-[var(--color-accent)]">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-accent)]">
             {eyebrow}
           </p>
         ) : null}
         <div className="space-y-2">
-          <h2 className="font-heading text-3xl font-semibold tracking-tight text-white md:text-4xl">
+          <h2 className="font-heading text-3xl font-semibold leading-tight text-[var(--color-foreground)] md:text-4xl">
             {title}
           </h2>
           {description ? (

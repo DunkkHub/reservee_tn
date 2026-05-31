@@ -93,46 +93,46 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="relative min-h-screen overflow-x-hidden">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[30rem] bg-[radial-gradient(circle_at_top,rgba(200,169,107,0.14),transparent_45%),radial-gradient(circle_at_top_right,rgba(77,157,224,0.09),transparent_28%)]" />
-      <header className="sticky top-0 z-40 border-b border-white/6 bg-[rgba(15,17,21,0.84)] backdrop-blur-xl">
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-4 md:px-6">
-          <Link href="/" className="flex items-center gap-3">
+      <header className="sticky top-0 z-40 border-b border-[rgba(54,43,35,0.08)] bg-[rgba(255,250,243,0.88)] backdrop-blur-xl">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 py-3 md:px-6">
+          <Link href="/" className="group flex items-center gap-3">
             <LogoMark label="RT" />
             <div>
-              <p className="font-heading text-base font-semibold text-white">
+              <p className="font-heading text-base font-semibold text-[var(--color-foreground)] transition-colors group-hover:text-[var(--color-accent)]">
                 Reservee TN
               </p>
-              <p className="text-xs text-[var(--color-muted)]">
+              <p className="hidden text-xs text-[var(--color-muted)] sm:block">
                 {messages.shell.tagline}
               </p>
             </div>
           </Link>
-          <nav className="hidden items-center gap-1.5 rounded-full border border-white/12 bg-[rgba(255,255,255,0.03)] p-1.5 md:flex">
+          <nav className="hidden items-center gap-1 rounded-full bg-[rgba(255,253,248,0.62)] p-1 shadow-[inset_0_0_0_1px_rgba(54,43,35,0.08),0_10px_24px_rgba(72,49,31,0.06)] md:flex">
             {navItems.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
                 prefetch
                 className={cn(
-                  "rounded-full px-4 py-2 text-sm font-medium transition-colors duration-200",
+                  "relative rounded-full px-4 py-2 text-sm font-medium transition-[transform,background-color,color,box-shadow] duration-200 ease-[var(--ease-premium)] hover:-translate-y-0.5",
                   pathname === item.href
-                    ? "bg-[var(--color-accent)] text-[var(--color-ink)] shadow-[0_8px_22px_rgba(200,169,107,0.35)]"
-                    : "text-[rgba(241,245,252,0.86)] hover:bg-white/8 hover:text-white",
+                    ? "bg-[var(--color-accent)] text-[var(--color-ink)] shadow-[0_8px_22px_rgba(22,116,102,0.18)]"
+                    : "text-[var(--color-secondary)] hover:bg-[rgba(22,116,102,0.07)] hover:text-[var(--color-accent)]",
                 )}
               >
                 {item.label}
               </Link>
             ))}
           </nav>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 md:hidden">
             <LanguageSwitcher className="shrink-0" />
           </div>
           <div className="hidden items-center gap-3 md:flex">
+            <LanguageSwitcher className="shrink-0" />
             {isAuthenticated ? (
               <>
                 <Link
                   href={accountHref}
-                  className="inline-flex items-center gap-2 text-sm text-[var(--color-secondary)] transition hover:text-white"
+                  className="inline-flex min-h-11 items-center gap-2 px-1 text-sm font-medium text-[var(--color-secondary)] transition-colors hover:text-[var(--color-accent)]"
                 >
                   {user?.role === "admin" ? (
                     <ShieldCheck className="h-4 w-4" />
@@ -156,7 +156,7 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
               <>
                 <Link
                   href="/login"
-                  className="inline-flex items-center gap-2 text-sm text-[var(--color-secondary)] transition hover:text-white"
+                  className="inline-flex min-h-11 items-center gap-2 px-1 text-sm font-medium text-[var(--color-secondary)] transition-colors hover:text-[var(--color-accent)]"
                 >
                   <LogIn className="h-4 w-4" />
                   {messages.shell.login}
@@ -175,8 +175,26 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
       <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-4 pb-24 pt-6 md:px-6 md:pb-16 md:pt-8">
         {children}
       </main>
-      <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-white/8 bg-[rgba(15,17,21,0.94)] px-3 py-3 backdrop-blur-xl md:hidden">
-        <div className="mx-auto flex max-w-xl items-center justify-between rounded-full border border-white/8 bg-white/4 px-2 py-2">
+      <footer className="hidden border-t border-[rgba(54,43,35,0.08)] bg-[rgba(255,250,243,0.72)] md:block">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-6 px-6 py-8">
+          <div className="flex items-center gap-3">
+            <LogoMark label="RT" />
+            <div>
+              <p className="font-heading font-semibold text-[var(--color-foreground)]">Reservee TN</p>
+              <p className="text-sm text-[var(--color-muted)]">{messages.shell.tagline}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center justify-end gap-4 text-sm text-[var(--color-secondary)]">
+            {navItems.map((item) => (
+              <Link key={item.href} href={item.href} className="transition-colors hover:text-[var(--color-accent)]">
+                {item.label}
+              </Link>
+            ))}
+          </div>
+        </div>
+      </footer>
+      <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-[rgba(54,43,35,0.08)] bg-[rgba(255,250,243,0.94)] px-3 py-3 backdrop-blur-xl md:hidden">
+        <div className="mx-auto flex max-w-xl items-center justify-between gap-1 rounded-full border border-[var(--color-border)] bg-[rgba(255,253,248,0.86)] px-2 py-2 shadow-[0_-10px_30px_rgba(72,49,31,0.08)]">
           {mobileItems.map((item) => {
             const Icon = item.icon;
             const active = pathname === item.href;
@@ -186,14 +204,14 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex min-w-[92px] flex-col items-center gap-1 rounded-full px-4 py-2 text-xs font-medium transition",
+                  "flex min-w-0 flex-1 flex-col items-center gap-1 rounded-md px-2 py-2 text-xs font-medium transition",
                   active
-                    ? "bg-[rgba(200,169,107,0.95)] text-[var(--color-ink)]"
-                    : "text-[var(--color-secondary)]",
+                    ? "bg-[var(--color-accent)] text-[var(--color-ink)] shadow-[0_8px_16px_rgba(22,116,102,0.14)]"
+                    : "text-[var(--color-secondary)] hover:text-[var(--color-accent)]",
                 )}
               >
                 <Icon className="h-4 w-4" />
-                {item.label}
+                <span className="max-w-full truncate">{item.label}</span>
               </Link>
             );
           })}

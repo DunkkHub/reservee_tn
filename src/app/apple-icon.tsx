@@ -18,11 +18,11 @@ export default function AppleIcon() {
           alignItems: "center",
           justifyContent: "center",
           background:
-            "linear-gradient(135deg, rgba(200,169,107,0.9), rgba(217,167,160,0.84))",
-          color: "#131820",
+            "linear-gradient(135deg, #f0b35f, #e98269)",
+          color: "#18110d",
           fontSize: 76,
           fontWeight: 700,
-          borderRadius: 44,
+          borderRadius: 24,
         }}
       >
         RT

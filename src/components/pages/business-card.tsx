@@ -41,17 +41,17 @@ export function BusinessCard({
   const ArrowIcon = direction === "rtl" ? ArrowLeft : ArrowRight;
 
   return (
-    <article className="panel group overflow-hidden transition duration-200 hover:-translate-y-1">
-      <div className="relative h-56 w-full overflow-hidden md:h-64">
+    <article className="panel interactive-card group overflow-hidden hover:border-[var(--color-border-strong)]">
+      <div className="image-contrast relative h-56 w-full overflow-hidden md:h-60">
         <Image
           src={business.coverUrl}
           alt={business.name}
           fill
           loading={eagerImage ? "eager" : undefined}
-          className="object-cover transition duration-700 group-hover:scale-[1.03]"
+          className="object-cover transition duration-700 group-hover:scale-[1.025]"
           sizes={compact ? "(max-width: 768px) 100vw, 50vw" : "(max-width: 1024px) 100vw, 33vw"}
         />
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_0%,rgba(15,17,21,0.78)_78%,rgba(15,17,21,0.94)_100%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(18,16,14,0.08)_0%,rgba(18,16,14,0.52)_62%,rgba(18,16,14,0.96)_100%)]" />
         <div className="absolute inset-x-0 top-0 flex items-center justify-between p-4">
           <div className="flex flex-wrap gap-2">
             <Badge tone={isBusinessFeatured(business) ? "accent" : "default"}>
@@ -88,16 +88,19 @@ export function BusinessCard({
         </div>
       </div>
       <div className="space-y-4 p-5">
+        <p className="line-clamp-2 text-sm leading-6 text-[var(--color-secondary)]">
+          {business.tagline}
+        </p>
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-2xl border border-white/6 bg-white/4 p-3">
+          <div className="rounded-lg border border-[var(--color-border)] bg-[rgba(255,250,240,0.045)] p-3">
             <p className="text-[var(--color-muted)]">{messages.businessCard.startingPrice}</p>
-            <p className="mt-1 text-lg font-semibold text-white">
+            <p className="mt-1 text-lg font-semibold text-[var(--color-foreground)]">
               {formatCurrency(startingPrice, locale)}
             </p>
           </div>
-          <div className="rounded-2xl border border-white/6 bg-white/4 p-3">
+          <div className="rounded-lg border border-[var(--color-border)] bg-[rgba(255,250,240,0.045)] p-3">
             <p className="text-[var(--color-muted)]">{messages.businessCard.nextAvailable}</p>
-            <p className="mt-1 text-sm font-semibold text-white">
+            <p className="mt-1 text-sm font-semibold text-[var(--color-foreground)]">
               {nextAvailable
                 ? `${formatRelativeDay(nextAvailable, locale)} • ${formatTime(nextAvailable, locale)}`
                 : messages.businessCard.noSlots}

@@ -6,7 +6,7 @@ export const categories: Category[] = [
     name: "Barbiers",
     slug: "barbers",
     shortLabel: "Barbers",
-    description: "Fades, grooming et barbe avec une experience premium.",
+    description: "Fades, grooming et barbe avec une expérience premium.",
     icon: "ScissorsLineDashed",
   },
   {
@@ -19,10 +19,10 @@ export const categories: Category[] = [
   },
   {
     id: "cat-beauty",
-    name: "Centres de beaute",
+    name: "Centres de beauté",
     slug: "beauty-centers",
     shortLabel: "Beauté",
-    description: "Soins visage, maquillage et routines beaute en un seul lieu.",
+    description: "Soins visage, maquillage et routines beauté en un seul lieu.",
     icon: "Flower2",
   },
   {
@@ -38,7 +38,7 @@ export const categories: Category[] = [
     name: "Spas & hammams",
     slug: "spas",
     shortLabel: "Spa",
-    description: "Massages, hammam, rituels corps et detente profonde.",
+    description: "Massages, hammam, rituels corps et détente profonde.",
     icon: "Leaf",
   },
 ];
@@ -49,39 +49,42 @@ export const cities: City[] = [
     name: "Tunis",
     slug: "tunis",
     heroCopy:
-      "Les adresses les plus reservees autour du centre-ville, du Lac et de La Marsa.",
+      "Les adresses les plus réservées autour du centre-ville, du Lac et de La Marsa.",
   },
   {
     id: "city-sousse",
     name: "Sousse",
     slug: "sousse",
-    heroCopy: "Des salons modernes et des spots bien-etre qui convertissent bien sur mobile.",
+    heroCopy:
+      "Des salons modernes et des spots bien-être qui convertissent bien sur mobile.",
   },
   {
     id: "city-sfax",
     name: "Sfax",
     slug: "sfax",
-    heroCopy: "Une scene beaute locale exigeante, parfaite pour un produit simple et premium.",
+    heroCopy:
+      "Une scène beauté locale exigeante, parfaite pour un produit simple et premium.",
   },
   {
     id: "city-ariana",
     name: "Ariana",
     slug: "ariana",
     heroCopy:
-      "Une zone dense avec de fortes habitudes WhatsApp et beaucoup d'opportunites B2B.",
+      "Une zone dense avec de fortes habitudes WhatsApp et beaucoup d'opportunités B2B.",
   },
   {
     id: "city-nabeul",
     name: "Nabeul",
     slug: "nabeul",
     heroCopy:
-      "Des studios beaute de quartier qui ont besoin de visibilite et d'un agenda propre.",
+      "Des studios beauté de quartier qui ont besoin de visibilité et d’un agenda propre.",
   },
   {
     id: "city-hammamet",
     name: "Hammamet",
     slug: "hammamet",
-    heroCopy: "Ideal pour les spas, salons premium et experiences bien-etre destination.",
+    heroCopy:
+      "Idéal pour les spas, salons premium et expériences bien-être destination.",
   },
 ];
 

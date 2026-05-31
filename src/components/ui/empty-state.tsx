@@ -19,12 +19,12 @@ export function EmptyState({
   ctaHref,
 }: EmptyStateProps) {
   return (
-    <div className="panel flex flex-col items-center gap-4 p-8 text-center">
-      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/6">
+    <div className="panel grid-sheen motion-fade-up flex flex-col items-center gap-4 p-8 text-center">
+      <div className="relative flex h-14 w-14 items-center justify-center rounded-lg border border-[rgba(22,116,102,0.16)] bg-[rgba(22,116,102,0.08)] shadow-[0_12px_28px_rgba(22,116,102,0.09)]">
         <Icon className="h-5 w-5 text-[var(--color-accent)]" />
       </div>
       <div className="space-y-2">
-        <h3 className="font-heading text-2xl font-semibold text-white">{title}</h3>
+        <h3 className="font-heading text-2xl font-semibold text-[var(--color-foreground)]">{title}</h3>
         <p className="max-w-md text-sm leading-7 text-[var(--color-secondary)]">
           {description}
         </p>

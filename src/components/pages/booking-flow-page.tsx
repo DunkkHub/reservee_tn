@@ -131,7 +131,7 @@ export function BookingFlowPage({ slug }: { slug: string }) {
   if (confirmedBooking) {
     return (
       <div className="mx-auto flex max-w-3xl flex-col gap-6">
-        <div className="panel p-8 text-center">
+        <div className="panel grid-sheen p-8 text-center">
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[rgba(59,178,115,0.12)] text-[var(--color-success)] transition">
             <CheckCircle2 className="h-8 w-8" />
           </div>
@@ -250,12 +250,8 @@ export function BookingFlowPage({ slug }: { slug: string }) {
       if (booking) {
         setConfirmedBooking(booking);
       }
-    } catch (error) {
-      setSubmitError(
-        error instanceof Error
-          ? error.message
-          : "Unable to create booking right now.",
-      );
+    } catch {
+      setSubmitError(messages.bookingFlow.submitError);
     } finally {
       setIsSubmitting(false);
     }
@@ -264,7 +260,7 @@ export function BookingFlowPage({ slug }: { slug: string }) {
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
       <section className="space-y-6">
-        <div className="panel p-6">
+        <div className="panel grid-sheen p-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
               <Badge tone="accent">{messages.bookingFlow.heroBadge}</Badge>
@@ -421,7 +417,7 @@ export function BookingFlowPage({ slug }: { slug: string }) {
                     customerName: event.target.value,
                   }))
                 }
-                placeholder="Ex: Salma Ben Youssef"
+                placeholder={messages.bookingFlow.fullNamePlaceholder}
               />
             </label>
             <label className="space-y-2 text-sm">
@@ -437,7 +433,7 @@ export function BookingFlowPage({ slug }: { slug: string }) {
                     customerPhone: event.target.value,
                   }))
                 }
-                placeholder="+216 ..."
+                placeholder={messages.bookingFlow.phonePlaceholder}
               />
             </label>
             <label className="space-y-2 text-sm">

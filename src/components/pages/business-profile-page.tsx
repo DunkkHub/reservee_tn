@@ -169,8 +169,8 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
 
   return (
     <div className="space-y-8 pb-24">
-      <section className="panel overflow-hidden">
-        <div className="relative h-[380px] md:h-[480px]">
+      <section className="panel grid-sheen premium-ring overflow-hidden">
+        <div className="image-contrast relative h-[380px] md:h-[480px]">
           <Image
             src={business.coverUrl}
             alt={business.name}
@@ -230,7 +230,7 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
                     </p>
                     <p className="mt-2 text-sm font-semibold text-white">
                       {nextBestSlot
-                        ? `${formatRelativeDay(nextBestSlot, locale)} • ${formatTime(nextBestSlot, locale)}`
+                        ? `${formatRelativeDay(nextBestSlot, locale)} / ${formatTime(nextBestSlot, locale)}`
                         : messages.businessProfile.fullRightNow}
                     </p>
                   </div>
@@ -244,7 +244,7 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
                   </div>
                 </div>
               </div>
-              <div className="panel space-y-3 p-4 backdrop-blur-md">
+              <div className="panel shine-card space-y-3 p-4 backdrop-blur-md">
                 <Link
                   href={`/book/${business.slug}${selectedServiceId ? `?service=${selectedServiceId}` : ""}`}
                   className={buttonStyles({ fullWidth: true, size: "lg" })}
@@ -752,7 +752,7 @@ export function BusinessProfilePage({ slug }: { slug: string }) {
             </p>
             <p className="text-xs text-[var(--color-secondary)]">
               {nextBestSlot
-                ? `${formatRelativeDay(nextBestSlot, locale)} • ${formatTime(nextBestSlot, locale)}`
+                ? `${formatRelativeDay(nextBestSlot, locale)} / ${formatTime(nextBestSlot, locale)}`
                 : messages.businessProfile.useWaitlistOrWhatsapp}
             </p>
           </div>

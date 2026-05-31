@@ -4,11 +4,11 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import {
-  Building2,
+  CalendarCheck2,
   KeyRound,
   LogIn,
-  ShieldCheck,
-  UserRound,
+  Sparkles,
+  Store,
 } from "lucide-react";
 
 import { useAuth } from "@/components/providers/auth-provider";
@@ -85,46 +85,47 @@ function AuthShell({
   footer: React.ReactNode;
 }) {
   const { messages } = useLocale();
+  const proofItems = [
+    { icon: CalendarCheck2, label: messages.home.quickBooking },
+    { icon: Store, label: messages.home.trustedBusinesses },
+    { icon: Sparkles, label: messages.home.categoriesFocus },
+  ];
 
   return (
-    <div className="mx-auto grid w-full max-w-6xl gap-6 lg:grid-cols-[minmax(0,1fr)_460px]">
-      <section className="panel space-y-6 p-6 md:p-8">
-        <Badge tone="accent">{eyebrow}</Badge>
-        <div className="space-y-4">
-          <h1 className="font-heading text-4xl font-semibold text-white md:text-5xl">
-            {title}
-          </h1>
-          <p className="max-w-2xl text-base leading-8 text-[var(--color-secondary)]">
-            {description}
-          </p>
+    <div className="mx-auto grid w-full max-w-6xl gap-6 lg:grid-cols-[minmax(0,0.95fr)_460px]">
+      <section className="panel grid-sheen premium-ring order-2 flex min-h-[520px] flex-col justify-between p-6 md:p-8 lg:order-1">
+        <div className="relative space-y-6">
+          <Badge tone="accent">{eyebrow}</Badge>
+          <div className="space-y-4">
+            <h1 className="font-heading text-4xl font-semibold leading-tight text-white md:text-5xl">
+              {title}
+            </h1>
+            <p className="max-w-xl text-base leading-8 text-[var(--color-secondary)]">
+              {description}
+            </p>
+          </div>
         </div>
-        <div className="grid gap-4 md:grid-cols-3">
-          {[
-            { icon: UserRound, ...messages.auth.featureCards[0] },
-            { icon: Building2, ...messages.auth.featureCards[1] },
-            { icon: ShieldCheck, ...messages.auth.featureCards[2] },
-          ].map((item) => {
+        <div className="relative mt-10 grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+          {proofItems.map((item) => {
             const Icon = item.icon;
             return (
-              <div key={item.title} className="rounded-3xl border border-white/8 bg-white/4 p-5">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/6 text-[var(--color-accent)]">
-                  <Icon className="h-5 w-5" />
-                </div>
-                <h2 className="mt-4 font-heading text-xl font-semibold text-white">
-                  {item.title}
-                </h2>
-                <p className="mt-3 text-sm leading-7 text-[var(--color-secondary)]">
-                  {item.text}
-                </p>
+              <div
+                key={item.label}
+                className="panel-soft flex items-center gap-3 p-4 text-sm font-medium text-white"
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[rgba(103,232,184,0.12)] text-[var(--color-accent)]">
+                  <Icon className="h-4 w-4" />
+                </span>
+                {item.label}
               </div>
             );
           })}
         </div>
       </section>
 
-      <section className="panel p-6 md:p-8">
+      <section className="panel shine-card order-1 p-6 md:p-8 lg:order-2">
         {children}
-        <div className="mt-6 border-t border-white/8 pt-6 text-sm text-[var(--color-secondary)]">
+        <div className="mt-6 border-t border-[var(--color-border)] pt-6 text-sm text-[var(--color-secondary)]">
           {footer}
         </div>
       </section>
@@ -144,7 +145,7 @@ function DeliveryChannelPicker({
   smsLabel: string;
 }) {
   return (
-    <div className="grid grid-cols-2 gap-2 rounded-3xl border border-white/8 bg-white/4 p-1">
+    <div className="grid grid-cols-2 gap-2 rounded-lg border border-[var(--color-border)] bg-[rgba(255,250,240,0.045)] p-1">
       {[
         { id: "sms", label: smsLabel },
         { id: "email", label: emailLabel },
@@ -153,7 +154,7 @@ function DeliveryChannelPicker({
           key={option.id}
           type="button"
           onClick={() => onChange(option.id as AuthDeliveryChannel)}
-          className={`rounded-[1.2rem] px-4 py-3 text-sm font-medium transition ${
+          className={`rounded-md px-4 py-3 text-sm font-medium transition ${
             value === option.id
               ? "bg-[var(--color-accent)] text-[var(--color-ink)]"
               : "text-[var(--color-secondary)]"
@@ -178,9 +179,9 @@ function Notice({
       ? "border-[rgba(59,178,115,0.22)] bg-[rgba(59,178,115,0.12)] text-[var(--color-success)]"
       : tone === "error"
         ? "border-[rgba(225,85,84,0.22)] bg-[rgba(225,85,84,0.12)] text-[var(--color-error)]"
-        : "border-white/8 bg-white/4 text-[var(--color-secondary)]";
+        : "border-[var(--color-border)] bg-[rgba(255,250,240,0.045)] text-[var(--color-secondary)]";
 
-  return <div className={`rounded-2xl border px-4 py-3 text-sm ${className}`}>{children}</div>;
+  return <div className={`rounded-lg border px-4 py-3 text-sm ${className}`}>{children}</div>;
 }
 
 export function LoginPage() {
@@ -232,13 +233,13 @@ export function LoginPage() {
     const password = form.password;
 
     if (!validateEmail(email)) {
-      setError("Enter a valid email address.");
+      setError(messages.auth.validation.email);
       setSubmitting(false);
       return;
     }
 
     if (!password) {
-      setError("Password is required.");
+      setError(messages.auth.validation.passwordRequired);
       setSubmitting(false);
       return;
     }
@@ -250,14 +251,14 @@ export function LoginPage() {
       });
 
       if (result.error) {
-        setError(result.error.message || messages.auth.loginFailed);
+        setError(messages.auth.loginFailed);
         return;
       }
 
       const sessionPayload = await loadCurrentSession();
 
       if (!sessionPayload) {
-        setError("Login succeeded, but the session could not be loaded.");
+        setError(messages.auth.validation.sessionFailed);
         return;
       }
 
@@ -286,13 +287,13 @@ export function LoginPage() {
         <div className="space-y-2">
           <p>
             {messages.auth.noAccountPrefix}{" "}
-            <Link href={registerHref} className="text-white underline underline-offset-4">
+            <Link href={registerHref} className="inline-flex min-h-11 items-center text-white underline underline-offset-4">
               {messages.auth.createOne}
             </Link>
             .
           </p>
           <p>
-            <Link href={resetPasswordHref} className="text-white underline underline-offset-4">
+            <Link href={resetPasswordHref} className="inline-flex min-h-11 items-center text-white underline underline-offset-4">
               {messages.auth.forgotPassword}
             </Link>
           </p>
@@ -324,7 +325,7 @@ export function LoginPage() {
                   email: event.target.value,
                 }))
               }
-              placeholder="you@example.com"
+              placeholder={messages.auth.emailPlaceholder}
               autoComplete="username"
             />
           </label>
@@ -354,10 +355,6 @@ export function LoginPage() {
             {submitting ? messages.auth.verifyingCode : messages.auth.signIn}
           </Button>
         </form>
-
-        <p className="text-xs leading-6 text-[var(--color-muted)]">
-          {messages.auth.adminNote}
-        </p>
       </div>
     </AuthShell>
   );
@@ -416,28 +413,29 @@ export function RegisterPage() {
     const passwordValidation = validatePassword(form.password);
 
     if (name.length < 2) {
-      setError(role === "shop" ? "Owner name is required." : "Name is required.");
+      setError(
+        role === "shop"
+          ? messages.auth.validation.ownerNameRequired
+          : messages.auth.validation.nameRequired,
+      );
       setSubmitting(false);
       return;
     }
 
     if (!validateEmail(email)) {
-      setError("Enter a valid email address.");
+      setError(messages.auth.validation.email);
       setSubmitting(false);
       return;
     }
 
     if (!validatePhone(phone)) {
-      setError("Enter a valid phone number.");
+      setError(messages.auth.validation.phone);
       setSubmitting(false);
       return;
     }
 
     if (!passwordValidation.valid) {
-      setError(
-        passwordValidation.errors[0]?.message ??
-          "Password does not meet security requirements.",
-      );
+      setError(messages.auth.validation.passwordSecurity);
       setSubmitting(false);
       return;
     }
@@ -450,19 +448,19 @@ export function RegisterPage() {
 
     if (role === "shop") {
       if (!form.businessName.trim()) {
-        setError("Business name is required.");
+        setError(messages.auth.validation.businessNameRequired);
         setSubmitting(false);
         return;
       }
 
       if (!form.citySlug.trim()) {
-        setError("City is required.");
+        setError(messages.auth.validation.cityRequired);
         setSubmitting(false);
         return;
       }
 
       if (!form.area.trim()) {
-        setError("Area is required.");
+        setError(messages.auth.validation.areaRequired);
         setSubmitting(false);
         return;
       }
@@ -495,14 +493,14 @@ export function RegisterPage() {
       const result = await authClient.signUp.email(payload as SignUpEmailInput);
 
       if (result.error) {
-        setError(result.error.message || messages.auth.registerFailed);
+        setError(messages.auth.registerFailed);
         return;
       }
 
       const sessionPayload = await loadCurrentSession();
 
       if (!sessionPayload) {
-        setError("The account was created, but the session could not be loaded.");
+        setError(messages.auth.validation.accountSessionFailed);
         return;
       }
 
@@ -530,7 +528,7 @@ export function RegisterPage() {
       footer={
         <p>
           {messages.auth.alreadyAccountPrefix}{" "}
-          <Link href={loginHref} className="text-white underline underline-offset-4">
+          <Link href={loginHref} className="inline-flex min-h-11 items-center text-white underline underline-offset-4">
             {messages.auth.signInHere}
           </Link>
           .
@@ -538,7 +536,7 @@ export function RegisterPage() {
       }
     >
       <div className="space-y-5">
-        <div className="grid grid-cols-2 gap-2 rounded-full border border-white/8 bg-white/4 p-1">
+        <div className="grid grid-cols-2 gap-2 rounded-lg border border-[var(--color-border)] bg-[rgba(255,250,240,0.045)] p-1">
           {[
             { id: "customer", label: messages.auth.customer },
             { id: "shop", label: messages.auth.shop },
@@ -547,7 +545,7 @@ export function RegisterPage() {
               key={option.id}
               type="button"
               onClick={() => setRole(option.id as "customer" | "shop")}
-              className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+              className={`rounded-md px-4 py-2 text-sm font-medium transition ${
                 role === option.id
                   ? "bg-[var(--color-accent)] text-[var(--color-ink)]"
                   : "text-[var(--color-secondary)]"
@@ -593,7 +591,8 @@ export function RegisterPage() {
                 setForm((current) => ({ ...current, phone: event.target.value }))
               }
               autoComplete="tel"
-              placeholder="+216 ..."
+              placeholder={messages.auth.phonePlaceholder}
+              inputMode="tel"
             />
           </label>
 
@@ -708,7 +707,7 @@ export function RegisterPage() {
           </div>
 
           {error ? (
-            <div className="rounded-2xl border border-[rgba(225,85,84,0.22)] bg-[rgba(225,85,84,0.12)] px-4 py-3 text-sm text-[var(--color-error)]">
+            <div className="rounded-lg border border-[rgba(255,131,117,0.28)] bg-[rgba(255,131,117,0.12)] px-4 py-3 text-sm text-[var(--color-error)]">
               {error}
             </div>
           ) : null}
@@ -765,13 +764,13 @@ export function ResetPasswordPage() {
       const challengePayload = data.data?.challenge;
 
       if (!response.ok || !data.ok) {
-        setError(data.message || messages.auth.resetFailed);
+        setError(messages.auth.resetFailed);
         return;
       }
 
       setChallenge(challengePayload ?? null);
       setForm((current) => ({ ...current, code: "" }));
-      setMessage(data.message ?? messages.auth.resetFailed);
+      setMessage(messages.auth.resetCodeSent);
     } catch {
       setError(messages.auth.resetFailed);
     } finally {
@@ -841,7 +840,7 @@ export function ResetPasswordPage() {
       description={messages.auth.resetPasswordDescription}
       footer={
         <p>
-          <Link href="/login" className="text-white underline underline-offset-4">
+          <Link href="/login" className="inline-flex min-h-11 items-center text-white underline underline-offset-4">
             {messages.auth.backToLogin}
           </Link>
         </p>

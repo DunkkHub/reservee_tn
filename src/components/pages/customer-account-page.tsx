@@ -28,14 +28,14 @@ function MetricCard({
   icon: typeof CalendarClock;
 }) {
   return (
-    <div className="panel p-5">
-      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/6 text-[var(--color-accent)]">
+    <div className="metric-tile interactive-card p-5">
+      <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-[rgba(22,116,102,0.08)] text-[var(--color-accent)]">
         <Icon className="h-5 w-5" />
       </div>
       <p className="mt-4 text-xs uppercase tracking-[0.14em] text-[var(--color-muted)]">
         {label}
       </p>
-      <p className="mt-2 text-3xl font-semibold text-white">{value}</p>
+      <p className="mt-2 text-3xl font-semibold text-[var(--color-foreground)]">{value}</p>
     </div>
   );
 }
@@ -79,7 +79,7 @@ export function CustomerAccountPage() {
         description={messages.account.description}
       />
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="stagger-children grid gap-4 md:grid-cols-3">
         <MetricCard label={messages.account.upcoming} value={upcoming.length} icon={CalendarClock} />
         <MetricCard
           label={messages.account.allBookings}

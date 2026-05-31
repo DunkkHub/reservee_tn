@@ -277,7 +277,7 @@ export function ExploreBrowser({
         }
       />
 
-      <section className="panel p-5">
+      <section className="panel grid-sheen motion-fade-up p-5">
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_repeat(3,minmax(0,1fr))]">
           <label className="space-y-2 text-sm">
             <span className="inline-flex items-center gap-2 text-[var(--color-secondary)]">
@@ -390,10 +390,10 @@ export function ExploreBrowser({
               type="button"
               onClick={() => setOpenNowOnly((current) => !current)}
               className={cn(
-                "inline-flex h-12 items-center gap-2 rounded-full border px-4 text-sm font-medium transition",
+                "inline-flex h-12 items-center gap-2 rounded-lg border px-4 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[rgba(103,232,184,0.18)]",
                 openNowOnly
-                  ? "border-[rgba(200,169,107,0.3)] bg-[rgba(200,169,107,0.12)] text-[var(--color-accent)]"
-                  : "border-white/8 bg-white/4 text-[var(--color-secondary)]",
+                  ? "border-[var(--color-border-strong)] bg-[rgba(240,179,95,0.12)] text-[var(--color-accent)]"
+                  : "border-[var(--color-border)] bg-[rgba(255,250,240,0.045)] text-[var(--color-secondary)]",
               )}
             >
               <Clock3 className="h-4 w-4" />
@@ -403,10 +403,10 @@ export function ExploreBrowser({
               type="button"
               onClick={() => setAvailableTodayOnly((current) => !current)}
               className={cn(
-                "inline-flex h-12 items-center gap-2 rounded-full border px-4 text-sm font-medium transition",
+                "inline-flex h-12 items-center gap-2 rounded-lg border px-4 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[rgba(110,207,154,0.14)]",
                 availableTodayOnly
                   ? "border-[rgba(59,178,115,0.3)] bg-[rgba(59,178,115,0.12)] text-[var(--color-success)]"
-                  : "border-white/8 bg-white/4 text-[var(--color-secondary)]",
+                  : "border-[var(--color-border)] bg-[rgba(255,250,240,0.045)] text-[var(--color-secondary)]",
               )}
             >
               <CalendarClock className="h-4 w-4" />
@@ -428,7 +428,7 @@ export function ExploreBrowser({
       </section>
 
       {filteredBusinesses.length > 0 ? (
-        <div className="grid gap-5 xl:grid-cols-2">
+        <div className="stagger-children grid gap-5 xl:grid-cols-2">
           {filteredBusinesses.map((business, index) => {
             const category = categories.find((item) => item.id === business.categoryId);
             const city = cities.find((item) => item.id === business.cityId);

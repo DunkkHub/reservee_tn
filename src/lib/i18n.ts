@@ -55,7 +55,7 @@ const labelDictionary = {
     no: "Non",
     today: "Aujourd'hui",
     tomorrow: "Demain",
-    at: "a",
+    at: "à",
     audiences: {
       men: "Hommes",
       women: "Femmes",
@@ -63,15 +63,15 @@ const labelDictionary = {
     },
     bookingStatuses: {
       pending: "En attente",
-      confirmed: "Confirmee",
-      cancelled_by_customer: "Annulee par le client",
-      cancelled_by_business: "Annulee par l etablissement",
-      completed: "Terminee",
-      expired: "Expiree",
+      confirmed: "Confirmée",
+      cancelled_by_customer: "Annulée par le client",
+      cancelled_by_business: "Annulée par l’établissement",
+      completed: "Terminée",
+      expired: "Expirée",
       no_show: "No-show",
     },
     bookingModes: {
-      instant: "Reservation instantanee",
+      instant: "Réservation instantanée",
       approval_required: "Validation requise",
     },
     operatingModes: {
@@ -81,7 +81,7 @@ const labelDictionary = {
     },
     policyClarity: {
       clear: "Politique claire",
-      needs_review: "Politique a revoir",
+      needs_review: "Politique à revoir",
     },
   },
   en: {
@@ -160,7 +160,7 @@ const categoryTranslations = {
     barbers: {
       name: "Barbiers",
       shortLabel: "Barbers",
-      description: "Fades, grooming et barbe avec une experience premium.",
+      description: "Fades, grooming et barbe avec une expérience premium.",
     },
     "hair-salons": {
       name: "Salons de coiffure",
@@ -168,9 +168,9 @@ const categoryTranslations = {
       description: "Coupes, brushing, coloration et soins capillaires haut de gamme.",
     },
     "beauty-centers": {
-      name: "Centres de beaute",
-      shortLabel: "Beaute",
-      description: "Soins visage, maquillage et routines beaute en un seul lieu.",
+      name: "Centres de beauté",
+      shortLabel: "Beauté",
+      description: "Soins visage, maquillage et routines beauté en un seul lieu.",
     },
     "nail-studios": {
       name: "Studios onglerie",
@@ -180,7 +180,7 @@ const categoryTranslations = {
     spas: {
       name: "Spas & hammams",
       shortLabel: "Spa",
-      description: "Massages, hammam, rituels corps et detente profonde.",
+      description: "Massages, hammam, rituels corps et détente profonde.",
     },
   },
   en: {
@@ -254,30 +254,30 @@ const cityTranslations = {
     tunis: {
       name: "Tunis",
       heroCopy:
-        "Les adresses les plus reservees autour du centre-ville, du Lac et de La Marsa.",
+        "Les adresses les plus réservées autour du centre-ville, du Lac et de La Marsa.",
     },
     sousse: {
       name: "Sousse",
       heroCopy:
-        "Des salons modernes et des spots bien-etre qui convertissent bien sur mobile.",
+        "Des salons modernes et des spots bien-être qui convertissent bien sur mobile.",
     },
     sfax: {
       name: "Sfax",
-      heroCopy: "Une scene beaute locale exigeante, parfaite pour un produit simple et premium.",
+      heroCopy: "Une scène beauté locale exigeante, parfaite pour un produit simple et premium.",
     },
     ariana: {
       name: "Ariana",
       heroCopy:
-        "Une zone dense avec de fortes habitudes WhatsApp et beaucoup d'opportunites B2B.",
+        "Une zone dense avec de fortes habitudes WhatsApp et beaucoup d’opportunités B2B.",
     },
     nabeul: {
       name: "Nabeul",
       heroCopy:
-        "Des studios beaute de quartier qui ont besoin de visibilite et d'un agenda propre.",
+        "Des studios beauté de quartier qui ont besoin de visibilité et d’un agenda propre.",
     },
     hammamet: {
       name: "Hammamet",
-      heroCopy: "Ideal pour les spas, salons premium et experiences bien-etre destination.",
+      heroCopy: "Idéal pour les spas, salons premium et expériences bien-être destination.",
     },
   },
   en: {
@@ -309,7 +309,7 @@ const cityTranslations = {
     hammamet: {
       name: "Hammamet",
       heroCopy:
-        "Perfect for spas, premium salons, and destination wellness experiences.",
+        "Perfect for spas, premium salons, and destination wellness expériences.",
     },
   },
   ar: {
@@ -415,7 +415,7 @@ export function getBookingStatusLabel(status: BookingStatus, locale: AppLocale) 
         return "ملغى";
       case "fr":
       default:
-        return "Annulee";
+        return "Annulée";
     }
   }
 
@@ -443,7 +443,7 @@ export function getBusinessCountLabel(count: number, locale: AppLocale) {
     return count === 1 ? "1 business" : `${count} businesses`;
   }
 
-  return count <= 1 ? `${count} business` : `${count} business`;
+  return count <= 1 ? `${count} adresse` : `${count} adresses`;
 }
 
 export function getResultsLabel(count: number, locale: AppLocale) {
@@ -455,5 +455,5 @@ export function getResultsLabel(count: number, locale: AppLocale) {
     return count === 1 ? "1 result" : `${count} results`;
   }
 
-  return `${count} resultats`;
+  return `${count} résultats`;
 }

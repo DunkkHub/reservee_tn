@@ -18,11 +18,12 @@ export default function Icon() {
           alignItems: "center",
           justifyContent: "center",
           background:
-            "radial-gradient(circle at top left, rgba(200,169,107,0.34), transparent 38%), #0f1115",
-          color: "#f5f7fb",
+            "linear-gradient(135deg, #241f1b 0%, #12100e 54%, #0c0d0c 100%)",
+          color: "#fffaf0",
           fontSize: 212,
           fontWeight: 700,
-          borderRadius: 96,
+          border: "14px solid rgba(240,179,95,0.42)",
+          borderRadius: 72,
         }}
       >
         RT

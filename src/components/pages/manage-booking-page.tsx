@@ -136,13 +136,9 @@ export function ManageBookingPage({ referenceCode }: { referenceCode: string }) 
         if (!cancelled) {
           setBooking(loadedBooking);
         }
-      } catch (loadError) {
+      } catch {
         if (!cancelled) {
-          setError(
-            loadError instanceof Error
-              ? loadError.message
-              : "Unable to load this booking.",
-          );
+          setError(messages.manageBooking.loadError);
         }
       }
     }
@@ -152,7 +148,7 @@ export function ManageBookingPage({ referenceCode }: { referenceCode: string }) 
     return () => {
       cancelled = true;
     };
-  }, [referenceCode, token]);
+  }, [messages.manageBooking.loadError, referenceCode, token]);
 
   const service = business?.services.find((item) => item.id === booking?.serviceId);
   const customerCanCancel = booking ? canCustomerCancel(booking) : false;
@@ -182,12 +178,8 @@ export function ManageBookingPage({ referenceCode }: { referenceCode: string }) 
           ? `${messages.manageBooking.verificationGenerated} ${nextChallenge.developmentCodePreview}`
           : messages.manageBooking.verificationSent,
       );
-    } catch (challengeError) {
-      setError(
-        challengeError instanceof Error
-          ? challengeError.message
-          : "Unable to request a verification code.",
-      );
+    } catch {
+      setError(messages.manageBooking.requestCodeError);
     } finally {
       setIsSubmitting(false);
     }
@@ -216,10 +208,8 @@ export function ManageBookingPage({ referenceCode }: { referenceCode: string }) 
 
       setToken(verified.token);
       setMessage(messages.manageBooking.bookingVerified);
-    } catch (verifyError) {
-      setError(
-        verifyError instanceof Error ? verifyError.message : "Verification failed.",
-      );
+    } catch {
+      setError(messages.manageBooking.verificationFailed);
     } finally {
       setIsSubmitting(false);
     }
@@ -245,12 +235,8 @@ export function ManageBookingPage({ referenceCode }: { referenceCode: string }) 
           ? messages.manageBooking.bookingCancelled
           : messages.manageBooking.rescheduleSent,
       );
-    } catch (manageError) {
-      setError(
-        manageError instanceof Error
-          ? manageError.message
-          : "Unable to update the booking.",
-      );
+    } catch {
+      setError(messages.manageBooking.updateError);
     } finally {
       setIsSubmitting(false);
     }
@@ -283,7 +269,7 @@ export function ManageBookingPage({ referenceCode }: { referenceCode: string }) 
               className="input-field"
               value={phone}
               onChange={(event) => setPhone(event.target.value)}
-              placeholder="+216 ..."
+              placeholder={messages.manageBooking.phonePlaceholder}
             />
           </label>
           {challenge ? (

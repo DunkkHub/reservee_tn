@@ -21,6 +21,7 @@ import {
   UserRound,
 } from "lucide-react";
 
+import { useLocale } from "@/components/providers/locale-provider";
 import { usePlatform } from "@/components/providers/platform-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -49,7 +50,6 @@ import {
   statusLabel,
 } from "@/lib/utils";
 
-const weekDays = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
 const bookingTabs: BookingStatus[] = [
   "pending",
   "confirmed",
@@ -84,23 +84,26 @@ function MetricCard({
   icon: typeof CalendarDays;
 }) {
   return (
-    <div className="panel p-5">
-      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/6 text-[var(--color-accent)]">
+    <div className="metric-tile interactive-card p-5">
+      <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-[rgba(22,116,102,0.08)] text-[var(--color-accent)]">
         <Icon className="h-5 w-5" />
       </div>
       <p className="mt-4 text-xs uppercase tracking-[0.14em] text-[var(--color-muted)]">{label}</p>
-      <p className="mt-2 text-3xl font-semibold text-white">{value}</p>
+      <p className="mt-2 text-3xl font-semibold text-[var(--color-foreground)]">{value}</p>
     </div>
   );
 }
 
 export function DashboardOverviewPage() {
   const { ownerBusiness, auditLog } = usePlatform();
+  const { locale, messages } = useLocale();
   const bookings = useOwnerBookings();
   const waitlistRequests = useOwnerWaitlist();
   const [currentRenderDate] = useState(() => new Date());
 
   if (!ownerBusiness) return null;
+  const dashboard = messages.dashboard;
+  const businessStatus = messages.admin.statuses[ownerBusiness.status];
 
   const checklist = getOnboardingChecklist(ownerBusiness);
   const now = currentRenderDate.getTime();
@@ -118,17 +121,17 @@ export function DashboardOverviewPage() {
   return (
     <div className="space-y-6">
       <SectionHeading
-        eyebrow="Business dashboard"
-        title="Review today's bookings first"
-        description="The owner now gets one operating surface for bookings, profile quality, trust signals and waitlist demand."
+        eyebrow={dashboard.overviewEyebrow}
+        title={dashboard.overviewTitle}
+        description={dashboard.overviewDescription}
       />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <MetricCard label="Today's bookings" value={todaysBookings.length} icon={CalendarDays} />
-        <MetricCard label="Pending replies" value={pendingBookings.length} icon={Clock3} />
-        <MetricCard label="Upcoming" value={upcomingBookings.length} icon={CalendarClock} />
-        <MetricCard label="Waitlist" value={waitlistRequests.length} icon={MessageCircle} />
-        <MetricCard label="Completion" value={`${ownerBusiness.profileCompletion}%`} icon={Star} />
+      <div className="stagger-children grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <MetricCard label={dashboard.todaysBookings} value={todaysBookings.length} icon={CalendarDays} />
+        <MetricCard label={dashboard.pendingReplies} value={pendingBookings.length} icon={Clock3} />
+        <MetricCard label={dashboard.upcoming} value={upcomingBookings.length} icon={CalendarClock} />
+        <MetricCard label={dashboard.waitlist} value={waitlistRequests.length} icon={MessageCircle} />
+        <MetricCard label={dashboard.completion} value={`${ownerBusiness.profileCompletion}%`} icon={Star} />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -136,14 +139,14 @@ export function DashboardOverviewPage() {
           <div className="panel p-5">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h2 className="font-heading text-2xl font-semibold text-white">Upcoming flow</h2>
+                <h2 className="font-heading text-2xl font-semibold text-white">{dashboard.upcomingFlow}</h2>
                 <p className="mt-2 text-sm text-[var(--color-secondary)]">
-                  Pending and confirmed bookings stay visible with quick WhatsApp follow-up.
+                  {dashboard.upcomingDescription}
                 </p>
               </div>
               <Link href="/dashboard/bookings">
                 <Button variant="secondary" size="sm">
-                  Open bookings
+                  {dashboard.openBookings}
                 </Button>
               </Link>
             </div>
@@ -159,17 +162,17 @@ export function DashboardOverviewPage() {
                           <div className="flex flex-wrap items-center gap-2">
                             <p className="font-semibold text-white">{booking.customerName}</p>
                             <Badge tone={bookingStatusTone(booking.status)}>
-                              {statusLabel(booking.status)}
+                              {statusLabel(booking.status, locale)}
                             </Badge>
                             {booking.rescheduleRequestedAt ? (
-                              <Badge tone="warning">Reschedule requested</Badge>
+                              <Badge tone="warning">{dashboard.rescheduleRequested}</Badge>
                             ) : null}
                           </div>
                           <p className="mt-2 text-sm text-[var(--color-secondary)]">
-                            {service?.title ?? "Service"} / {formatDateTime(booking.startAt)}
+                            {service?.title ?? dashboard.serviceFallback} / {formatDateTime(booking.startAt, locale)}
                           </p>
                           <p className="mt-1 text-xs uppercase tracking-[0.14em] text-[var(--color-muted)]">
-                            Ref {booking.referenceCode}
+                            {dashboard.referencePrefix} {booking.referenceCode}
                           </p>
                         </div>
                         <a
@@ -188,9 +191,9 @@ export function DashboardOverviewPage() {
               ) : (
                 <EmptyState
                   icon={CalendarDays}
-                  title="No upcoming bookings yet"
-                  description="Keep services active and hours accurate so more visits convert into appointments."
-                  ctaLabel="Edit availability"
+                  title={dashboard.noUpcomingTitle}
+                  description={dashboard.noUpcomingDescription}
+                  ctaLabel={dashboard.editAvailability}
                   ctaHref="/dashboard/availability"
                 />
               )}
@@ -201,29 +204,31 @@ export function DashboardOverviewPage() {
             <div className="panel p-5">
               <div className="flex flex-wrap gap-2">
                 <Badge tone={businessStatusTone(ownerBusiness.status)}>
-                  {businessStatusLabel(ownerBusiness.status)}
+                  {businessStatus ?? businessStatusLabel(ownerBusiness.status)}
                 </Badge>
-                {ownerBusiness.trust?.phoneVerified ? <Badge tone="success">Verified phone</Badge> : null}
-                {ownerBusiness.trust?.addressVerified ? <Badge tone="success">Verified address</Badge> : null}
-                {ownerBusiness.trust?.policyClarityBadge ? <Badge tone="accent">Policy clarity</Badge> : null}
+                {ownerBusiness.trust?.phoneVerified ? <Badge tone="success">{messages.businessProfile.verifiedPhone}</Badge> : null}
+                {ownerBusiness.trust?.addressVerified ? <Badge tone="success">{messages.businessProfile.verifiedAddress}</Badge> : null}
+                {ownerBusiness.trust?.policyClarityBadge ? <Badge tone="accent">{dashboard.policyClarity}</Badge> : null}
               </div>
               <div className="mt-4 rounded-2xl border border-white/8 bg-white/4 p-4 text-sm text-[var(--color-secondary)]">
                 {latestModeration?.businessMessage ??
-                  "Keep trust signals complete so the profile looks premium and dependable."}
+                  dashboard.trustFallback}
               </div>
             </div>
 
             <div className="panel p-5">
-              <h3 className="font-heading text-2xl font-semibold text-white">Onboarding score</h3>
+              <h3 className="font-heading text-2xl font-semibold text-white">{dashboard.onboardingScore}</h3>
               <div className="mt-4 space-y-3">
                 {checklist.map((item) => (
                   <div
                     key={item.id}
                     className="flex items-center justify-between rounded-2xl border border-white/8 bg-white/4 px-4 py-3"
                   >
-                    <span className="text-sm text-white">{item.label}</span>
+                    <span className="text-sm text-white">
+                      {dashboard.checklist[item.id as keyof typeof dashboard.checklist] ?? item.label}
+                    </span>
                     <Badge tone={item.complete ? "success" : "warning"}>
-                      {item.complete ? "Done" : "Missing"}
+                      {item.complete ? dashboard.done : dashboard.missing}
                     </Badge>
                   </div>
                 ))}
@@ -234,13 +239,13 @@ export function DashboardOverviewPage() {
 
         <div className="space-y-4">
           <div className="panel p-5">
-            <h3 className="font-heading text-2xl font-semibold text-white">Quick actions</h3>
+            <h3 className="font-heading text-2xl font-semibold text-white">{dashboard.quickActions}</h3>
             <div className="mt-4 space-y-2">
               {[
-                { href: "/dashboard/bookings", label: "Review bookings", icon: CalendarClock },
-                { href: "/dashboard/services", label: "Update services", icon: Plus },
-                { href: "/dashboard/gallery", label: "Improve gallery", icon: Camera },
-                { href: "/dashboard/settings", label: "Update settings", icon: Settings },
+                { href: "/dashboard/bookings", label: dashboard.reviewBookings, icon: CalendarClock },
+                { href: "/dashboard/services", label: dashboard.updateServices, icon: Plus },
+                { href: "/dashboard/gallery", label: dashboard.improveGallery, icon: Camera },
+                { href: "/dashboard/settings", label: dashboard.updateSettings, icon: Settings },
               ].map((item) => {
                 const Icon = item.icon;
                 return (
@@ -258,18 +263,18 @@ export function DashboardOverviewPage() {
           </div>
 
           <div className="panel p-5">
-            <h3 className="font-heading text-2xl font-semibold text-white">Recent activity</h3>
+            <h3 className="font-heading text-2xl font-semibold text-white">{dashboard.recentActivity}</h3>
             <div className="mt-4 space-y-3">
               {recentActivity.length > 0 ? (
                 recentActivity.map((entry) => (
                   <div key={entry.id} className="rounded-2xl border border-white/8 bg-white/4 p-4 text-sm">
                     <p className="text-white">{entry.summary}</p>
-                    <p className="mt-2 text-[var(--color-muted)]">{formatDateTime(entry.createdAt)}</p>
+                    <p className="mt-2 text-[var(--color-muted)]">{formatDateTime(entry.createdAt, locale)}</p>
                   </div>
                 ))
               ) : (
                 <div className="rounded-2xl border border-white/8 bg-white/4 p-4 text-sm text-[var(--color-secondary)]">
-                  Booking actions, moderation updates and profile edits will appear here.
+                  {dashboard.activityEmpty}
                 </div>
               )}
             </div>
@@ -282,19 +287,21 @@ export function DashboardOverviewPage() {
 
 export function DashboardBookingsPage() {
   const { ownerBusiness, updateBookingStatus } = usePlatform();
+  const { locale, messages } = useLocale();
   const bookings = useOwnerBookings();
   const [tab, setTab] = useState<BookingStatus>("pending");
 
   if (!ownerBusiness) return null;
+  const dashboard = messages.dashboard;
 
   const visibleBookings = bookings.filter((booking) => booking.status === tab);
 
   return (
     <div className="space-y-6">
       <SectionHeading
-        eyebrow="Bookings"
-        title="Status-based booking operations"
-        description="Every booking lifecycle is explicit, including who cancelled the booking and which pending requests expired automatically."
+        eyebrow={dashboard.bookingsEyebrow}
+        title={dashboard.bookingsTitle}
+        description={dashboard.bookingsDescription}
       />
 
       <div className="flex flex-wrap gap-2">
@@ -309,7 +316,7 @@ export function DashboardBookingsPage() {
                 : "border border-white/10 bg-white/4 text-[var(--color-secondary)]"
             }`}
           >
-            {statusLabel(status)} ({bookings.filter((booking) => booking.status === status).length})
+            {statusLabel(status, locale)} ({bookings.filter((booking) => booking.status === status).length})
           </button>
         ))}
       </div>
@@ -326,22 +333,22 @@ export function DashboardBookingsPage() {
                       <h3 className="font-heading text-2xl font-semibold text-white">
                         {booking.customerName}
                       </h3>
-                      <Badge tone={bookingStatusTone(booking.status)}>{statusLabel(booking.status)}</Badge>
-                      {booking.rescheduleRequestedAt ? <Badge tone="warning">Reschedule requested</Badge> : null}
+                      <Badge tone={bookingStatusTone(booking.status)}>{statusLabel(booking.status, locale)}</Badge>
+                      {booking.rescheduleRequestedAt ? <Badge tone="warning">{dashboard.rescheduleRequested}</Badge> : null}
                     </div>
                     <p className="text-sm text-[var(--color-secondary)]">
-                      {service?.title ?? "Service"} / {formatDateTime(booking.startAt)}
+                      {service?.title ?? dashboard.serviceFallback} / {formatDateTime(booking.startAt, locale)}
                     </p>
                     <p className="text-sm text-[var(--color-secondary)]">
                       {booking.customerPhone}
-                      {booking.customerNote ? ` / Note: ${booking.customerNote}` : ""}
+                      {booking.customerNote ? ` / ${dashboard.note}: ${booking.customerNote}` : ""}
                     </p>
                     <p className="text-xs uppercase tracking-[0.14em] text-[var(--color-muted)]">
-                      Reference {booking.referenceCode}
+                      {dashboard.reference} {booking.referenceCode}
                     </p>
                     {booking.status === "pending" && booking.expiresAt ? (
                       <p className="text-xs text-[var(--color-muted)]">
-                        Auto-expires at {formatTime(booking.expiresAt)}.
+                        {dashboard.autoExpiresAt} {formatTime(booking.expiresAt, locale)}.
                       </p>
                     ) : null}
                   </div>
@@ -349,7 +356,7 @@ export function DashboardBookingsPage() {
                   <div className="flex flex-wrap gap-2">
                     {canBusinessConfirm(booking) ? (
                       <Button size="sm" onClick={() => updateBookingStatus(booking.id, "confirmed")}>
-                        Confirm
+                        {dashboard.confirm}
                       </Button>
                     ) : null}
                     {canBusinessReject(booking) ? (
@@ -358,7 +365,7 @@ export function DashboardBookingsPage() {
                         size="sm"
                         onClick={() => updateBookingStatus(booking.id, "cancelled_by_business")}
                       >
-                        Decline
+                        {dashboard.decline}
                       </Button>
                     ) : null}
                     {booking.status === "confirmed" ? (
@@ -367,12 +374,12 @@ export function DashboardBookingsPage() {
                         size="sm"
                         onClick={() => updateBookingStatus(booking.id, "cancelled_by_business")}
                       >
-                        Cancel
+                        {dashboard.cancel}
                       </Button>
                     ) : null}
                     {canBusinessComplete(booking) ? (
                       <Button size="sm" onClick={() => updateBookingStatus(booking.id, "completed")}>
-                        Complete
+                        {dashboard.complete}
                       </Button>
                     ) : null}
                     {booking.status === "confirmed" ? (
@@ -381,7 +388,7 @@ export function DashboardBookingsPage() {
                         size="sm"
                         onClick={() => updateBookingStatus(booking.id, "no_show")}
                       >
-                        No-show
+                        {dashboard.noShow}
                       </Button>
                     ) : null}
                     <a
@@ -390,7 +397,7 @@ export function DashboardBookingsPage() {
                       rel="noreferrer"
                     >
                       <Button variant="ghost" size="sm" icon={<MessageCircle className="h-4 w-4" />}>
-                        Contact
+                        {dashboard.contact}
                       </Button>
                     </a>
                   </div>
@@ -401,8 +408,8 @@ export function DashboardBookingsPage() {
         ) : (
           <EmptyState
             icon={CalendarClock}
-            title="No bookings in this status"
-            description="Separate lifecycle tabs make it easier to distinguish demand from customer cancellations, business cancellations, expiries, no-shows, and completed work."
+            title={dashboard.emptyBookingsTitle}
+            description={dashboard.emptyBookingsDescription}
           />
         )}
       </div>
@@ -412,6 +419,7 @@ export function DashboardBookingsPage() {
 
 export function DashboardServicesPage() {
   const { ownerBusiness, addService, duplicateService, moveService, toggleService } = usePlatform();
+  const { locale, messages } = useLocale();
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -422,6 +430,7 @@ export function DashboardServicesPage() {
 
   if (!ownerBusiness) return null;
   const business = ownerBusiness;
+  const dashboard = messages.dashboard;
 
   function handleSubmit() {
     if (!form.title.trim()) return;
@@ -445,9 +454,9 @@ export function DashboardServicesPage() {
   return (
     <div className="space-y-6">
       <SectionHeading
-        eyebrow="Services"
-        title="Add, duplicate, pause and reorder"
-        description="Version 1 keeps service logic clean and simple: titles, prices, durations and audience."
+        eyebrow={dashboard.servicesEyebrow}
+        title={dashboard.servicesTitle}
+        description={dashboard.servicesDescription}
       />
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -460,13 +469,13 @@ export function DashboardServicesPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="font-heading text-2xl font-semibold text-white">{service.title}</h3>
                       <Badge tone={service.active ? "success" : "muted"}>
-                        {service.active ? "Active" : "Paused"}
+                        {service.active ? dashboard.active : dashboard.paused}
                       </Badge>
-                      {service.featured ? <Badge tone="accent">Featured</Badge> : null}
+                      {service.featured ? <Badge tone="accent">{dashboard.featured}</Badge> : null}
                     </div>
                     <p className="text-sm leading-7 text-[var(--color-secondary)]">{service.description}</p>
                     <p className="text-sm text-[var(--color-secondary)]">
-                      {formatCurrency(service.price)} / {service.durationMinutes} min / {service.genderTarget}
+                      {formatCurrency(service.price, locale)} / {service.durationMinutes} min / {service.genderTarget === "men" ? dashboard.men : service.genderTarget === "women" ? dashboard.women : dashboard.unisex}
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -476,14 +485,14 @@ export function DashboardServicesPage() {
                       icon={<Copy className="h-4 w-4" />}
                       onClick={() => duplicateService(business.id, service.id)}
                     >
-                      Duplicate
+                      {dashboard.duplicate}
                     </Button>
                     <Button
                       variant="secondary"
                       size="sm"
                       onClick={() => toggleService(business.id, service.id)}
                     >
-                      {service.active ? "Pause" : "Resume"}
+                      {service.active ? dashboard.pause : dashboard.resume}
                     </Button>
                     <Button
                       variant="ghost"
@@ -492,7 +501,7 @@ export function DashboardServicesPage() {
                       disabled={index === 0}
                       onClick={() => moveService(business.id, service.id, "up")}
                     >
-                      Up
+                      {dashboard.up}
                     </Button>
                     <Button
                       variant="ghost"
@@ -501,7 +510,7 @@ export function DashboardServicesPage() {
                       disabled={index === business.services.length - 1}
                       onClick={() => moveService(business.id, service.id, "down")}
                     >
-                      Down
+                      {dashboard.down}
                     </Button>
                   </div>
                 </div>
@@ -510,16 +519,16 @@ export function DashboardServicesPage() {
           ) : (
             <EmptyState
               icon={Sparkles}
-              title="No services yet"
-              description="Add at least a small service menu so pricing and slot generation look credible."
+              title={dashboard.noServicesTitle}
+              description={dashboard.noServicesDescription}
             />
           )}
         </div>
 
         <div className="panel space-y-4 p-5">
-          <h2 className="font-heading text-2xl font-semibold text-white">Quick add</h2>
+          <h2 className="font-heading text-2xl font-semibold text-white">{dashboard.quickAdd}</h2>
           <label className="space-y-2 text-sm">
-            <span className="text-[var(--color-secondary)]">Title</span>
+            <span className="text-[var(--color-secondary)]">{dashboard.titleField}</span>
             <input
               className="input-field"
               value={form.title}
@@ -527,7 +536,7 @@ export function DashboardServicesPage() {
             />
           </label>
           <label className="space-y-2 text-sm">
-            <span className="text-[var(--color-secondary)]">Description</span>
+            <span className="text-[var(--color-secondary)]">{dashboard.descriptionField}</span>
             <textarea
               className="input-field min-h-24 rounded-3xl py-3"
               value={form.description}
@@ -536,7 +545,7 @@ export function DashboardServicesPage() {
           </label>
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="space-y-2 text-sm">
-              <span className="text-[var(--color-secondary)]">Price</span>
+              <span className="text-[var(--color-secondary)]">{dashboard.price}</span>
               <input
                 className="input-field"
                 value={form.price}
@@ -544,7 +553,7 @@ export function DashboardServicesPage() {
               />
             </label>
             <label className="space-y-2 text-sm">
-              <span className="text-[var(--color-secondary)]">Duration</span>
+              <span className="text-[var(--color-secondary)]">{dashboard.duration}</span>
               <input
                 className="input-field"
                 value={form.durationMinutes}
@@ -555,7 +564,7 @@ export function DashboardServicesPage() {
             </label>
           </div>
           <label className="space-y-2 text-sm">
-            <span className="text-[var(--color-secondary)]">Audience</span>
+            <span className="text-[var(--color-secondary)]">{dashboard.audience}</span>
             <select
               className="input-field"
               value={form.genderTarget}
@@ -563,13 +572,13 @@ export function DashboardServicesPage() {
                 setForm((current) => ({ ...current, genderTarget: event.target.value as Audience }))
               }
             >
-              <option value="unisex">Unisex</option>
-              <option value="men">Men</option>
-              <option value="women">Women</option>
+              <option value="unisex">{dashboard.unisex}</option>
+              <option value="men">{dashboard.men}</option>
+              <option value="women">{dashboard.women}</option>
             </select>
           </label>
           <Button fullWidth icon={<Plus className="h-4 w-4" />} onClick={handleSubmit}>
-            Add service
+            {dashboard.addService}
           </Button>
         </div>
       </div>
@@ -579,15 +588,17 @@ export function DashboardServicesPage() {
 
 export function DashboardAvailabilityPage() {
   const { ownerBusiness, addBlockedSlot, updateHours } = usePlatform();
+  const { locale, messages } = useLocale();
   const [blockedForm, setBlockedForm] = useState({
     date: "",
     start: "13:00",
     end: "14:00",
-    reason: "Pause team",
+    reason: "",
   });
 
   if (!ownerBusiness) return null;
   const business = ownerBusiness;
+  const dashboard = messages.dashboard;
 
   function addBlock() {
     if (!blockedForm.date) return;
@@ -596,30 +607,30 @@ export function DashboardAvailabilityPage() {
       endAt: `${blockedForm.date}T${blockedForm.end}:00`,
       reason: blockedForm.reason,
     });
-    setBlockedForm({ date: "", start: "13:00", end: "14:00", reason: "Pause team" });
+    setBlockedForm({ date: "", start: "13:00", end: "14:00", reason: "" });
   }
 
   return (
     <div className="space-y-6">
       <SectionHeading
-        eyebrow="Availability"
-        title="Weekly hours and blocked times"
-        description="Slot generation now depends on real business hours, breaks, blocks and existing bookings."
+        eyebrow={dashboard.availabilityEyebrow}
+        title={dashboard.availabilityTitle}
+        description={dashboard.availabilityDescription}
       />
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-4">
           <div className="panel p-5">
-            <h2 className="font-heading text-2xl font-semibold text-white">Weekly hours</h2>
+            <h2 className="font-heading text-2xl font-semibold text-white">{dashboard.weeklyHours}</h2>
             <div className="mt-4 space-y-3">
               {business.hours.map((hour) => (
                 <div key={hour.id} className="rounded-3xl border border-white/8 bg-white/4 p-4">
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div>
-                      <p className="font-semibold text-white">{weekDays[hour.dayOfWeek]}</p>
+                      <p className="font-semibold text-white">{messages.businessProfile.weekDays[hour.dayOfWeek]}</p>
                       {hour.breaks?.[0] ? (
                         <p className="mt-1 text-sm text-[var(--color-secondary)]">
-                          Break {hour.breaks[0].start} - {hour.breaks[0].end}
+                          {dashboard.breakLabel} {hour.breaks[0].start} - {hour.breaks[0].end}
                         </p>
                       ) : null}
                     </div>
@@ -644,7 +655,7 @@ export function DashboardAvailabilityPage() {
                           checked={hour.isClosed}
                           onChange={(event) => updateHours(business.id, hour.id, { isClosed: event.target.checked })}
                         />
-                        Closed
+                        {dashboard.closed}
                       </label>
                     </div>
                   </div>
@@ -654,22 +665,22 @@ export function DashboardAvailabilityPage() {
           </div>
 
           <div className="panel p-5">
-            <h2 className="font-heading text-2xl font-semibold text-white">Blocked slots</h2>
+            <h2 className="font-heading text-2xl font-semibold text-white">{dashboard.blockedSlots}</h2>
             <div className="mt-4 space-y-3">
               {business.blockedSlots.length > 0 ? (
                 business.blockedSlots.map((slot) => (
                   <div key={slot.id} className="rounded-2xl border border-white/8 bg-white/4 p-4 text-sm">
                     <p className="font-semibold text-white">{slot.reason}</p>
                     <p className="mt-2 text-[var(--color-secondary)]">
-                      {formatDateTime(slot.startAt)} - {formatTime(slot.endAt)}
+                      {formatDateTime(slot.startAt, locale)} - {formatTime(slot.endAt, locale)}
                     </p>
                   </div>
                 ))
               ) : (
                 <EmptyState
                   icon={Clock3}
-                  title="No blocked times yet"
-                  description="Block lunch, holidays or private events so impossible slots never show up."
+                  title={dashboard.noBlockedTitle}
+                  description={dashboard.noBlockedDescription}
                 />
               )}
             </div>
@@ -677,9 +688,9 @@ export function DashboardAvailabilityPage() {
         </div>
 
         <div className="panel space-y-4 p-5">
-          <h2 className="font-heading text-2xl font-semibold text-white">Block a date</h2>
+          <h2 className="font-heading text-2xl font-semibold text-white">{dashboard.blockDate}</h2>
           <label className="space-y-2 text-sm">
-            <span className="text-[var(--color-secondary)]">Date</span>
+            <span className="text-[var(--color-secondary)]">{dashboard.date}</span>
             <input
               className="input-field"
               type="date"
@@ -689,7 +700,7 @@ export function DashboardAvailabilityPage() {
           </label>
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="space-y-2 text-sm">
-              <span className="text-[var(--color-secondary)]">Start</span>
+              <span className="text-[var(--color-secondary)]">{dashboard.start}</span>
               <input
                 className="input-field"
                 type="time"
@@ -698,7 +709,7 @@ export function DashboardAvailabilityPage() {
               />
             </label>
             <label className="space-y-2 text-sm">
-              <span className="text-[var(--color-secondary)]">End</span>
+              <span className="text-[var(--color-secondary)]">{dashboard.end}</span>
               <input
                 className="input-field"
                 type="time"
@@ -708,7 +719,7 @@ export function DashboardAvailabilityPage() {
             </label>
           </div>
           <label className="space-y-2 text-sm">
-            <span className="text-[var(--color-secondary)]">Reason</span>
+            <span className="text-[var(--color-secondary)]">{dashboard.reason}</span>
             <input
               className="input-field"
               value={blockedForm.reason}
@@ -716,7 +727,7 @@ export function DashboardAvailabilityPage() {
             />
           </label>
           <Button fullWidth onClick={addBlock}>
-            Add blocked time
+            {dashboard.addBlockedTime}
           </Button>
         </div>
       </div>
@@ -727,11 +738,13 @@ export function DashboardAvailabilityPage() {
 export function DashboardGalleryPage() {
   const { ownerBusiness, addGalleryImage, deleteGalleryImage, moveGalleryImage, setCoverImage } =
     usePlatform();
+  const { messages } = useLocale();
   const [url, setUrl] = useState("");
   const [alt, setAlt] = useState("");
 
   if (!ownerBusiness) return null;
   const business = ownerBusiness;
+  const dashboard = messages.dashboard;
 
   const coverImage = business.media.find((item) => item.type === "cover");
   const galleryItems = getGalleryItems(business.media);
@@ -746,9 +759,9 @@ export function DashboardGalleryPage() {
   return (
     <div className="space-y-6">
       <SectionHeading
-        eyebrow="Gallery"
-        title="Visual credibility for a premium listing"
-        description="Gallery management now includes cover selection, ordering, deletion and image-count guidance."
+        eyebrow={dashboard.galleryEyebrow}
+        title={dashboard.galleryTitle}
+        description={dashboard.galleryDescription}
       />
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -759,10 +772,10 @@ export function DashboardGalleryPage() {
               <img src={coverImage.url} alt={coverImage.alt} className="aspect-[16/7] w-full object-cover" />
               <div className="flex items-center justify-between gap-3 p-5">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.14em] text-[var(--color-muted)]">Current cover</p>
+                  <p className="text-xs uppercase tracking-[0.14em] text-[var(--color-muted)]">{dashboard.currentCover}</p>
                   <p className="mt-2 text-sm text-white">{coverImage.alt}</p>
                 </div>
-                <Badge tone="accent">Hero image</Badge>
+                <Badge tone="accent">{dashboard.heroImage}</Badge>
               </div>
             </div>
           ) : null}
@@ -777,7 +790,7 @@ export function DashboardGalleryPage() {
                     <p className="text-sm text-[var(--color-secondary)]">{media.alt}</p>
                     <div className="flex flex-wrap gap-2">
                       <Button size="sm" variant="secondary" onClick={() => setCoverImage(business.id, media.id)}>
-                        Set cover
+                        {dashboard.setCover}
                       </Button>
                       <Button
                         size="sm"
@@ -786,7 +799,7 @@ export function DashboardGalleryPage() {
                         disabled={index === 0}
                         onClick={() => moveGalleryImage(business.id, media.id, "up")}
                       >
-                        Up
+                        {dashboard.up}
                       </Button>
                       <Button
                         size="sm"
@@ -795,10 +808,10 @@ export function DashboardGalleryPage() {
                         disabled={index === galleryItems.length - 1}
                         onClick={() => moveGalleryImage(business.id, media.id, "down")}
                       >
-                        Down
+                        {dashboard.down}
                       </Button>
                       <Button size="sm" variant="ghost" onClick={() => deleteGalleryImage(business.id, media.id)}>
-                        Delete
+                        {dashboard.delete}
                       </Button>
                     </div>
                   </div>
@@ -808,30 +821,30 @@ export function DashboardGalleryPage() {
           ) : (
             <EmptyState
               icon={Camera}
-              title="No gallery uploaded yet"
-              description="Add work examples and interior shots so the public profile feels finished."
+              title={dashboard.noGalleryTitle}
+              description={dashboard.noGalleryDescription}
             />
           )}
         </div>
 
         <div className="space-y-4">
           <div className="panel space-y-4 p-5">
-            <h2 className="font-heading text-2xl font-semibold text-white">Add gallery image</h2>
+            <h2 className="font-heading text-2xl font-semibold text-white">{dashboard.addGalleryImage}</h2>
             <label className="space-y-2 text-sm">
-              <span className="text-[var(--color-secondary)]">Image URL</span>
+              <span className="text-[var(--color-secondary)]">{dashboard.imageUrl}</span>
               <input className="input-field" value={url} onChange={(event) => setUrl(event.target.value)} />
             </label>
             <label className="space-y-2 text-sm">
-              <span className="text-[var(--color-secondary)]">Alt text</span>
+              <span className="text-[var(--color-secondary)]">{dashboard.altText}</span>
               <input className="input-field" value={alt} onChange={(event) => setAlt(event.target.value)} />
             </label>
             <Button fullWidth icon={<ImagePlus className="h-4 w-4" />} onClick={submit}>
-              Add image
+              {dashboard.addImage}
             </Button>
           </div>
 
           <div className="panel p-5 text-sm text-[var(--color-secondary)]">
-            Gallery images: {galleryItems.length}/{MAX_GALLERY_IMAGES}
+            {dashboard.galleryImages}: {galleryItems.length}/{MAX_GALLERY_IMAGES}
           </div>
         </div>
       </div>
@@ -841,11 +854,13 @@ export function DashboardGalleryPage() {
 
 export function DashboardInsightsPage() {
   const { ownerBusiness, auditLog } = usePlatform();
+  const { locale, messages } = useLocale();
   const bookings = useOwnerBookings();
   const waitlistRequests = useOwnerWaitlist();
 
   if (!ownerBusiness) return null;
   const business = ownerBusiness;
+  const dashboard = messages.dashboard;
 
   const mostBookedService = business.services.find(
     (service) => service.id === business.metrics.mostBookedServiceId,
@@ -855,28 +870,28 @@ export function DashboardInsightsPage() {
   return (
     <div className="space-y-6">
       <SectionHeading
-        eyebrow="Insights"
-        title="A light first analytics layer"
-        description="Enough signal to understand demand, missed bookings and recent operating activity."
+        eyebrow={dashboard.insightsEyebrow}
+        title={dashboard.insightsTitle}
+        description={dashboard.insightsDescription}
       />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Profile views" value={business.metrics.profileViews} icon={Eye} />
-        <MetricCard label="Bookings this week" value={business.metrics.bookingsThisWeek} icon={CalendarDays} />
-        <MetricCard label="Missed bookings" value={business.metrics.missedBookings} icon={UserRound} />
-        <MetricCard label="Waitlist requests" value={waitlistRequests.length} icon={MessageCircle} />
+        <MetricCard label={dashboard.profileViews} value={business.metrics.profileViews} icon={Eye} />
+        <MetricCard label={dashboard.bookingsThisWeek} value={business.metrics.bookingsThisWeek} icon={CalendarDays} />
+        <MetricCard label={dashboard.missedBookings} value={business.metrics.missedBookings} icon={UserRound} />
+        <MetricCard label={dashboard.waitlistRequests} value={waitlistRequests.length} icon={MessageCircle} />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-6">
           <div className="panel p-5">
-            <h2 className="font-heading text-2xl font-semibold text-white">Busy days</h2>
+            <h2 className="font-heading text-2xl font-semibold text-white">{dashboard.busyDays}</h2>
             <div className="mt-4 space-y-3">
               {business.metrics.busyDays.map((day, index) => (
                 <div key={day}>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-white">{day}</span>
-                    <span className="text-[var(--color-secondary)]">{95 - index * 14}% demand</span>
+                    <span className="text-[var(--color-secondary)]">{95 - index * 14}% {dashboard.demand}</span>
                   </div>
                   <div className="mt-2 h-2 rounded-full bg-white/8">
                     <div className="h-full rounded-full bg-[var(--color-accent)]" style={{ width: `${95 - index * 14}%` }} />
@@ -887,20 +902,20 @@ export function DashboardInsightsPage() {
           </div>
 
           <div className="panel p-5">
-            <h2 className="font-heading text-2xl font-semibold text-white">Recent activity</h2>
+            <h2 className="font-heading text-2xl font-semibold text-white">{dashboard.recentActivity}</h2>
             <div className="mt-4 space-y-3">
               {recentActivity.length > 0 ? (
                 recentActivity.map((entry) => (
                   <div key={entry.id} className="rounded-2xl border border-white/8 bg-white/4 p-4 text-sm">
                     <p className="text-white">{entry.summary}</p>
-                    <p className="mt-2 text-[var(--color-muted)]">{formatDateTime(entry.createdAt)}</p>
+                    <p className="mt-2 text-[var(--color-muted)]">{formatDateTime(entry.createdAt, locale)}</p>
                   </div>
                 ))
               ) : (
                 <EmptyState
                   icon={ShieldCheck}
-                  title="No activity yet"
-                  description="Booking and moderation events will appear here as the business operates."
+                  title={dashboard.noActivityTitle}
+                  description={dashboard.noActivityDescription}
                 />
               )}
             </div>
@@ -909,11 +924,11 @@ export function DashboardInsightsPage() {
 
         <div className="space-y-4">
           <div className="panel p-5">
-            <h2 className="font-heading text-2xl font-semibold text-white">Status mix</h2>
+            <h2 className="font-heading text-2xl font-semibold text-white">{dashboard.statusMix}</h2>
             <div className="mt-4 space-y-3">
               {bookingTabs.map((status) => (
                 <div key={status} className="flex items-center justify-between text-sm">
-                  <span className="text-[var(--color-secondary)]">{statusLabel(status)}</span>
+                  <span className="text-[var(--color-secondary)]">{statusLabel(status, locale)}</span>
                   <Badge tone={bookingStatusTone(status)}>
                     {bookings.filter((booking) => booking.status === status).length}
                   </Badge>
@@ -923,7 +938,7 @@ export function DashboardInsightsPage() {
           </div>
 
           <div className="panel p-5">
-            <h2 className="font-heading text-2xl font-semibold text-white">Top service</h2>
+            <h2 className="font-heading text-2xl font-semibold text-white">{dashboard.topService}</h2>
             <p className="mt-4 text-2xl font-semibold text-white">{mostBookedService?.title ?? "-"}</p>
           </div>
         </div>
@@ -934,6 +949,7 @@ export function DashboardInsightsPage() {
 
 export function DashboardSettingsPage() {
   const { ownerBusiness, updateBusinessBasics } = usePlatform();
+  const { locale, messages } = useLocale();
   const [form, setForm] = useState({
     name: ownerBusiness?.name ?? "",
     area: ownerBusiness?.area ?? "",
@@ -958,6 +974,7 @@ export function DashboardSettingsPage() {
 
   if (!ownerBusiness) return null;
   const business = ownerBusiness;
+  const dashboard = messages.dashboard;
 
   function save() {
     updateBusinessBasics(business.id, {
@@ -989,23 +1006,23 @@ export function DashboardSettingsPage() {
   return (
     <div className="space-y-6">
       <SectionHeading
-        eyebrow="Settings"
-        title="Business basics, policies and modes"
-        description="This page controls the public trust layer: contact info, booking mode, operating mode and structured policies."
+        eyebrow={dashboard.settingsEyebrow}
+        title={dashboard.settingsTitle}
+        description={dashboard.settingsDescription}
       />
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-6">
           <div className="panel grid gap-4 p-6 md:grid-cols-2">
             {[
-              { key: "name", label: "Business name" },
-              { key: "area", label: "Area" },
-              { key: "address", label: "Address" },
-              { key: "phone", label: "Phone" },
+              { key: "name", label: dashboard.businessName },
+              { key: "area", label: dashboard.area },
+              { key: "address", label: dashboard.address },
+              { key: "phone", label: dashboard.phone },
               { key: "whatsapp", label: "WhatsApp" },
               { key: "instagram", label: "Instagram" },
-              { key: "tagline", label: "Tagline" },
-              { key: "responseWindow", label: "Response window" },
+              { key: "tagline", label: dashboard.tagline },
+              { key: "responseWindow", label: dashboard.responseWindow },
             ].map((field) => (
               <label key={field.key} className="space-y-2 text-sm">
                 <span className="text-[var(--color-secondary)]">{field.label}</span>
@@ -1018,42 +1035,42 @@ export function DashboardSettingsPage() {
             ))}
 
             <label className="space-y-2 text-sm">
-              <span className="text-[var(--color-secondary)]">Audience</span>
+              <span className="text-[var(--color-secondary)]">{dashboard.audience}</span>
               <select
                 className="input-field"
                 value={form.audience}
                 onChange={(event) => setForm((current) => ({ ...current, audience: event.target.value as Audience }))}
               >
-                <option value="unisex">Unisex</option>
-                <option value="men">Men</option>
-                <option value="women">Women</option>
+                <option value="unisex">{dashboard.unisex}</option>
+                <option value="men">{dashboard.men}</option>
+                <option value="women">{dashboard.women}</option>
               </select>
             </label>
             <label className="space-y-2 text-sm">
-              <span className="text-[var(--color-secondary)]">Booking mode</span>
+              <span className="text-[var(--color-secondary)]">{dashboard.bookingMode}</span>
               <select
                 className="input-field"
                 value={form.bookingMode}
                 onChange={(event) => setForm((current) => ({ ...current, bookingMode: event.target.value as BookingMode }))}
               >
-                <option value="approval_required">Approval required</option>
-                <option value="instant">Instant booking</option>
+                <option value="approval_required">{bookingModeLabel("approval_required", locale)}</option>
+                <option value="instant">{bookingModeLabel("instant", locale)}</option>
               </select>
             </label>
             <label className="space-y-2 text-sm">
-              <span className="text-[var(--color-secondary)]">Operating mode</span>
+              <span className="text-[var(--color-secondary)]">{dashboard.operatingMode}</span>
               <select
                 className="input-field"
                 value={form.operatingMode}
                 onChange={(event) => setForm((current) => ({ ...current, operatingMode: event.target.value as OperatingMode }))}
               >
-                <option value="appointment_only">Appointment only</option>
-                <option value="walk_ins">Walk-ins accepted</option>
-                <option value="both">Both</option>
+                <option value="appointment_only">{operatingModeLabel("appointment_only", locale)}</option>
+                <option value="walk_ins">{operatingModeLabel("walk_ins", locale)}</option>
+                <option value="both">{operatingModeLabel("both", locale)}</option>
               </select>
             </label>
             <label className="space-y-2 text-sm md:col-span-2">
-              <span className="text-[var(--color-secondary)]">Description</span>
+              <span className="text-[var(--color-secondary)]">{dashboard.descriptionField}</span>
               <textarea
                 className="input-field min-h-32 rounded-3xl py-3"
                 value={form.description}
@@ -1064,7 +1081,7 @@ export function DashboardSettingsPage() {
 
           <div className="panel grid gap-4 p-6 md:grid-cols-2">
             <label className="space-y-2 text-sm">
-              <span className="text-[var(--color-secondary)]">Cancellation notice</span>
+              <span className="text-[var(--color-secondary)]">{dashboard.cancellationNotice}</span>
               <input
                 className="input-field"
                 value={form.cancellationNotice}
@@ -1072,7 +1089,7 @@ export function DashboardSettingsPage() {
               />
             </label>
             <label className="space-y-2 text-sm">
-              <span className="text-[var(--color-secondary)]">Late arrival grace</span>
+              <span className="text-[var(--color-secondary)]">{dashboard.lateArrivalGrace}</span>
               <input
                 className="input-field"
                 value={form.lateArrivalGraceMinutes}
@@ -1080,7 +1097,7 @@ export function DashboardSettingsPage() {
               />
             </label>
             <label className="space-y-2 text-sm">
-              <span className="text-[var(--color-secondary)]">No-show rule</span>
+              <span className="text-[var(--color-secondary)]">{dashboard.noShowRule}</span>
               <input
                 className="input-field"
                 value={form.noShowRule}
@@ -1088,18 +1105,18 @@ export function DashboardSettingsPage() {
               />
             </label>
             <label className="space-y-2 text-sm">
-              <span className="text-[var(--color-secondary)]">Policy clarity</span>
+              <span className="text-[var(--color-secondary)]">{dashboard.policyClarity}</span>
               <select
                 className="input-field"
                 value={form.policyClarity}
                 onChange={(event) => setForm((current) => ({ ...current, policyClarity: event.target.value as PolicyClarity }))}
               >
-                <option value="clear">Clear</option>
-                <option value="needs_review">Needs review</option>
+                <option value="clear">{policyClarityLabel("clear", locale)}</option>
+                <option value="needs_review">{policyClarityLabel("needs_review", locale)}</option>
               </select>
             </label>
             <label className="space-y-2 text-sm md:col-span-2">
-              <span className="text-[var(--color-secondary)]">Hygiene note</span>
+              <span className="text-[var(--color-secondary)]">{dashboard.hygieneNote}</span>
               <textarea
                 className="input-field min-h-24 rounded-3xl py-3"
                 value={form.hygieneNote}
@@ -1112,7 +1129,7 @@ export function DashboardSettingsPage() {
                 checked={form.childrenAccepted}
                 onChange={(event) => setForm((current) => ({ ...current, childrenAccepted: event.target.checked }))}
               />
-              Children accepted
+              {dashboard.childrenAccepted}
             </label>
             <label className="inline-flex items-center gap-2 text-sm text-[var(--color-secondary)]">
               <input
@@ -1120,26 +1137,26 @@ export function DashboardSettingsPage() {
                 checked={form.depositRequired}
                 onChange={(event) => setForm((current) => ({ ...current, depositRequired: event.target.checked }))}
               />
-              Deposit required
+              {dashboard.depositRequired}
             </label>
           </div>
 
-          <Button onClick={save}>Save settings</Button>
+          <Button onClick={save}>{dashboard.saveSettings}</Button>
         </div>
 
         <div className="space-y-4">
           <div className="panel p-5">
             <div className="flex flex-wrap gap-2">
-              <Badge tone={businessStatusTone(business.status)}>{businessStatusLabel(business.status)}</Badge>
-              {business.trust?.phoneVerified ? <Badge tone="success">Verified phone</Badge> : null}
-              {business.trust?.addressVerified ? <Badge tone="success">Verified address</Badge> : null}
+              <Badge tone={businessStatusTone(business.status)}>{messages.admin.statuses[business.status] ?? businessStatusLabel(business.status)}</Badge>
+              {business.trust?.phoneVerified ? <Badge tone="success">{messages.businessProfile.verifiedPhone}</Badge> : null}
+              {business.trust?.addressVerified ? <Badge tone="success">{messages.businessProfile.verifiedAddress}</Badge> : null}
             </div>
           </div>
           <div className="panel p-5 text-sm text-[var(--color-secondary)]">
-            <p>Booking mode: {bookingModeLabel(business.bookingMode)}</p>
-            <p className="mt-2">Operating mode: {operatingModeLabel(business.operatingMode)}</p>
-            <p className="mt-2">Policy clarity: {policyClarityLabel(business.policies.policyClarity)}</p>
-            <p className="mt-2">Last review: {formatShortDate(business.moderationHistory[0]?.changedAt ?? business.createdAt)}</p>
+            <p>{dashboard.bookingMode}: {bookingModeLabel(business.bookingMode, locale)}</p>
+            <p className="mt-2">{dashboard.operatingMode}: {operatingModeLabel(business.operatingMode, locale)}</p>
+            <p className="mt-2">{dashboard.policyClarity}: {policyClarityLabel(business.policies.policyClarity, locale)}</p>
+            <p className="mt-2">{dashboard.lastReview}: {formatShortDate(business.moderationHistory[0]?.changedAt ?? business.createdAt, locale)}</p>
           </div>
         </div>
       </div>
@@ -1149,6 +1166,7 @@ export function DashboardSettingsPage() {
 
 export function DashboardOnboardingPage() {
   const { ownerBusiness, addGalleryImage, addService, updateBusinessBasics, updateHours } = usePlatform();
+  const { messages } = useLocale();
   const [step, setStep] = useState(0);
   const [galleryUrl, setGalleryUrl] = useState("");
   const [galleryAlt, setGalleryAlt] = useState("");
@@ -1163,6 +1181,7 @@ export function DashboardOnboardingPage() {
 
   if (!ownerBusiness) return null;
   const business = ownerBusiness;
+  const dashboard = messages.dashboard;
 
   const checklist = getOnboardingChecklist(business);
 
@@ -1177,32 +1196,34 @@ export function DashboardOnboardingPage() {
   return (
     <div className="space-y-6">
       <SectionHeading
-        eyebrow="Onboarding"
-        title="Multi-step setup with completion score"
-        description="Basics, visuals, services, schedule, policies and final review all sit in one structured wizard."
+        eyebrow={dashboard.onboardingEyebrow}
+        title={dashboard.onboardingTitle}
+        description={dashboard.onboardingDescription}
       />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         {checklist.map((item) => (
           <div key={item.id} className="panel p-5">
-            <p className="text-xs uppercase tracking-[0.14em] text-[var(--color-muted)]">{item.label}</p>
+            <p className="text-xs uppercase tracking-[0.14em] text-[var(--color-muted)]">
+              {dashboard.checklist[item.id as keyof typeof dashboard.checklist] ?? item.label}
+            </p>
             <div className="mt-3 flex items-center justify-between gap-3">
-              <p className="text-lg font-semibold text-white">{item.complete ? "Complete" : "Pending"}</p>
-              <Badge tone={item.complete ? "success" : "warning"}>{item.complete ? "Done" : "Action needed"}</Badge>
+              <p className="text-lg font-semibold text-white">{item.complete ? dashboard.completeLabel : dashboard.pendingLabel}</p>
+              <Badge tone={item.complete ? "success" : "warning"}>{item.complete ? dashboard.done : dashboard.actionNeeded}</Badge>
             </div>
           </div>
         ))}
       </div>
 
       <div className="grid gap-3 md:grid-cols-6">
-        {["Basics", "Visuals", "Services", "Schedule", "Policies", "Submit"].map((label, index) => (
+        {dashboard.steps.map((label, index) => (
           <div
             key={label}
             className={`rounded-2xl border p-4 ${
               index <= step ? "border-[rgba(200,169,107,0.28)] bg-[rgba(200,169,107,0.1)]" : "border-white/8 bg-white/4"
             }`}
           >
-            <p className="text-xs uppercase tracking-[0.14em] text-[var(--color-muted)]">Step {index + 1}</p>
+            <p className="text-xs uppercase tracking-[0.14em] text-[var(--color-muted)]">{dashboard.stepLabel} {index + 1}</p>
             <p className="mt-2 text-sm font-semibold text-white">{label}</p>
           </div>
         ))}
@@ -1210,18 +1231,18 @@ export function DashboardOnboardingPage() {
 
       {step === 0 ? (
         <div className="panel p-6 text-sm text-[var(--color-secondary)]">
-          Current status: {businessStatusLabel(business.status)} / completion {business.profileCompletion}%
+          {dashboard.currentStatus}: {messages.admin.statuses[business.status] ?? businessStatusLabel(business.status)} / {dashboard.completion} {business.profileCompletion}%
         </div>
       ) : null}
 
       {step === 1 ? (
         <div className="panel space-y-4 p-6">
           <p className="text-sm text-[var(--color-secondary)]">
-            Gallery images: {getGalleryItems(business.media).length}
+            {dashboard.galleryImagesShort}: {getGalleryItems(business.media).length}
           </p>
           <div className="flex flex-col gap-3 md:flex-row">
             <input className="input-field" placeholder="https://..." value={galleryUrl} onChange={(event) => setGalleryUrl(event.target.value)} />
-            <input className="input-field" placeholder="Alt text" value={galleryAlt} onChange={(event) => setGalleryAlt(event.target.value)} />
+            <input className="input-field" placeholder={dashboard.altText} value={galleryAlt} onChange={(event) => setGalleryAlt(event.target.value)} />
             <Button
               onClick={() => {
                 if (!galleryUrl.trim()) return;
@@ -1230,7 +1251,7 @@ export function DashboardOnboardingPage() {
                 setGalleryAlt("");
               }}
             >
-              Add visual
+              {dashboard.addVisual}
             </Button>
           </div>
         </div>
@@ -1239,10 +1260,10 @@ export function DashboardOnboardingPage() {
       {step === 2 ? (
         <div className="panel space-y-4 p-6">
           <div className="grid gap-3 md:grid-cols-2">
-            <input className="input-field" placeholder="Service title" value={serviceForm.title} onChange={(event) => setServiceForm((current) => ({ ...current, title: event.target.value }))} />
-            <input className="input-field" placeholder="Description" value={serviceForm.description} onChange={(event) => setServiceForm((current) => ({ ...current, description: event.target.value }))} />
-            <input className="input-field" placeholder="Price" value={serviceForm.price} onChange={(event) => setServiceForm((current) => ({ ...current, price: event.target.value }))} />
-            <input className="input-field" placeholder="Duration" value={serviceForm.durationMinutes} onChange={(event) => setServiceForm((current) => ({ ...current, durationMinutes: event.target.value }))} />
+            <input className="input-field" placeholder={dashboard.serviceTitlePlaceholder} value={serviceForm.title} onChange={(event) => setServiceForm((current) => ({ ...current, title: event.target.value }))} />
+            <input className="input-field" placeholder={dashboard.descriptionField} value={serviceForm.description} onChange={(event) => setServiceForm((current) => ({ ...current, description: event.target.value }))} />
+            <input className="input-field" placeholder={dashboard.price} value={serviceForm.price} onChange={(event) => setServiceForm((current) => ({ ...current, price: event.target.value }))} />
+            <input className="input-field" placeholder={dashboard.duration} value={serviceForm.durationMinutes} onChange={(event) => setServiceForm((current) => ({ ...current, durationMinutes: event.target.value }))} />
           </div>
           <Button
             onClick={() => {
@@ -1258,7 +1279,7 @@ export function DashboardOnboardingPage() {
               setServiceForm({ title: "", description: "", price: "40", durationMinutes: "45", genderTarget: "unisex" });
             }}
           >
-            Add service
+            {dashboard.addService}
           </Button>
         </div>
       ) : null}
@@ -1269,7 +1290,7 @@ export function DashboardOnboardingPage() {
             <input className="input-field" type="time" value={bulkHours.open} onChange={(event) => setBulkHours((current) => ({ ...current, open: event.target.value }))} />
             <input className="input-field" type="time" value={bulkHours.close} onChange={(event) => setBulkHours((current) => ({ ...current, close: event.target.value }))} />
           </div>
-          <Button onClick={applyHours}>Apply to open days</Button>
+          <Button onClick={applyHours}>{dashboard.applyToOpenDays}</Button>
         </div>
       ) : null}
 
@@ -1286,7 +1307,7 @@ export function DashboardOnboardingPage() {
               })
             }
           >
-            Toggle booking mode and policy clarity
+            {dashboard.toggleBookingPolicy}
           </Button>
         </div>
       ) : null}
@@ -1294,15 +1315,15 @@ export function DashboardOnboardingPage() {
       {step === 5 ? (
         <div className="panel space-y-4 p-6">
           <Badge tone={business.status === "draft" || business.status === "changes_requested" ? "warning" : "success"}>
-            {business.status === "draft" || business.status === "changes_requested" ? "Ready to submit" : "Already live"}
+            {business.status === "draft" || business.status === "changes_requested" ? dashboard.readyToSubmit : dashboard.alreadyLive}
           </Badge>
           {business.status === "draft" || business.status === "changes_requested" ? (
             <Button onClick={() => updateBusinessBasics(business.id, { status: "pending_review" })}>
-              Submit for review
+              {dashboard.submitForReview}
             </Button>
           ) : (
             <div className="rounded-2xl border border-[rgba(59,178,115,0.22)] bg-[rgba(59,178,115,0.1)] p-4 text-sm text-[var(--color-success)]">
-              This demo owner profile is already live, so the onboarding flow acts as a quality checklist.
+              {dashboard.alreadyLiveDescription}
             </div>
           )}
         </div>
@@ -1310,10 +1331,10 @@ export function DashboardOnboardingPage() {
 
       <div className="flex gap-3">
         <Button variant="secondary" disabled={step === 0} onClick={() => setStep((current) => current - 1)}>
-          Previous
+          {dashboard.previous}
         </Button>
         <Button disabled={step === 5} onClick={() => setStep((current) => Math.min(current + 1, 5))}>
-          Continue
+          {dashboard.continue}
         </Button>
       </div>
     </div>

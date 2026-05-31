@@ -18,19 +18,19 @@ export default function OpenGraphImage() {
           flexDirection: "column",
           justifyContent: "space-between",
           background:
-            "radial-gradient(circle at top left, rgba(200,169,107,0.24), transparent 32%), radial-gradient(circle at top right, rgba(77,157,224,0.16), transparent 24%), #0f1115",
+            "linear-gradient(135deg, #241f1b 0%, #12100e 55%, #0c0d0c 100%)",
           padding: "72px",
-          color: "#f5f7fb",
+          color: "#fffaf0",
         }}
       >
         <div
           style={{
             display: "flex",
             alignItems: "center",
-            border: "1px solid rgba(255,255,255,0.08)",
-            background: "rgba(255,255,255,0.05)",
+            border: "1px solid rgba(240,179,95,0.28)",
+            background: "rgba(255,250,240,0.06)",
             padding: "14px 24px",
-            borderRadius: "999px",
+            borderRadius: "14px",
             fontSize: 28,
             alignSelf: "flex-start",
           }}
@@ -41,7 +41,7 @@ export default function OpenGraphImage() {
           <div style={{ fontSize: 78, fontWeight: 700, lineHeight: 1.05 }}>
             The modern booking platform for beauty businesses in Tunisia.
           </div>
-          <div style={{ fontSize: 32, color: "#c7cfda" }}>
+          <div style={{ fontSize: 32, color: "#dccfbf" }}>
             Premium design. Fast booking. Clean business operations.
           </div>
         </div>

@@ -92,7 +92,7 @@ function mapPolicies(seed: LegacyBusinessSeed["policies"]): BusinessPolicy {
     cancellationNotice: seed.cancellationNotice,
     lateArrivalGraceMinutes: getLateGraceMinutes(seed.lateArrivalRule),
     noShowRule:
-      "Deux absences non annulees peuvent limiter la priorite sur les prochains creneaux.",
+      "Deux absences non annulées peuvent limiter la priorité sur les prochains créneaux.",
     hygieneNote: seed.hygieneNote,
     depositRequired: false,
     childrenAccepted: true,
@@ -138,16 +138,16 @@ function mapBusiness(seed: LegacyBusinessSeed): Business {
         status,
         internalNote:
           status === "changes_requested"
-            ? "Profil presque pret mais demande de meilleures photos et horaires plus precis."
+            ? "Profil presque prêt, mais il demande de meilleures photos et des horaires plus précis."
             : status === "pending_review"
-              ? "En attente de verification finale avant mise en ligne."
-              : "Profil valide pour la marketplace.",
+              ? "En attente de vérification finale avant mise en ligne."
+              : "Profil valide pour la place de marché.",
         businessMessage:
           status === "changes_requested"
             ? "Ajoutez plus de visuels et clarifiez vos horaires pour passer en revue finale."
             : status === "pending_review"
               ? "Votre fiche est en cours de revue."
-              : "Votre fiche respecte les exigences de qualite.",
+              : "Votre fiche respecte les exigences de qualité.",
         changedAt: formatISO(dayAt(-1, 10, 0)),
       },
     ],
@@ -233,7 +233,7 @@ export const categories: Category[] = [
     name: "Barbiers",
     slug: "barbers",
     shortLabel: "Barbers",
-    description: "Fades, grooming et barbe avec une experience premium.",
+    description: "Fades, grooming et barbe avec une expérience premium.",
     icon: "ScissorsLineDashed",
   },
   {
@@ -246,10 +246,10 @@ export const categories: Category[] = [
   },
   {
     id: "cat-beauty",
-    name: "Centres de beaute",
+    name: "Centres de beauté",
     slug: "beauty-centers",
     shortLabel: "Beauté",
-    description: "Soins visage, maquillage et routines beaute en un seul lieu.",
+    description: "Soins visage, maquillage et routines beauté en un seul lieu.",
     icon: "Flower2",
   },
   {
@@ -265,7 +265,7 @@ export const categories: Category[] = [
     name: "Spas & hammams",
     slug: "spas",
     shortLabel: "Spa",
-    description: "Massages, hammam, rituels corps et detente profonde.",
+    description: "Massages, hammam, rituels corps et détente profonde.",
     icon: "Leaf",
   },
 ];
@@ -276,39 +276,39 @@ export const cities: City[] = [
     name: "Tunis",
     slug: "tunis",
     heroCopy:
-      "Les adresses les plus reservees autour du centre-ville, du Lac et de La Marsa.",
+      "Les adresses les plus réservées autour du centre-ville, du Lac et de La Marsa.",
   },
   {
     id: "city-sousse",
     name: "Sousse",
     slug: "sousse",
-    heroCopy: "Des salons modernes et des spots bien-etre qui convertissent bien sur mobile.",
+    heroCopy: "Des salons modernes et des spots bien-être qui convertissent bien sur mobile.",
   },
   {
     id: "city-sfax",
     name: "Sfax",
     slug: "sfax",
-    heroCopy: "Une scene beaute locale exigeante, parfaite pour un produit simple et premium.",
+    heroCopy: "Une scène beauté locale exigeante, parfaite pour un produit simple et premium.",
   },
   {
     id: "city-ariana",
     name: "Ariana",
     slug: "ariana",
     heroCopy:
-      "Une zone dense avec de fortes habitudes WhatsApp et beaucoup d'opportunites B2B.",
+      "Une zone dense avec de fortes habitudes WhatsApp et beaucoup d’opportunités B2B.",
   },
   {
     id: "city-nabeul",
     name: "Nabeul",
     slug: "nabeul",
     heroCopy:
-      "Des studios beaute de quartier qui ont besoin de visibilite et d'un agenda propre.",
+      "Des studios beauté de quartier qui ont besoin de visibilité et d’un agenda propre.",
   },
   {
     id: "city-hammamet",
     name: "Hammamet",
     slug: "hammamet",
-    heroCopy: "Ideal pour les spas, salons premium et experiences bien-etre destination.",
+    heroCopy: "Idéal pour les spas, salons premium et expériences bien-être destination.",
   },
 ];
 
@@ -319,7 +319,7 @@ const atlasServices = [
     "Skin fade signature",
     35,
     45,
-    "Degrade ultra propre, contour precision et finition vapeur chaude.",
+    "Dégradé ultra propre, contour précision et finition vapeur chaude.",
     "men",
     true,
   ),
@@ -329,7 +329,7 @@ const atlasServices = [
     "Barbe + serviette chaude",
     28,
     30,
-    "Taille, line-up et soin finition huile parfumee.",
+    "Taille, line-up et soin finition huile parfumée.",
     "men",
   ),
   buildService(
@@ -338,7 +338,7 @@ const atlasServices = [
     "Coupe classique",
     25,
     30,
-    "Coupe propre pour rendez-vous rapides et regulierement reserves.",
+    "Coupe propre pour rendez-vous rapides et régulièrement réservés.",
     "men",
   ),
   buildService(
@@ -347,7 +347,7 @@ const atlasServices = [
     "Pack premium coupe + barbe",
     55,
     60,
-    "Le combo le plus reserve le vendredi et avant week-end.",
+    "Le combo le plus réservé le vendredi et avant week-end.",
     "men",
   ),
   buildService(
@@ -356,7 +356,7 @@ const atlasServices = [
     "Soin detox visage",
     22,
     25,
-    "Nettoyage express ideal apres coupe ou barbe.",
+    "Nettoyage express idéal après coupe ou barbe.",
     "men",
   ),
 ];
@@ -387,25 +387,25 @@ const nouraServices = [
     "Coupe + brushing",
     70,
     60,
-    "Coupe conseil et mise en forme complete.",
+    "Coupe conseil et mise en forme complète.",
     "women",
   ),
   buildService(
     "biz-noura",
     "srv-noura-treatment",
-    "Soin profond keratine",
+    "Soin profond kératine",
     120,
     75,
-    "Soin nutritif pour cheveux fatigues ou colores.",
+    "Soin nutritif pour cheveux fatigués ou colorés.",
     "women",
   ),
   buildService(
     "biz-noura",
     "srv-noura-party",
-    "Coiffure event",
+    "Coiffure événement",
     140,
     90,
-    "Attachee ou ondulations douces pour mariage et soiree.",
+    "Attache ou ondulations douces pour mariage et soirée.",
     "women",
   ),
 ];
@@ -414,7 +414,7 @@ const jasminServices = [
   buildService(
     "biz-jasmin",
     "srv-jasmin-facial",
-    "Soin visage eclat",
+    "Soin visage éclat",
     68,
     60,
     "Nettoyage profond, vapeur douce et masque glow.",
@@ -442,10 +442,10 @@ const jasminServices = [
   buildService(
     "biz-jasmin",
     "srv-jasmin-wax",
-    "Epilation jambes",
+    "Épilation jambes",
     40,
     35,
-    "Service express reserve surtout en semaine.",
+    "Service express réserve surtout en semaine.",
     "women",
   ),
   buildService(
@@ -454,7 +454,7 @@ const jasminServices = [
     "Lash lift",
     78,
     50,
-    "Courbure douce et regard defini sans mascara.",
+    "Courbure douce et regard défini sans mascara.",
     "women",
   ),
 ];
@@ -466,7 +466,7 @@ const nudeServices = [
     "Pose gel signature",
     58,
     75,
-    "Pose structuree propre avec couleur nude ou french.",
+    "Pose structurée propre avec couleur nude ou french.",
     "women",
     true,
   ),
@@ -482,10 +482,10 @@ const nudeServices = [
   buildService(
     "biz-nude",
     "srv-nude-pedi",
-    "Pedicure spa",
+    "Pédicure spa",
     44,
     45,
-    "Bain, gommage leger et vernis simple.",
+    "Bain, gommage léger et vernis simple.",
     "women",
   ),
   buildService(
@@ -494,16 +494,16 @@ const nudeServices = [
     "Nail art minimal",
     18,
     20,
-    "Ajout detail chrome, ligne fine ou accent dore.",
+    "Ajout détail chrome, ligne fine ou accent doré.",
     "women",
   ),
   buildService(
     "biz-nude",
     "srv-nude-removal",
-    "Depose + soin",
+    "Dépose + soin",
     20,
     25,
-    "Retrait propre sans agresser l'ongle naturel.",
+    "Retrait propre sans agresser l’ongle naturel.",
     "women",
   ),
 ];
@@ -525,7 +525,7 @@ const hammamServices = [
     "Massage relaxant 60 min",
     110,
     60,
-    "Pression moyenne et ambiance tres calme.",
+    "Pression moyenne et ambiance très calme.",
     "unisex",
   ),
   buildService(
@@ -580,7 +580,7 @@ const baseBusinesses: LegacyBusinessSeed[] = [
     instagram: "@atlasbarberclub",
     tagline: "Fades propres, barbe nette, service sans friction.",
     description:
-      "Atlas Barber Club est pense pour les rendez-vous rapides mais impeccables. Les services sont clairs, les prix visibles et le prochain slot libre apparait tout de suite sur mobile.",
+      "Atlas Barber Club est pensé pour les rendez-vous rapides mais impeccables. Les services sont clairs, les prix visibles et le prochain créneau libre apparaît tout de suite sur mobile.",
     logoText: "AB",
     coverUrl:
       "https://images.unsplash.com/photo-1622286342621-4bd786c2447c?auto=format&fit=crop&w=1200&q=80",
@@ -589,8 +589,8 @@ const baseBusinesses: LegacyBusinessSeed[] = [
     profileCompletion: 0,
     audience: "men",
     yearsInBusiness: 6,
-    featuredCopy: "Le plus reserve aujourd'hui a Tunis.",
-    responseWindow: "Repond en moins de 15 min",
+    featuredCopy: "Le plus réservé aujourd’hui à Tunis.",
+    responseWindow: "Répond en moins de 15 min",
     services: atlasServices,
     hours: buildHours("biz-atlas", {
       open: "09:00",
@@ -604,7 +604,7 @@ const baseBusinesses: LegacyBusinessSeed[] = [
         businessId: "biz-atlas",
         startAt: formatISO(dayAt(0, 18, 0)),
         endAt: formatISO(dayAt(0, 19, 0)),
-        reason: "Formation equipe",
+        reason: "Formation équipe",
       },
     ],
     media: [
@@ -645,9 +645,9 @@ const baseBusinesses: LegacyBusinessSeed[] = [
       },
     ],
     policies: {
-      cancellationNotice: "Annulation ideale 3h avant le rendez-vous.",
+      cancellationNotice: "Annulation idéale 3 h avant le rendez-vous.",
       lateArrivalRule: "10 min de retard max avant replanification.",
-      hygieneNote: "Outils desinfectes entre chaque client.",
+      hygieneNote: "Outils désinfectés entre chaque client.",
     },
     metrics: {
       profileViews: 782,
@@ -672,7 +672,7 @@ const baseBusinesses: LegacyBusinessSeed[] = [
     instagram: "@maisonnoura.tn",
     tagline: "Coloration, brushing et finitions ultra propres.",
     description:
-      "Maison Noura vise une clientele qui veut reserver vite mais sentir un vrai niveau de standing. Les services sont presentes comme un menu clair, avec durees precises et disponibilites visibles.",
+      "Maison Noura vise une clientèle qui veut réserver vite mais sentir un vrai niveau de standing. Les services sont présentés comme un menu clair, avec durées précises et disponibilités visibles.",
     logoText: "MN",
     coverUrl:
       "https://images.unsplash.com/photo-1562322140-8baeececf3df?auto=format&fit=crop&w=1200&q=80",
@@ -681,8 +681,8 @@ const baseBusinesses: LegacyBusinessSeed[] = [
     profileCompletion: 0,
     audience: "women",
     yearsInBusiness: 4,
-    featuredCopy: "Un salon premium tres partage sur Instagram.",
-    responseWindow: "Repond en moins de 30 min",
+    featuredCopy: "Un salon premium très partagé sur Instagram.",
+    responseWindow: "Répond en moins de 30 min",
     services: nouraServices,
     hours: buildHours("biz-noura", {
       open: "10:00",
@@ -737,9 +737,9 @@ const baseBusinesses: LegacyBusinessSeed[] = [
       },
     ],
     policies: {
-      cancellationNotice: "Annulation souhaitee 6h avant.",
-      lateArrivalRule: "15 min de retard max pour garder le slot.",
-      hygieneNote: "Serviettes et postes renouvelles entre chaque cliente.",
+      cancellationNotice: "Annulation souhaitée 6 h avant.",
+      lateArrivalRule: "15 min de retard max pour garder le créneau.",
+      hygieneNote: "Serviettes et postes renouvelés entre chaque cliente.",
     },
     metrics: {
       profileViews: 640,
@@ -764,7 +764,7 @@ const baseBusinesses: LegacyBusinessSeed[] = [
     instagram: "@studiojasmin.sousse",
     tagline: "Soins visage, lashes et make-up dans un seul espace calme.",
     description:
-      "Studio Jasmin transforme la fiche business en vraie vitrine. Les photos rassurent, les services sont nets, et la prochaine dispo est visible sans appeler ni envoyer trois messages WhatsApp.",
+      "Studio Jasmin transforme la fiche partenaire en vraie vitrine. Les photos rassurent, les services sont nets, et la prochaine disponibilité est visible sans appeler ni envoyer trois messages WhatsApp.",
     logoText: "SJ",
     coverUrl:
       "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=1200&q=80",
@@ -773,7 +773,7 @@ const baseBusinesses: LegacyBusinessSeed[] = [
     profileCompletion: 0,
     audience: "women",
     yearsInBusiness: 5,
-    responseWindow: "Repond en moins de 45 min",
+    responseWindow: "Répond en moins de 45 min",
     services: jasminServices,
     hours: buildHours("biz-jasmin", {
       open: "09:30",
@@ -820,9 +820,9 @@ const baseBusinesses: LegacyBusinessSeed[] = [
       },
     ],
     policies: {
-      cancellationNotice: "Annulation souhaitee 4h avant.",
-      lateArrivalRule: "10 min avant mise en attente du slot.",
-      hygieneNote: "Cabine preparee et materiel sterilise.",
+      cancellationNotice: "Annulation souhaitée 4 h avant.",
+      lateArrivalRule: "10 min avant mise en attente du créneau.",
+      hygieneNote: "Cabine préparée et matériel stérilisé.",
     },
     metrics: {
       profileViews: 422,
@@ -845,9 +845,9 @@ const baseBusinesses: LegacyBusinessSeed[] = [
     phone: "+216 28 774 201",
     whatsapp: "+216 28 774 201",
     instagram: "@nudenailatelier",
-    tagline: "Ongles propres, design minimal et timing bien gere.",
+    tagline: "Ongles propres, design minimal et timing bien géré.",
     description:
-      "Nude Nail Atelier montre a quoi doit ressembler une fiche premium: image forte, slots propres, infos de confiance et reservation en moins d'une minute depuis mobile.",
+      "Nude Nail Atelier montre à quoi doit ressembler une fiche premium : image forte, créneaux propres, infos de confiance et réservation en moins d’une minute depuis mobile.",
     logoText: "NN",
     coverUrl:
       "https://images.unsplash.com/photo-1604654894610-df63bc536371?auto=format&fit=crop&w=1200&q=80",
@@ -857,7 +857,7 @@ const baseBusinesses: LegacyBusinessSeed[] = [
     audience: "women",
     yearsInBusiness: 3,
     featuredCopy: "Le studio nails qui convertit le mieux sur mobile.",
-    responseWindow: "Repond en moins de 20 min",
+    responseWindow: "Répond en moins de 20 min",
     services: nudeServices,
     hours: buildHours("biz-nude", {
       open: "10:00",
@@ -912,9 +912,9 @@ const baseBusinesses: LegacyBusinessSeed[] = [
       },
     ],
     policies: {
-      cancellationNotice: "Annulation souhaitee 4h avant.",
+      cancellationNotice: "Annulation souhaitée 4 h avant.",
       lateArrivalRule: "10 min max avant adaptation du service.",
-      hygieneNote: "Limes a usage unique et poste desinfecte.",
+      hygieneNote: "Limes à usage unique et poste désinfecté.",
     },
     metrics: {
       profileViews: 588,
@@ -937,9 +937,9 @@ const baseBusinesses: LegacyBusinessSeed[] = [
     phone: "+216 29 882 410",
     whatsapp: "+216 29 882 410",
     instagram: "@hammamelegance",
-    tagline: "Rituels spa et hammam reserves comme une table haut de gamme.",
+    tagline: "Rituels spa et hammam réservés comme une table haut de gamme.",
     description:
-      "Hammam Elegance donne au spa une presence digitale plus serieuse: beau visuel, menu clair, creneaux libres, infos de politique et contact WhatsApp en secours.",
+      "Hammam Elegance donne au spa une présence digitale plus sérieuse : beau visuel, menu clair, créneaux libres, infos de politique et contact WhatsApp en secours.",
     logoText: "HE",
     coverUrl:
       "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?auto=format&fit=crop&w=1200&q=80",
@@ -948,7 +948,7 @@ const baseBusinesses: LegacyBusinessSeed[] = [
     profileCompletion: 0,
     audience: "unisex",
     yearsInBusiness: 8,
-    responseWindow: "Repond en moins de 1h",
+    responseWindow: "Répond en moins de 1 h",
     services: hammamServices,
     hours: buildHours("biz-hammam", {
       open: "10:00",
@@ -994,9 +994,9 @@ const baseBusinesses: LegacyBusinessSeed[] = [
       },
     ],
     policies: {
-      cancellationNotice: "Annulation souhaitee 12h avant.",
+      cancellationNotice: "Annulation souhaitée 12 h avant.",
       lateArrivalRule: "15 min max pour garder le rituel complet.",
-      hygieneNote: "Cabines, draps et zones humides controles toute la journee.",
+      hygieneNote: "Cabines, draps et zones humides contrôlées toute la journée.",
     },
     metrics: {
       profileViews: 356,
@@ -1021,7 +1021,7 @@ const baseBusinesses: LegacyBusinessSeed[] = [
     instagram: "@rubyblow.studio",
     tagline: "Nouveau salon en attente de validation.",
     description:
-      "Le profil est presque pret mais il manque encore un cover plus propre et quelques services detaillees.",
+      "Le profil est presque prêt, mais il manque encore une couverture plus propre et quelques services détaillés.",
     logoText: "RB",
     coverUrl:
       "https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?auto=format&fit=crop&w=1200&q=80",
@@ -1030,7 +1030,7 @@ const baseBusinesses: LegacyBusinessSeed[] = [
     profileCompletion: 0,
     audience: "women",
     yearsInBusiness: 1,
-    responseWindow: "Repond dans la journee",
+    responseWindow: "Répond dans la journée",
     services: pendingSalonServices,
     hours: buildHours("biz-ruby", {
       open: "09:00",
@@ -1048,7 +1048,7 @@ const baseBusinesses: LegacyBusinessSeed[] = [
       },
     ],
     policies: {
-      cancellationNotice: "Annulation 4h avant.",
+      cancellationNotice: "Annulation 4 h avant.",
       lateArrivalRule: "15 min max.",
     },
     metrics: {
@@ -1072,9 +1072,9 @@ const baseBusinesses: LegacyBusinessSeed[] = [
     phone: "+216 27 110 805",
     whatsapp: "+216 27 110 805",
     instagram: "@linawellnesshouse",
-    tagline: "Centre beaute en attente de retouches avant mise en ligne.",
+    tagline: "Centre beauté en attente de retouches avant mise en ligne.",
     description:
-      "Le centre doit encore completer ses horaires et enrichir sa galerie avant approbation finale.",
+      "Le centre doit encore compléter ses horaires et enrichir sa galerie avant approbation finale.",
     logoText: "LW",
     coverUrl:
       "https://images.unsplash.com/photo-1512290923902-8a9f81dc236c?auto=format&fit=crop&w=1200&q=80",
@@ -1083,7 +1083,7 @@ const baseBusinesses: LegacyBusinessSeed[] = [
     profileCompletion: 0,
     audience: "women",
     yearsInBusiness: 2,
-    responseWindow: "Repond dans la journee",
+    responseWindow: "Répond dans la journée",
     services: pendingBeautyServices,
     hours: buildHours("biz-lina", {
       open: "10:00",
@@ -1101,7 +1101,7 @@ const baseBusinesses: LegacyBusinessSeed[] = [
       },
     ],
     policies: {
-      cancellationNotice: "Annulation 4h avant.",
+      cancellationNotice: "Annulation 4 h avant.",
       lateArrivalRule: "10 min max.",
     },
     metrics: {
@@ -1126,7 +1126,7 @@ const baseBookings: LegacyBookingSeed[] = [
     serviceId: "srv-atlas-fade",
     customerName: "Youssef Ben Ali",
     customerPhone: "+216 95 001 221",
-    customerNote: "Besoin d'une coupe nette avant reunion.",
+    customerNote: "Besoin d’une coupe nette avant réunion.",
     startAt: formatISO(dayAt(0, 10, 0)),
     endAt: formatISO(addMinutes(dayAt(0, 10, 0), 45)),
     status: "confirmed",
@@ -1230,7 +1230,7 @@ export const initialWaitlistRequests: WaitlistRequest[] = [
     customerPhone: "+216 24 441 008",
     preferredDate: formatISO(dayAt(3, 0, 0)),
     preferredTime: "17:00 - 19:00",
-    note: "Prefer a late afternoon hammam slot if something opens up.",
+    note: "Je préfère un créneau hammam en fin d’après-midi si quelque chose se libère.",
     createdAt: formatISO(dayAt(-1, 16, 0)),
   },
 ];
