@@ -96,10 +96,10 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-40 border-b border-[rgba(54,43,35,0.08)] bg-[rgba(255,250,243,0.88)] backdrop-blur-xl">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 py-3 md:px-6">
           <Link href="/" className="group flex items-center gap-3">
-            <LogoMark label="RT" />
+            <LogoMark label="Reservee_TN" brand />
             <div>
               <p className="font-heading text-base font-semibold text-[var(--color-foreground)] transition-colors group-hover:text-[var(--color-accent)]">
-                Reservee TN
+                Reservee_TN
               </p>
               <p className="hidden text-xs text-[var(--color-muted)] sm:block">
                 {messages.shell.tagline}
@@ -178,9 +178,9 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
       <footer className="hidden border-t border-[rgba(54,43,35,0.08)] bg-[rgba(255,250,243,0.72)] md:block">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-6 px-6 py-8">
           <div className="flex items-center gap-3">
-            <LogoMark label="RT" />
+            <LogoMark label="Reservee_TN" brand />
             <div>
-              <p className="font-heading font-semibold text-[var(--color-foreground)]">Reservee TN</p>
+              <p className="font-heading font-semibold text-[var(--color-foreground)]">Reservee_TN</p>
               <p className="text-sm text-[var(--color-muted)]">{messages.shell.tagline}</p>
             </div>
           </div>

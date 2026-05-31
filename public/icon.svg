@@ -1,22 +1,57 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Reservee_TN logo">
   <defs>
-    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
-      <stop offset="0%" stop-color="#241f1b" />
-      <stop offset="54%" stop-color="#12100e" />
-      <stop offset="100%" stop-color="#0c0d0c" />
+    <linearGradient id="gold" x1="120" x2="408" y1="88" y2="430" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff1a8" />
+      <stop offset="0.42" stop-color="#f2c86f" />
+      <stop offset="1" stop-color="#b87328" />
     </linearGradient>
+    <filter id="soft-glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
   </defs>
-  <rect width="512" height="512" rx="72" fill="url(#bg)" />
-  <rect x="54" y="54" width="404" height="404" rx="56" fill="none" stroke="#f0b35f" stroke-opacity="0.42" stroke-width="12" />
-  <text
-    x="256"
-    y="300"
-    text-anchor="middle"
-    font-size="180"
-    font-family="Inter, Arial, sans-serif"
-    font-weight="700"
-    fill="#fffaf0"
-  >
-    RT
-  </text>
+  <rect width="512" height="512" rx="96" fill="#030303" />
+  <path
+    d="M150 116h212c35 0 62 27 62 62v157c0 39-32 71-71 71H159c-39 0-71-32-71-71V178c0-35 27-62 62-62Z"
+    fill="none"
+    stroke="url(#gold)"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    stroke-width="28"
+    filter="url(#soft-glow)"
+  />
+  <path
+    d="M188 72v70M324 72v70M226 116h60"
+    stroke="url(#gold)"
+    stroke-linecap="round"
+    stroke-width="34"
+  />
+  <path
+    d="M274 210h58c60 0 98 34 98 85 0 53-38 88-99 88h-70l137 75"
+    fill="none"
+    stroke="url(#gold)"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    stroke-width="35"
+  />
+  <path
+    d="M260 383c43 0 72 31 101 74"
+    fill="none"
+    stroke="url(#gold)"
+    stroke-linecap="round"
+    stroke-width="35"
+  />
+  <path
+    d="M256 278c27-12 45-32 53-65 8 33 26 53 54 65-28 12-46 32-54 65-8-33-26-53-53-65Z"
+    fill="url(#gold)"
+  />
+  <rect x="157" y="211" width="32" height="32" rx="8" fill="url(#gold)" />
+  <rect x="226" y="211" width="32" height="32" rx="8" fill="url(#gold)" />
+  <rect x="157" y="280" width="32" height="32" rx="8" fill="url(#gold)" />
+  <rect x="226" y="280" width="32" height="32" rx="8" fill="url(#gold)" />
+  <rect x="157" y="349" width="32" height="32" rx="8" fill="url(#gold)" />
+  <rect x="226" y="349" width="32" height="32" rx="8" fill="url(#gold)" />
 </svg>

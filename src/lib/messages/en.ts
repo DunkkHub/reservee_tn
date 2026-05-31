@@ -290,7 +290,7 @@ export const enMessages = {
     pwaBadge: "Mobile-first",
     pwaTitle: "Installable, shareable, app-like",
     pwaDescription:
-      "Save Reservee TN to your phone, share listings instantly, and come back without digging through messages.",
+      "Save Reservee_TN to your phone, share listings instantly, and come back without digging through messages.",
     pwaPoints: [
       "Search by city, category, service, or business name",
       "Trusted profiles with verification and policy signals",
@@ -406,7 +406,7 @@ export const enMessages = {
     useDifferentCredentials: "Use different details",
     forgotPassword: "Forgot password?",
     adminNote:
-      "Use your Reservee TN account to continue.",
+      "Use your Reservee_TN account to continue.",
     registerEyebrow: "Register",
     registerTitle: "Create your account",
     registerDescription: "Start booking or bring your business online.",
@@ -668,7 +668,7 @@ export const enMessages = {
     badge: "For businesses",
     title: "Get booked, stay organized, and look premium online.",
     description:
-      "Reservee TN helps barbers, salons, beauty centers, nail studios, and spas in Tunisia turn attention into booked appointments.",
+      "Reservee_TN helps barbers, salons, beauty centers, nail studios, and spas in Tunisia turn attention into booked appointments.",
     createShopAccount: "Create shop account",
     openDashboard: "Open dashboard",
     bullets: [

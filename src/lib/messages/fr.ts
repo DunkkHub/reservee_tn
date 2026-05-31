@@ -290,7 +290,7 @@ export const frMessages = {
     pwaBadge: "Mobile d’abord",
     pwaTitle: "Installable, partageable, comme une app",
     pwaDescription:
-      "Ajoutez Reservee TN à votre téléphone, partagez une fiche en un instant et revenez sans chercher dans vos messages.",
+      "Ajoutez Reservee_TN à votre téléphone, partagez une fiche en un instant et revenez sans chercher dans vos messages.",
     pwaPoints: [
       "Recherche par ville, catégorie, service ou nom d’établissement",
       "Profils de confiance avec vérification et signaux de politique",
@@ -406,7 +406,7 @@ export const frMessages = {
     useDifferentCredentials: "Utiliser d’autres informations",
     forgotPassword: "Mot de passe oublié ?",
     adminNote:
-      "Utilisez votre compte Reservee TN pour continuer.",
+      "Utilisez votre compte Reservee_TN pour continuer.",
     registerEyebrow: "Inscription",
     registerTitle: "Créez votre compte",
     registerDescription: "Réservez plus vite ou mettez votre adresse en ligne.",
@@ -668,7 +668,7 @@ export const frMessages = {
     badge: "Pour les établissements",
     title: "Recevez plus de réservations et paraissez premium en ligne.",
     description:
-      "Reservee TN aide les barbiers, salons, centres beauté, studios onglerie et spas en Tunisie à recevoir plus de réservations avec une image premium.",
+      "Reservee_TN aide les barbiers, salons, centres beauté, studios onglerie et spas en Tunisie à recevoir plus de réservations avec une image premium.",
     createShopAccount: "Créer un compte établissement",
     openDashboard: "Ouvrir le tableau de bord",
     bullets: [

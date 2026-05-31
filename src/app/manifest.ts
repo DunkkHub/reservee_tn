@@ -2,13 +2,13 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Reservee TN",
-    short_name: "Reservee",
-    description: "The modern booking platform for beauty businesses in Tunisia.",
+    name: "Reservee_TN",
+    short_name: "Reservee_TN",
+    description: "Book beauty. Feel confident.",
     start_url: "/",
     display: "standalone",
-    background_color: "#12100e",
-    theme_color: "#12100e",
+    background_color: "#030303",
+    theme_color: "#030303",
     lang: "fr",
     orientation: "portrait",
     icons: [

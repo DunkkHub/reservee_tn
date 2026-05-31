@@ -30,30 +30,30 @@ const cairo = Cairo({
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "Reservee TN",
-    template: "%s | Reservee TN",
+    default: "Reservee_TN",
+    template: "%s | Reservee_TN",
   },
   description:
     "The modern booking platform for beauty businesses in Tunisia.",
-  applicationName: "Reservee TN",
+  applicationName: "Reservee_TN",
   appleWebApp: {
     capable: true,
-    title: "Reservee TN",
+    title: "Reservee_TN",
     statusBarStyle: "black-translucent",
   },
   formatDetection: {
     telephone: true,
   },
   openGraph: {
-    title: "Reservee TN",
+    title: "Reservee_TN",
     description:
       "Discover and book trusted salons, barbers, spas, beauty centers and nail studios across Tunisia.",
-    siteName: "Reservee TN",
+    siteName: "Reservee_TN",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Reservee TN",
+    title: "Reservee_TN",
     description:
       "A mobile-first premium beauty booking PWA for Tunisia.",
   },

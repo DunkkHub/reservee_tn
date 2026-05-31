@@ -25,10 +25,10 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-4 md:px-6 md:py-6">
         <header className="panel grid-sheen flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
-            <LogoMark label="AD" />
+            <LogoMark label="Reservee_TN" brand />
             <div>
               <p className="font-heading text-xl font-semibold text-[var(--color-foreground)]">
-                Reservee Admin
+                Reservee_TN Admin
               </p>
               <p className="text-sm text-[var(--color-secondary)]">
                 {user?.name

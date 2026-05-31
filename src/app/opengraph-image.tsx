@@ -15,34 +15,122 @@ export default function OpenGraphImage() {
           width: "100%",
           height: "100%",
           display: "flex",
-          flexDirection: "column",
-          justifyContent: "space-between",
-          background:
-            "linear-gradient(135deg, #241f1b 0%, #12100e 55%, #0c0d0c 100%)",
-          padding: "72px",
-          color: "#fffaf0",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "#030303",
+          color: "#f2c86f",
+          padding: "70px",
         }}
       >
         <div
           style={{
             display: "flex",
+            flexDirection: "column",
             alignItems: "center",
-            border: "1px solid rgba(240,179,95,0.28)",
-            background: "rgba(255,250,240,0.06)",
-            padding: "14px 24px",
-            borderRadius: "14px",
-            fontSize: 28,
-            alignSelf: "flex-start",
+            gap: "28px",
           }}
         >
-          Reservee TN
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-          <div style={{ fontSize: 78, fontWeight: 700, lineHeight: 1.05 }}>
-            The modern booking platform for beauty businesses in Tunisia.
+          <div
+            style={{
+              position: "relative",
+              display: "flex",
+              width: 220,
+              height: 220,
+              color: "#f2c86f",
+            }}
+          >
+            <div
+              style={{
+                position: "absolute",
+                left: 24,
+                top: 44,
+                width: 140,
+                height: 140,
+                border: "10px solid #f2c86f",
+                borderRadius: 24,
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                left: 66,
+                top: 22,
+                width: 16,
+                height: 40,
+                borderRadius: 10,
+                background: "#f2c86f",
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                left: 130,
+                top: 22,
+                width: 16,
+                height: 40,
+                borderRadius: 10,
+                background: "#f2c86f",
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                left: 102,
+                top: 58,
+                fontSize: 128,
+                fontWeight: 800,
+                lineHeight: 1,
+                fontFamily: "Georgia, serif",
+                letterSpacing: -4,
+              }}
+            >
+              R
+            </div>
+            <div
+              style={{
+                position: "absolute",
+                left: 118,
+                top: 114,
+                width: 24,
+                height: 24,
+                borderRadius: 5,
+                background: "#ffe39a",
+                transform: "rotate(45deg)",
+              }}
+            />
           </div>
-          <div style={{ fontSize: 32, color: "#dccfbf" }}>
-            Premium design. Fast booking. Clean business operations.
+          <div
+            style={{
+              fontSize: 104,
+              fontWeight: 500,
+              letterSpacing: -4,
+              lineHeight: 1,
+            }}
+          >
+            Reservee_TN
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 22 }}>
+            <div style={{ width: 240, height: 2, background: "#a86f24" }} />
+            <div
+              style={{
+                width: 18,
+                height: 18,
+                borderRadius: 4,
+                background: "#ffe39a",
+                transform: "rotate(45deg)",
+              }}
+            />
+            <div style={{ width: 240, height: 2, background: "#a86f24" }} />
+          </div>
+          <div
+            style={{
+              fontSize: 32,
+              letterSpacing: 12,
+              color: "#d9a64b",
+              textTransform: "uppercase",
+            }}
+          >
+            Book beauty. Feel confident
           </div>
         </div>
       </div>

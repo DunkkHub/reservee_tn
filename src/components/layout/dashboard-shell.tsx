@@ -45,10 +45,13 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         <aside className="panel grid-sheen sticky top-4 hidden h-[calc(100vh-2rem)] flex-col justify-between p-5 lg:flex">
           <div className="space-y-6">
             <Link href="/" className="flex items-center gap-3">
-              <LogoMark label={ownerBusiness?.logoText ?? "RT"} />
+              <LogoMark
+                label={ownerBusiness?.logoText ?? "Reservee_TN"}
+                brand={!ownerBusiness}
+              />
               <div>
                 <p className="font-heading text-lg font-semibold text-[var(--color-foreground)]">
-                  {ownerBusiness?.name ?? user?.businessName ?? "Reservee TN"}
+                  {ownerBusiness?.name ?? user?.businessName ?? "Reservee_TN"}
                 </p>
                 <p className="text-xs text-[var(--color-muted)]">
                   {user?.name
@@ -129,10 +132,13 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         <div className="space-y-6">
           <div className="flex items-center justify-between gap-4 lg:hidden">
             <Link href="/" className="flex items-center gap-3">
-              <LogoMark label={ownerBusiness?.logoText ?? "RT"} />
+              <LogoMark
+                label={ownerBusiness?.logoText ?? "Reservee_TN"}
+                brand={!ownerBusiness}
+              />
               <div>
                 <p className="font-heading text-base font-semibold text-[var(--color-foreground)]">
-                  {ownerBusiness?.name ?? user?.businessName ?? "Reservee TN"}
+                  {ownerBusiness?.name ?? user?.businessName ?? "Reservee_TN"}
                 </p>
                 <p className="text-xs text-[var(--color-muted)]">
                   {user?.name
